@@ -1,0 +1,24 @@
+# Local Postgres for development, matching the DATABASE_URL in .env.example.
+#
+# Usage:
+#   docker compose up -d      # start Postgres in the background
+#   npm start                 # backend connects to it automatically
+#
+# Data persists in the midfood_pgdata volume across restarts. To wipe it and
+# start fresh: `docker compose down -v`.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: midfood
+      POSTGRES_PASSWORD: midfood
+      POSTGRES_DB: midfood
+    ports:
+      - '5432:5432'
+    volumes:
+      - midfood_pgdata:/var/lib/postgresql/data
+
+volumes:
+  midfood_pgdata:

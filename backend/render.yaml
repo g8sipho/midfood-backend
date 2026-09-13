@@ -1,0 +1,41 @@
+# Render "Blueprint" — deploys the backend and a managed Postgres together.
+#
+# Usage: push this repo to GitHub, then in the Render dashboard choose
+# "New +" -> "Blueprint" and point it at the repo. Render reads this file and
+# provisions both resources, wiring DATABASE_URL automatically.
+#
+# If this repo's structure changes so the backend isn't at the top level
+# (e.g. once /mobile is added alongside it), keep `rootDir: backend` below
+# pointed at wherever this package.json actually lives, and move this file
+# to the repo root — Render looks for render.yaml there.
+#
+# Plan names (starter/standard/etc.) and free-tier availability change on
+# Render's side from time to time — double-check current options in the
+# Render dashboard before deploying, and adjust the `plan` values below if
+# they've been renamed or retired.
+
+services:
+  - type: web
+    name: midfood-backend
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: PGSSL
+        value: 'true'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: midfood-db
+          property: connectionString
+
+databases:
+  - name: midfood-db
+    plan: starter
+    databaseName: midfood
+    user: midfood

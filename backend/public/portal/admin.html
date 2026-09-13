@@ -260,9 +260,14 @@
         <td>${escapeHtml(r.name)}</td>
         <td>${r.username ? escapeHtml(r.username) : '—'}</td>
         <td><span class="pill ${r.hasAccount ? 'yes' : 'no'}">${r.hasAccount ? 'Active' : 'No login yet'}</span></td>
-        <td><button class="link-btn" data-action="set-account">${r.hasAccount ? 'Reset login' : 'Create login'}</button></td>
+        <td>
+          <button class="link-btn" data-action="set-account">${r.hasAccount ? 'Reset login' : 'Create login'}</button>
+          &nbsp;·&nbsp;
+          <button class="link-btn" data-action="delete" style="color: var(--error);">Delete</button>
+        </td>
       `;
       tr.querySelector('[data-action="set-account"]').addEventListener('click', () => setAccount(r));
+      tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteRestaurant(r));
       body.appendChild(tr);
     });
   }
@@ -279,6 +284,16 @@
       });
       await loadRestaurants();
       alert(`Done — give "${username}" / the password you entered to ${restaurant.name}.`);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function deleteRestaurant(restaurant) {
+    if (!confirm(`Delete "${restaurant.name}" and its entire menu? This can't be undone.`)) return;
+    try {
+      await adminFetch(`/api/admin/restaurants/${restaurant.id}`, { method: 'DELETE' });
+      await loadRestaurants();
     } catch (err) {
       alert(err.message);
     }

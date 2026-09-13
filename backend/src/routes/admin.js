@@ -99,4 +99,23 @@ router.post('/restaurants/:id/set-account', async (req, res, next) => {
   }
 });
 
+// DELETE /api/admin/restaurants/:id - remove a restaurant entirely (its menu
+// items go with it). Meant for cleaning up test entries; a restaurant that
+// already has real orders can't be deleted (orders keep a reference to it),
+// so this fails with a clear message instead of a raw database error.
+router.delete('/restaurants/:id', async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM restaurants WHERE id = $1', [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Restaurant not found' });
+    res.status(204).end();
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({
+        error: 'This restaurant already has orders on it, so it can\'t be deleted. Remove it from the app instead by having it mark all menu items sold out.',
+      });
+    }
+    next(err);
+  }
+});
+
 module.exports = router;

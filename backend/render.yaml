@@ -36,6 +36,6 @@ services:
 
 databases:
   - name: midfood-db
-    plan: starter
+    plan: basic-256mb
     databaseName: midfood
     user: midfood

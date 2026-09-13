@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MidFood Restaurant Portal</title>
+<style>
+  :root {
+    --bg-app: #faf9f5;
+    --bg-surface: #ffffff;
+    --bg-muted: #f0eee6;
+    --border: rgba(15, 12, 8, 0.12);
+    --text-primary: rgba(15, 12, 8, 0.92);
+    --text-secondary: rgba(15, 12, 8, 0.64);
+    --accent: #d97757;
+    --accent-hover: #c46a4d;
+    --success: #558a42;
+    --warning: #c9a82d;
+    --error: #a63244;
+    --shadow: rgba(20, 20, 19, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header .brand { font-size: 18px; font-weight: 700; }
+  header .brand span { color: var(--accent); }
+  header .subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  #logoutBtn {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 20px 64px; }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 3px var(--shadow);
+    margin-bottom: 20px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 17px; }
+  .card p.hint { margin: 0 0 18px; font-size: 13px; color: var(--text-secondary); }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--bg-app);
+    color: var(--text-primary);
+  }
+  textarea { resize: vertical; min-height: 44px; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 18px;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+  .error-msg {
+    color: var(--error);
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  #restaurantHeading { font-size: 20px; margin: 0 0 2px; }
+  #restaurantMeta { font-size: 13px; color: var(--text-secondary); margin: 0 0 20px; }
+  .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .item:last-child { border-bottom: none; }
+  .item.sold-out { opacity: 0.55; }
+  .item-main { flex: 1; }
+  .item-main .name { font-weight: 600; font-size: 15px; }
+  .item-main .desc { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .item-main .price { color: var(--accent); font-weight: 700; margin-top: 4px; font-size: 14px; }
+  .item-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; min-width: 108px; }
+  .item-actions button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+  .item-actions button.danger { color: var(--error); border-color: var(--error); }
+  .item-actions button.soldout-btn.is-sold-out { color: var(--success); border-color: var(--success); }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--warning);
+    border: 1px solid var(--warning);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 8px;
+  }
+  #emptyState { color: var(--text-secondary); font-size: 14px; padding: 12px 0; }
+  #view-login, #view-dashboard { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">Mid<span>Food</span> Restaurant Portal</div>
+    <div class="subtitle" id="headerSubtitle">Manage your menu</div>
+  </div>
+  <button id="logoutBtn">Log out</button>
+</header>
+
+<main>
+
+  <div id="view-login">
+    <div class="card">
+      <h2>Sign in</h2>
+      <p class="hint">Use the username and password MidFood gave you when your restaurant was added.</p>
+      <form id="loginForm">
+        <label for="loginUsername">Username</label>
+        <input id="loginUsername" autocomplete="username" required />
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" required />
+        <div class="error-msg" id="loginError"></div>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="view-dashboard">
+    <div class="card">
+      <h2 id="restaurantHeading">Restaurant</h2>
+      <p id="restaurantMeta"></p>
+
+      <h2 style="font-size:15px;">Add a menu item</h2>
+      <form id="addItemForm">
+        <label for="newName">Item name</label>
+        <input id="newName" required />
+        <label for="newDesc">Description</label>
+        <textarea id="newDesc" required></textarea>
+        <label for="newPrice">Price (R)</label>
+        <input id="newPrice" type="number" min="0" step="0.01" required />
+        <div class="error-msg" id="addItemError"></div>
+        <button class="primary" type="submit">Add item</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Your menu</h2>
+      <p class="hint">Mark an item sold out to hide it from customers without deleting it.</p>
+      <div id="emptyState" style="display:none;">No menu items yet — add your first one above.</div>
+      <div id="menuList"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const API = '';
+  let token = localStorage.getItem('midfood_portal_token') || null;
+
+  const el = (id) => document.getElementById(id);
+  const showError = (id, message) => {
+    const node = el(id);
+    node.textContent = message;
+    node.style.display = message ? 'block' : 'none';
+  };
+
+  function showView(view) {
+    el('view-login').style.display = view === 'login' ? 'block' : 'none';
+    el('view-dashboard').style.display = view === 'dashboard' ? 'block' : 'none';
+    el('logoutBtn').style.display = view === 'dashboard' ? 'inline-block' : 'none';
+  }
+
+  async function apiFetch(path, options = {}) {
+    const res = await fetch(API + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) logout();
+      throw new Error(data.error || 'Something went wrong');
+    }
+    return data;
+  }
+
+  function logout() {
+    token = null;
+    localStorage.removeItem('midfood_portal_token');
+    showView('login');
+  }
+  el('logoutBtn').addEventListener('click', logout);
+
+  el('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showError('loginError', '');
+    const username = el('loginUsername').value.trim();
+    const password = el('loginPassword').value;
+    try {
+      const data = await apiFetch('/api/restaurant-auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      token = data.token;
+      localStorage.setItem('midfood_portal_token', token);
+      await loadDashboard();
+    } catch (err) {
+      showError('loginError', err.message);
+    }
+  });
+
+  function renderMenu(items) {
+    const list = el('menuList');
+    list.innerHTML = '';
+    el('emptyState').style.display = items.length ? 'none' : 'block';
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'item' + (item.available ? '' : ' sold-out');
+      row.innerHTML = `
+        <div class="item-main">
+          <div class="name">${escapeHtml(item.name)}${item.available ? '' : '<span class="badge">SOLD OUT</span>'}</div>
+          <div class="desc">${escapeHtml(item.description)}</div>
+          <div class="price">R${Number(item.price).toFixed(2)}</div>
+        </div>
+        <div class="item-actions">
+          <button class="soldout-btn ${item.available ? '' : 'is-sold-out'}" data-action="toggle">${item.available ? 'Mark sold out' : 'Mark available'}</button>
+          <button data-action="edit">Edit</button>
+          <button class="danger" data-action="delete">Delete</button>
+        </div>
+      `;
+      row.querySelector('[data-action="toggle"]').addEventListener('click', () => toggleAvailability(item));
+      row.querySelector('[data-action="edit"]').addEventListener('click', () => editItem(item));
+      row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteItem(item));
+      list.appendChild(row);
+    });
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  async function toggleAvailability(item) {
+    await apiFetch(`/api/portal/menu/${item.id}/availability`, {
+      method: 'PATCH',
+      body: JSON.stringify({ available: !item.available }),
+    });
+    await loadMenu();
+  }
+
+  async function editItem(item) {
+    const name = prompt('Item name', item.name);
+    if (name === null) return;
+    const description = prompt('Description', item.description);
+    if (description === null) return;
+    const price = prompt('Price (R)', item.price);
+    if (price === null) return;
+    try {
+      await apiFetch(`/api/portal/menu/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, description, price: Number(price) }),
+      });
+      await loadMenu();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function deleteItem(item) {
+    if (!confirm(`Delete "${item.name}"? This can't be undone.`)) return;
+    await apiFetch(`/api/portal/menu/${item.id}`, { method: 'DELETE' });
+    await loadMenu();
+  }
+
+  el('addItemForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showError('addItemError', '');
+    const name = el('newName').value.trim();
+    const description = el('newDesc').value.trim();
+    const price = Number(el('newPrice').value);
+    try {
+      await apiFetch('/api/portal/menu', {
+        method: 'POST',
+        body: JSON.stringify({ name, description, price }),
+      });
+      el('addItemForm').reset();
+      await loadMenu();
+    } catch (err) {
+      showError('addItemError', err.message);
+    }
+  });
+
+  async function loadMenu() {
+    const data = await apiFetch('/api/portal/menu');
+    renderMenu(data.menu);
+  }
+
+  async function loadDashboard() {
+    try {
+      const data = await apiFetch('/api/portal/restaurant');
+      el('restaurantHeading').textContent = data.restaurant.name;
+      el('restaurantMeta').textContent = `${data.restaurant.cuisine} · ${data.restaurant.etaMinutes} min · R${data.restaurant.deliveryFee} delivery`;
+      await loadMenu();
+      showView('dashboard');
+    } catch (err) {
+      showView('login');
+    }
+  }
+
+  if (token) {
+    loadDashboard();
+  } else {
+    showView('login');
+  }
+</script>
+</body>
+</html>

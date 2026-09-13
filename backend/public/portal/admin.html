@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MidFood Admin</title>
+<style>
+  :root {
+    --bg-app: #faf9f5;
+    --bg-surface: #ffffff;
+    --border: rgba(15, 12, 8, 0.12);
+    --text-primary: rgba(15, 12, 8, 0.92);
+    --text-secondary: rgba(15, 12, 8, 0.64);
+    --accent: #d97757;
+    --accent-hover: #c46a4d;
+    --success: #558a42;
+    --error: #a63244;
+    --shadow: rgba(20, 20, 19, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header .brand { font-size: 18px; font-weight: 700; }
+  header .brand span { color: var(--accent); }
+  header .subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  #lockBtn {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 64px; }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 3px var(--shadow);
+    margin-bottom: 20px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 17px; }
+  .card p.hint { margin: 0 0 18px; font-size: 13px; color: var(--text-secondary); }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--bg-app);
+    color: var(--text-primary);
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 18px;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  .error-msg, .success-msg { font-size: 13px; margin-top: 12px; display: none; }
+  .error-msg { color: var(--error); }
+  .success-msg { color: var(--success); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-secondary); font-weight: 600; }
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+  .pill.yes { color: var(--success); border: 1px solid var(--success); }
+  .pill.no { color: var(--error); border: 1px solid var(--error); }
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+  }
+  #view-lock, #view-admin { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">Mid<span>Food</span> Admin</div>
+    <div class="subtitle">Create and manage restaurant accounts</div>
+  </div>
+  <button id="lockBtn">Lock</button>
+</header>
+
+<main>
+
+  <div id="view-lock">
+    <div class="card">
+      <h2>Enter admin key</h2>
+      <p class="hint">This is the ADMIN_KEY set on the Render backend (Environment tab of the midfood-backend service). Only you should have this.</p>
+      <label for="adminKeyInput">Admin key</label>
+      <input id="adminKeyInput" type="password" />
+      <div class="error-msg" id="lockError"></div>
+      <button class="primary" id="unlockBtn">Continue</button>
+    </div>
+  </div>
+
+  <div id="view-admin">
+    <div class="card">
+      <h2>Add a new restaurant</h2>
+      <p class="hint">This creates the restaurant's listing and its portal login in one step. Give the username/password to the restaurant owner so they can sign in at /portal.</p>
+      <form id="addRestaurantForm">
+        <label for="rName">Restaurant name</label>
+        <input id="rName" required />
+        <div class="row">
+          <div>
+            <label for="rCuisine">Cuisine (shown under the name)</label>
+            <input id="rCuisine" placeholder="e.g. Italian · Pizza" required />
+          </div>
+          <div>
+            <label for="rHeroColor">Brand color (hex)</label>
+            <input id="rHeroColor" placeholder="#d97757" value="#d97757" required />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="rEta">Estimated delivery time (minutes)</label>
+            <input id="rEta" type="number" min="1" required />
+          </div>
+          <div>
+            <label for="rFee">Delivery fee (R)</label>
+            <input id="rFee" type="number" min="0" step="0.01" required />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="rUsername">Portal username</label>
+            <input id="rUsername" required />
+          </div>
+          <div>
+            <label for="rPassword">Portal password</label>
+            <input id="rPassword" required />
+          </div>
+        </div>
+        <div class="error-msg" id="addRestaurantError"></div>
+        <div class="success-msg" id="addRestaurantSuccess"></div>
+        <button class="primary" type="submit">Create restaurant</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Existing restaurants</h2>
+      <p class="hint">Restaurants without a portal login yet (like the four original ones) can be given one here.</p>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Username</th><th>Portal login</th><th></th></tr>
+        </thead>
+        <tbody id="restaurantTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const API = '';
+  let adminKey = sessionStorage.getItem('midfood_admin_key') || null;
+
+  const el = (id) => document.getElementById(id);
+  const showMsg = (id, message) => {
+    const node = el(id);
+    node.textContent = message;
+    node.style.display = message ? 'block' : 'none';
+  };
+
+  function showView(view) {
+    el('view-lock').style.display = view === 'lock' ? 'block' : 'none';
+    el('view-admin').style.display = view === 'admin' ? 'block' : 'none';
+    el('lockBtn').style.display = view === 'admin' ? 'inline-block' : 'none';
+  }
+
+  async function adminFetch(path, options = {}) {
+    const res = await fetch(API + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+        ...(options.headers || {}),
+      },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) lock();
+      throw new Error(data.error || 'Something went wrong');
+    }
+    return data;
+  }
+
+  function lock() {
+    adminKey = null;
+    sessionStorage.removeItem('midfood_admin_key');
+    showView('lock');
+  }
+  el('lockBtn').addEventListener('click', lock);
+
+  el('unlockBtn').addEventListener('click', async () => {
+    showMsg('lockError', '');
+    const key = el('adminKeyInput').value;
+    if (!key) return;
+    adminKey = key;
+    try {
+      await loadRestaurants();
+      sessionStorage.setItem('midfood_admin_key', adminKey);
+      showView('admin');
+    } catch (err) {
+      showMsg('lockError', 'That key was rejected: ' + err.message);
+      adminKey = null;
+    }
+  });
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function renderRestaurants(restaurants) {
+    const body = el('restaurantTableBody');
+    body.innerHTML = '';
+    restaurants.forEach((r) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(r.name)}</td>
+        <td>${r.username ? escapeHtml(r.username) : '—'}</td>
+        <td><span class="pill ${r.hasAccount ? 'yes' : 'no'}">${r.hasAccount ? 'Active' : 'No login yet'}</span></td>
+        <td><button class="link-btn" data-action="set-account">${r.hasAccount ? 'Reset login' : 'Create login'}</button></td>
+      `;
+      tr.querySelector('[data-action="set-account"]').addEventListener('click', () => setAccount(r));
+      body.appendChild(tr);
+    });
+  }
+
+  async function setAccount(restaurant) {
+    const username = prompt(`Portal username for "${restaurant.name}"`, restaurant.username || '');
+    if (!username) return;
+    const password = prompt('Portal password (min 6 characters)');
+    if (!password) return;
+    try {
+      await adminFetch(`/api/admin/restaurants/${restaurant.id}/set-account`, {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      await loadRestaurants();
+      alert(`Done — give "${username}" / the password you entered to ${restaurant.name}.`);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function loadRestaurants() {
+    const data = await adminFetch('/api/admin/restaurants');
+    renderRestaurants(data.restaurants);
+  }
+
+  el('addRestaurantForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showMsg('addRestaurantError', '');
+    showMsg('addRestaurantSuccess', '');
+    const payload = {
+      name: el('rName').value.trim(),
+      cuisine: el('rCuisine').value.trim(),
+      heroColor: el('rHeroColor').value.trim(),
+      etaMinutes: Number(el('rEta').value),
+      deliveryFee: Number(el('rFee').value),
+      username: el('rUsername').value.trim(),
+      password: el('rPassword').value,
+    };
+    try {
+      await adminFetch('/api/admin/restaurants', { method: 'POST', body: JSON.stringify(payload) });
+      showMsg('addRestaurantSuccess', `"${payload.name}" was created. Give the username/password to the owner.`);
+      el('addRestaurantForm').reset();
+      el('rHeroColor').value = '#d97757';
+      await loadRestaurants();
+    } catch (err) {
+      showMsg('addRestaurantError', err.message);
+    }
+  });
+
+  if (adminKey) {
+    loadRestaurants().then(() => showView('admin')).catch(() => showView('lock'));
+  } else {
+    showView('lock');
+  }
+</script>
+</body>
+</html>

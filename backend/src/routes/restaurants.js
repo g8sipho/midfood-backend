@@ -25,8 +25,11 @@ router.get('/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
+    // Only items the restaurant hasn't marked sold out (see the portal at
+    // /portal) show up to customers.
     const menuResult = await pool.query(
-      'SELECT id, name, description, price::float8 AS price FROM menu_items WHERE restaurant_id = $1 ORDER BY name',
+      `SELECT id, name, description, price::float8 AS price FROM menu_items
+       WHERE restaurant_id = $1 AND available = true ORDER BY name`,
       [restaurant.id]
     );
     restaurant.menu = menuResult.rows;

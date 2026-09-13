@@ -25,9 +25,21 @@ const pool = new Pool({
   ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
+// Runs every .sql file in migrations/, in filename order (001_..., 002_...,
+// etc.), so adding a new migration is just adding a new numbered file here.
+// Each file is written to be safe to re-run (CREATE TABLE IF NOT EXISTS,
+// ALTER TABLE ... ADD COLUMN IF NOT EXISTS, etc.), so this runs on every
+// server startup against an already-migrated database too.
 async function runMigrations() {
-  const sql = fs.readFileSync(path.join(__dirname, 'migrations', '001_init.sql'), 'utf8');
-  await pool.query(sql);
+  const dir = path.join(__dirname, 'migrations');
+  const files = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  for (const file of files) {
+    const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+    await pool.query(sql);
+  }
 }
 
 // Same four restaurants as the original seed data, so the mobile app (which

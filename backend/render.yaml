@@ -13,6 +13,13 @@
 # Render's side from time to time — double-check current options in the
 # Render dashboard before deploying, and adjust the `plan` values below if
 # they've been renamed or retired.
+#
+# PAYFAST_* below ship set to PayFast's shared *sandbox* test credentials, so
+# checkout works immediately in test mode with no signup required. To accept
+# real payments: sign up for a PayFast merchant account, then in the Render
+# dashboard (midfood-backend -> Environment) replace PAYFAST_MERCHANT_ID,
+# PAYFAST_MERCHANT_KEY and PAYFAST_PASSPHRASE with your real account's
+# values, and set PAYFAST_MODE to "live".
 
 services:
   - type: web
@@ -31,6 +38,14 @@ services:
         value: 'true'
       - key: ADMIN_KEY
         generateValue: true
+      - key: PAYFAST_MODE
+        value: sandbox
+      - key: PAYFAST_MERCHANT_ID
+        value: '10004002'
+      - key: PAYFAST_MERCHANT_KEY
+        value: q1cd2rdny4a53
+      - key: PAYFAST_PASSPHRASE
+        value: payfast
       - key: DATABASE_URL
         fromDatabase:
           name: midfood-db

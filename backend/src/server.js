@@ -11,9 +11,17 @@ const orderRoutes = require('./routes/orders');
 const restaurantAuthRoutes = require('./routes/restaurantAuth');
 const portalRoutes = require('./routes/portal');
 const adminRoutes = require('./routes/admin');
+const paymentRoutes = require('./routes/payments');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Render (and most hosts) terminate HTTPS at a proxy in front of this app,
+// forwarding requests over plain HTTP with an X-Forwarded-Proto header.
+// Trusting that header is what lets req.protocol correctly report "https"
+// here -- needed so the PayFast return/cancel/notify URLs built in
+// routes/orders.js come out as real https:// links instead of http://.
+app.set('trust proxy', true);
 
 app.use(cors());
 app.use(express.json());
@@ -32,6 +40,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/restaurant-auth', restaurantAuthRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Fallback 404 for anything unmatched under /api
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

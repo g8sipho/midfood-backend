@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool, uuid } = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const payfast = require('../payments/payfast');
 
 const router = express.Router();
 
@@ -9,6 +10,7 @@ const STATUS_FLOW = ['placed', 'confirmed', 'preparing', 'out_for_delivery', 'de
 const ORDER_COLUMNS = `id, user_id AS "userId", restaurant_id AS "restaurantId", restaurant_name AS "restaurantName",
                        subtotal::float8 AS subtotal, delivery_fee::float8 AS "deliveryFee", total::float8 AS total,
                        delivery_address AS "deliveryAddress", status,
+                       payment_status AS "paymentStatus", payment_reference AS "paymentReference",
                        created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 // All order routes require a logged-in user.
@@ -23,12 +25,28 @@ async function attachItems(order) {
   return order;
 }
 
+// Builds the three URLs PayFast needs, based on wherever this backend is
+// actually reachable at (works the same on Render as on localhost).
+function paymentUrlsFor(req, orderId) {
+  const base = `${req.protocol}://${req.get('host')}`;
+  return {
+    returnUrl: `${base}/api/payments/payfast/return?order=${orderId}`,
+    cancelUrl: `${base}/api/payments/payfast/cancel?order=${orderId}`,
+    notifyUrl: `${base}/api/payments/payfast/notify`,
+  };
+}
+
 // POST /api/orders - place a new order.
 // Body: { restaurantId, items: [{ menuItemId, quantity }], deliveryAddress }
 // Prices are always looked up server-side from the restaurant's menu, never
 // trusted from the client, so a tampered request can't change what's charged.
 // The insert runs inside a transaction so an order is never left half-written
 // (order row with no items, or vice versa) if something fails partway through.
+//
+// The order itself is created right away with payment_status 'pending' --
+// nothing is lost if the customer abandons payment -- and the response
+// includes a `paymentUrl` to redirect them to next. See src/payments/payfast.js
+// and src/routes/payments.js for how payment is actually confirmed.
 router.post('/', async (req, res, next) => {
   const { restaurantId, items, deliveryAddress } = req.body || {};
 
@@ -78,8 +96,8 @@ router.post('/', async (req, res, next) => {
     const trimmedAddress = String(deliveryAddress).trim();
 
     await client.query(
-      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', $9, $9)`,
+      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, payment_status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $9)`,
       [orderId, req.userId, restaurant.id, restaurant.name, subtotal, deliveryFee, total, trimmedAddress, now]
     );
 
@@ -93,6 +111,18 @@ router.post('/', async (req, res, next) => {
 
     await client.query('COMMIT');
 
+    const buyerResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [req.userId]);
+    const buyer = buyerResult.rows[0];
+
+    const { returnUrl, cancelUrl, notifyUrl } = paymentUrlsFor(req, orderId);
+    const paymentUrl = payfast.buildPaymentUrl({
+      order: { id: orderId, total, restaurantName: restaurant.name },
+      buyer,
+      returnUrl,
+      cancelUrl,
+      notifyUrl,
+    });
+
     res.status(201).json({
       order: {
         id: orderId,
@@ -105,9 +135,12 @@ router.post('/', async (req, res, next) => {
         total,
         deliveryAddress: trimmedAddress,
         status: 'placed',
+        paymentStatus: 'pending',
+        paymentReference: null,
         createdAt: now,
         updatedAt: now,
       },
+      paymentUrl,
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -144,6 +177,38 @@ router.get('/:id', async (req, res, next) => {
     }
     await attachItems(order);
     res.json({ order });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/orders/:id/payfast-checkout - get a fresh payment link for an
+// order that hasn't been paid yet (e.g. the customer backed out of payment
+// the first time, or it failed and they want to retry).
+router.post('/:id/payfast-checkout', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, total::float8 AS total, restaurant_name AS "restaurantName", payment_status AS "paymentStatus"
+       FROM orders WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.userId]
+    );
+    const order = rows[0];
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.paymentStatus === 'paid') {
+      return res.status(400).json({ error: 'This order is already paid' });
+    }
+
+    const buyerResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [req.userId]);
+    const buyer = buyerResult.rows[0];
+
+    const { returnUrl, cancelUrl, notifyUrl } = paymentUrlsFor(req, order.id);
+    const paymentUrl = payfast.buildPaymentUrl({ order, buyer, returnUrl, cancelUrl, notifyUrl });
+    if (!paymentUrl) {
+      return res.status(500).json({ error: 'Payments are not configured on the server yet' });
+    }
+    res.json({ paymentUrl });
   } catch (err) {
     next(err);
   }

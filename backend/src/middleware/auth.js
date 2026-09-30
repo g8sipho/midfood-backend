@@ -12,6 +12,9 @@ function requireAuth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role) {
+      return res.status(403).json({ error: 'This login is not a customer account' });
+    }
     req.userId = payload.sub;
     next();
   } catch (err) {
@@ -43,6 +46,25 @@ function requireRestaurantAuth(req, res, next) {
   }
 }
 
+// Driver app logins (see routes/driverAuth.js), tagged { role: 'driver' }.
+function requireDriverAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: 'Missing or invalid Authorization header' });
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role !== 'driver') {
+      return res.status(403).json({ error: 'This login is not a driver account' });
+    }
+    req.driverId = payload.sub;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
 // Protects the admin endpoints used to create/manage restaurant portal
 // accounts. There's only one admin (the platform owner), so instead of a
 // full user/role system this is a single shared secret set via the
@@ -60,4 +82,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireRestaurantAuth, requireAdmin, JWT_SECRET };
+module.exports = { requireAuth, requireRestaurantAuth, requireDriverAuth, requireAdmin, JWT_SECRET };

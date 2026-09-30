@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#d97757" />
+<title>MidFood — Food delivery in Middelburg</title>
+<meta name="description" content="MidFood delivers from Middelburg's restaurants and takeaways straight to your door. Order on your phone, pay securely, and track your driver to the gate." />
+<meta property="og:title" content="MidFood — Food delivery in Middelburg" />
+<meta property="og:description" content="Order from Middelburg's restaurants and takeaways. Pay securely and track your driver to the gate." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://midfood.co.za" />
+<link rel="icon" href="/icon-192.png" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<style>
+  :root {
+    --bg-app: #faf9f5;
+    --bg-surface: #ffffff;
+    --bg-muted: #f0eee6;
+    --border: rgba(15, 12, 8, 0.12);
+    --text-primary: rgba(15, 12, 8, 0.92);
+    --text-secondary: rgba(15, 12, 8, 0.64);
+    --text-tertiary: rgba(15, 12, 8, 0.6);
+    --accent: #d97757;
+    --accent-hover: #c46a4d;
+    --ink: #191915;
+    --success: #558a42;
+    --shadow: rgba(20, 20, 19, 0.1);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(250, 249, 245, 0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .inner { display: flex; align-items: center; justify-content: space-between; height: 66px; gap: 16px; }
+  .logo { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; text-decoration: none; }
+  .logo span { color: var(--accent); }
+  nav .links { display: flex; align-items: center; gap: 8px; }
+  nav .links a {
+    text-decoration: none; font-size: 14px; font-weight: 600; color: var(--text-secondary);
+    padding: 9px 13px; border-radius: 9px;
+  }
+  nav .links a:hover { background: var(--bg-muted); color: var(--text-primary); }
+  nav .links a.cta { background: var(--ink); color: #fff; }
+  nav .links a.cta:hover { background: #2b2b26; color: #fff; }
+  @media (max-width: 720px) { nav .links a.hide-sm { display: none; } }
+
+  /* Hero */
+  header.hero { padding: 72px 0 64px; }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: center; }
+  .eyebrow {
+    display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--accent);
+    background: rgba(217, 119, 87, 0.1); border-radius: 999px; padding: 6px 14px; margin-bottom: 22px;
+  }
+  h1 { font-size: 52px; line-height: 1.07; letter-spacing: -1.5px; margin: 0 0 20px; font-weight: 800; }
+  .lede { font-size: 18px; color: var(--text-secondary); margin: 0 0 32px; max-width: 30em; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-block; text-decoration: none; font-weight: 700; font-size: 15px;
+    padding: 14px 26px; border-radius: 11px; border: 1px solid transparent;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-outline { border-color: var(--border); color: var(--text-primary); background: var(--bg-surface); }
+  .btn-outline:hover { border-color: var(--text-tertiary); }
+  .hero-note { font-size: 13px; color: var(--text-tertiary); margin-top: 18px; }
+
+  /* Phone mock */
+  .phone {
+    background: var(--ink); border-radius: 36px; padding: 11px;
+    box-shadow: 0 28px 60px rgba(20, 20, 19, 0.22); margin: 0 auto; max-width: 300px;
+  }
+  .phone-screen { background: var(--bg-app); border-radius: 27px; overflow: hidden; }
+  .ps-top { background: var(--accent); color: #fff; padding: 20px 18px 16px; }
+  .ps-top .hi { font-size: 12px; opacity: 0.85; }
+  .ps-top .q { font-size: 17px; font-weight: 800; margin-top: 2px; }
+  .ps-body { padding: 14px; display: grid; gap: 10px; }
+  .ps-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 13px; padding: 11px 13px; }
+  .ps-card .n { font-weight: 700; font-size: 13px; }
+  .ps-card .m { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+  .ps-card .p { font-size: 12px; font-weight: 800; color: var(--accent); margin-top: 5px; }
+  .ps-track { background: var(--bg-surface); border: 1px solid var(--accent); border-radius: 13px; padding: 12px 13px; }
+  .ps-track .t { font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: var(--accent); }
+  .ps-track .d { font-weight: 800; font-size: 14px; margin-top: 3px; }
+  .ps-track .s { font-size: 11px; color: var(--text-tertiary); }
+  .dots { display: flex; gap: 5px; margin-top: 9px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .dots i.on { background: var(--accent); }
+
+  /* Sections */
+  section { padding: 66px 0; }
+  section.alt { background: var(--bg-surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  h2.sec { font-size: 33px; letter-spacing: -0.8px; margin: 0 0 12px; font-weight: 800; }
+  p.sub { font-size: 16px; color: var(--text-secondary); margin: 0 0 40px; max-width: 34em; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+  .step .num {
+    width: 38px; height: 38px; border-radius: 11px; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; margin-bottom: 14px;
+  }
+  .step h3 { font-size: 17px; margin: 0 0 6px; font-weight: 700; }
+  .step p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
+  .pcard {
+    background: var(--bg-app); border: 1px solid var(--border); border-radius: 18px; padding: 30px;
+  }
+  section.alt .pcard { background: var(--bg-app); }
+  .pcard h3 { font-size: 21px; margin: 0 0 8px; font-weight: 800; letter-spacing: -0.3px; }
+  .pcard p { font-size: 14px; color: var(--text-secondary); margin: 0 0 18px; }
+  .pcard ul { margin: 0 0 22px; padding-left: 20px; font-size: 14px; color: var(--text-secondary); }
+  .pcard ul li { margin-bottom: 6px; }
+
+  /* Footer */
+  footer { background: var(--ink); color: rgba(250, 249, 245, 0.72); padding: 50px 0 34px; font-size: 14px; }
+  footer .logo { color: #fff; }
+  footer .cols { display: flex; flex-wrap: wrap; gap: 48px; justify-content: space-between; }
+  footer h4 { color: #fff; font-size: 13px; text-transform: uppercase; letter-spacing: 0.9px; margin: 0 0 12px; }
+  footer a { display: block; text-decoration: none; margin-bottom: 7px; color: rgba(250, 249, 245, 0.72); }
+  footer a:hover { color: #fff; }
+  footer .base { border-top: 1px solid rgba(250, 249, 245, 0.14); margin-top: 38px; padding-top: 22px; font-size: 13px; color: rgba(250, 249, 245, 0.5); }
+
+  @media (max-width: 860px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 44px; }
+    h1 { font-size: 38px; letter-spacing: -1px; }
+    .steps, .cards { grid-template-columns: 1fr; }
+    header.hero { padding: 48px 0 40px; }
+    section { padding: 48px 0; }
+    h2.sec { font-size: 27px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap inner">
+    <a class="logo" href="/">Mid<span>Food</span></a>
+    <div class="links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#partners">For restaurants</a>
+      <a href="/driver/">Drive</a>
+      <a class="cta" href="#get-app">Get the app</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Middelburg, Mpumalanga</span>
+      <h1>Middelburg's food, delivered to your door.</h1>
+      <p class="lede">
+        Order from restaurants and takeaways around town, pay securely on your phone, and watch your
+        driver all the way to the gate.
+      </p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="#get-app">Get the app</a>
+        <a class="btn btn-outline" href="#partners">List your restaurant</a>
+      </div>
+      <p class="hero-note">Card payments secured by PayFast. No cash needed at the door.</p>
+    </div>
+
+    <div class="phone" aria-hidden="true">
+      <div class="phone-screen">
+        <div class="ps-top">
+          <div class="hi">Delivering to</div>
+          <div class="q">Mineralia, Middelburg</div>
+        </div>
+        <div class="ps-body">
+          <div class="ps-card">
+            <div class="n">Braai House</div>
+            <div class="m">South African · Grills · 35 min</div>
+            <div class="p">R25 delivery</div>
+          </div>
+          <div class="ps-card">
+            <div class="n">Mama Thandi's Kitchen</div>
+            <div class="m">Home-style · Comfort food · 40 min</div>
+            <div class="p">R20 delivery</div>
+          </div>
+          <div class="ps-track">
+            <div class="t">Out for delivery</div>
+            <div class="d">Thabo is on the way</div>
+            <div class="s">Arriving in about 8 minutes</div>
+            <div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="how" class="alt">
+  <div class="wrap">
+    <h2 class="sec">How it works</h2>
+    <p class="sub">Three steps from hungry to fed.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <h3>Pick your food</h3>
+        <p>Browse restaurants and takeaways near you, see what's in stock, and build your order.</p>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <h3>Pay securely</h3>
+        <p>Pay by card through PayFast. Your order only reaches the kitchen once payment goes through.</p>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <h3>Track it to your door</h3>
+        <p>Follow your order from the kitchen to the gate, and see exactly where your driver is.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="get-app">
+  <div class="wrap">
+    <h2 class="sec">Get the MidFood app</h2>
+    <p class="sub">
+      The customer app is finishing its store review. Leave your number and we'll send you the download
+      link the day it goes live.
+    </p>
+    <div class="cards">
+      <div class="pcard">
+        <h3>For customers</h3>
+        <p>Order, pay and track — all from your phone.</p>
+        <ul>
+          <li>Restaurants and takeaways across Middelburg</li>
+          <li>Secure card payment, no cash at the door</li>
+          <li>Live driver tracking and order updates</li>
+        </ul>
+        <a class="btn btn-primary" href="mailto:hello@midfood.co.za?subject=Tell%20me%20when%20the%20MidFood%20app%20launches">Notify me at launch</a>
+      </div>
+      <div class="pcard">
+        <h3>For drivers</h3>
+        <p>Deliver around town on your own schedule and get paid per delivery.</p>
+        <ul>
+          <li>Go online when it suits you</li>
+          <li>See the fee before you accept a delivery</li>
+          <li>Works straight from your phone's browser</li>
+        </ul>
+        <a class="btn btn-outline" href="/driver/">Sign up to drive</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="partners" class="alt">
+  <div class="wrap">
+    <h2 class="sec">Run a restaurant in Middelburg?</h2>
+    <p class="sub">
+      Get your food in front of customers across town, with no website to build and no delivery drivers
+      to hire.
+    </p>
+    <div class="cards">
+      <div class="pcard">
+        <h3>List your restaurant</h3>
+        <p>Sign up in a few minutes. We check your details and call you before you go live.</p>
+        <ul>
+          <li>Manage your own menu and prices</li>
+          <li>Mark items sold out in one tap</li>
+          <li>Open and close whenever you need to</li>
+        </ul>
+        <a class="btn btn-primary" href="/portal/">Apply to join MidFood</a>
+      </div>
+      <div class="pcard">
+        <h3>Already with us?</h3>
+        <p>Your order board shows new orders as they arrive and chimes so the kitchen never misses one.</p>
+        <ul>
+          <li>Accept orders and mark food ready</li>
+          <li>Our drivers handle every delivery</li>
+          <li>See the day's sales at a glance</li>
+        </ul>
+        <a class="btn btn-outline" href="/portal/">Open the restaurant portal</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div style="max-width: 22em;">
+        <a class="logo" href="/">Mid<span>Food</span></a>
+        <p style="margin: 10px 0 0;">Food delivery for Middelburg, Mpumalanga. A G8 company.</p>
+      </div>
+      <div>
+        <h4>Order</h4>
+        <a href="#get-app">Get the app</a>
+        <a href="#how">How it works</a>
+      </div>
+      <div>
+        <h4>Partners</h4>
+        <a href="/portal/">Restaurant portal</a>
+        <a href="/driver/">Driver app</a>
+      </div>
+      <div>
+        <h4>Contact</h4>
+        <a href="mailto:hello@midfood.co.za">hello@midfood.co.za</a>
+        <a href="https://midfood.co.za">midfood.co.za</a>
+      </div>
+    </div>
+    <div class="base">© <span id="yr">2026</span> MidFood. All rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

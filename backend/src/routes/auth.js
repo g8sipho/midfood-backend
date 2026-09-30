@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool, uuid } = require('../db');
-const { JWT_SECRET } = require('../middleware/auth');
+const { JWT_SECRET, requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -68,6 +68,36 @@ router.post('/login', async (req, res, next) => {
 
     const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
     res.json({ token, user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/auth/me - restores a saved session when the app reopens, so
+// customers aren't asked to log in again every time.
+router.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, name, email, phone, created_at AS "createdAt" FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/auth/push-token - the app registers its Expo push token so the
+// customer gets notified as their order moves along.
+router.put('/push-token', requireAuth, async (req, res, next) => {
+  try {
+    const { token, phone } = req.body || {};
+    await pool.query(
+      'UPDATE users SET push_token = COALESCE($1, push_token), phone = COALESCE($2, phone) WHERE id = $3',
+      [token || null, phone || null, req.userId]
+    );
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -4,12 +4,12 @@ const { pool } = require('../db');
 const router = express.Router();
 
 const LIST_COLUMNS = `id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
-                      rating::float8 AS rating, hero_color AS "heroColor"`;
+                      rating::float8 AS rating, hero_color AS "heroColor", open`;
 
 // GET /api/restaurants - list all restaurants (without full menu, for the home feed)
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM restaurants ORDER BY name`);
+    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM restaurants WHERE approved = true ORDER BY name`);
     res.json({ restaurants: rows });
   } catch (err) {
     next(err);
@@ -19,7 +19,7 @@ router.get('/', async (req, res, next) => {
 // GET /api/restaurants/:id - full detail including menu
 router.get('/:id', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM restaurants WHERE id = $1`, [req.params.id]);
+    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM restaurants WHERE id = $1 AND approved = true`, [req.params.id]);
     const restaurant = rows[0];
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found' });

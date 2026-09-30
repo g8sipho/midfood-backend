@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
 <title>MidFood Restaurant Portal</title>
 <style>
   :root {
@@ -133,7 +135,64 @@
     margin-left: 8px;
   }
   #emptyState { color: var(--text-secondary); font-size: 14px; padding: 12px 0; }
-  #view-login, #view-dashboard { display: none; }
+  #view-login, #view-dashboard, #view-signup { display: none; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tabs button {
+    flex: 1; background: none; border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px; font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer;
+  }
+  .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tabs button .count {
+    display: none; background: var(--error); color: #fff; border-radius: 999px;
+    font-size: 11px; padding: 1px 6px; margin-left: 6px;
+  }
+  .tabs button .count.show { display: inline-block; }
+  .open-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px var(--shadow);
+  }
+  .open-bar .who { font-weight: 700; font-size: 15px; }
+  .open-bar .state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .switch { position: relative; width: 56px; height: 32px; flex: none; }
+  .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .switch .track { position: absolute; inset: 0; border-radius: 999px; background: var(--bg-muted);
+    border: 1px solid var(--border); transition: background 0.15s; pointer-events: none; }
+  .switch .knob { position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.15s; pointer-events: none; }
+  .switch input:checked ~ .track { background: var(--success); border-color: var(--success); }
+  .switch input:checked ~ .knob { transform: translateX(24px); }
+  h3.section { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--text-secondary); margin: 22px 0 10px; }
+  .order { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px var(--shadow); }
+  .order.new { border-color: var(--accent); border-width: 2px; }
+  .order .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .order .cust { font-weight: 800; font-size: 15px; }
+  .order .amt { font-weight: 800; color: var(--accent); white-space: nowrap; }
+  .order .meta { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+  .order .lines { margin: 12px 0 0; font-size: 14px; }
+  .order .lines div { display: flex; justify-content: space-between; padding: 3px 0; }
+  .order .note { font-size: 13px; color: var(--warning); font-weight: 600; margin-top: 8px; }
+  .order .driver { font-size: 13px; color: var(--success); font-weight: 600; margin-top: 8px; }
+  .order .stage { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-tertiary); margin-top: 10px; }
+  .order-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .order-actions button { flex: 1; border: none; border-radius: 10px; padding: 12px;
+    font-size: 14px; font-weight: 700; cursor: pointer; }
+  .order-actions .go { background: var(--accent); color: #fff; }
+  .order-actions .done { background: var(--success); color: #fff; }
+  .order-actions .no { background: none; border: 1px solid var(--error); color: var(--error); flex: 0 0 auto; padding: 12px 16px; }
+  .order-actions .call { background: var(--bg-muted); color: var(--text-primary); flex: 0 0 auto; padding: 12px 16px; }
+  .stats { display: flex; gap: 12px; margin-bottom: 4px; }
+  .stats > div { flex: 1; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px; text-align: center; }
+  .stats .v { font-size: 22px; font-weight: 800; color: var(--accent); }
+  .stats .k { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .empty { color: var(--text-secondary); font-size: 14px; padding: 8px 0; }
+  .msg-ok { color: var(--success); font-size: 13px; margin-top: 12px; display: none; }
+  button.ghost { width: 100%; background: none; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -160,12 +219,84 @@
         <div class="error-msg" id="loginError"></div>
         <button class="primary" type="submit">Sign in</button>
       </form>
+      <button class="ghost" id="toSignup">List my restaurant on MidFood</button>
+    </div>
+  </div>
+
+  <div id="view-signup">
+    <div class="card">
+      <h2>List your restaurant on MidFood</h2>
+      <p class="hint">Fill this in and MidFood will check your details and call you before you go live.</p>
+      <form id="signupForm">
+        <label for="rName">Restaurant name</label>
+        <input id="rName" required />
+        <label for="rCuisine">Type of food</label>
+        <input id="rCuisine" placeholder="e.g. Grills · Kota · Fast food" required />
+        <label for="rPhone">Phone number</label>
+        <input id="rPhone" type="tel" placeholder="013 123 4567" required />
+        <label for="rAddress">Address</label>
+        <input id="rAddress" placeholder="Street, suburb, Middelburg" required />
+        <div class="row">
+          <div>
+            <label for="rFee">Delivery fee (R)</label>
+            <input id="rFee" type="number" min="0" step="1" value="25" required />
+          </div>
+          <div>
+            <label for="rEta">Prep + delivery time (min)</label>
+            <input id="rEta" type="number" min="10" step="5" value="35" required />
+          </div>
+        </div>
+        <label for="rUser">Choose a username</label>
+        <input id="rUser" autocomplete="username" required />
+        <label for="rPass">Choose a password</label>
+        <input id="rPass" type="password" autocomplete="new-password" minlength="6" required />
+        <div class="error-msg" id="signupError"></div>
+        <div class="msg-ok" id="signupOk"></div>
+        <button class="primary" type="submit">Apply to join MidFood</button>
+      </form>
+      <button class="ghost" id="toLogin">Back to sign in</button>
     </div>
   </div>
 
   <div id="view-dashboard">
+    <div class="open-bar">
+      <div>
+        <div class="who" id="restaurantHeading">Restaurant</div>
+        <div class="state" id="openState">Open — customers can order</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="openToggle" checked />
+        <span class="track"></span>
+        <span class="knob"></span>
+      </label>
+    </div>
+
+    <div class="tabs">
+      <button id="tabOrders" class="active">Orders<span class="count" id="newCount"></span></button>
+      <button id="tabMenu">Menu</button>
+      <button id="tabDay">Today</button>
+    </div>
+
+    <div id="pane-orders">
+      <h3 class="section">New — waiting for you</h3>
+      <div id="newList"><div class="empty">No new orders.</div></div>
+      <h3 class="section">In the kitchen</h3>
+      <div id="activeList"><div class="empty">Nothing being prepared.</div></div>
+      <h3 class="section">Waiting for a driver</h3>
+      <div id="readyList"><div class="empty">Nothing waiting for collection.</div></div>
+    </div>
+
+    <div id="pane-day" style="display:none;">
+      <div class="stats">
+        <div><div class="v" id="dayCount">0</div><div class="k">Delivered today</div></div>
+        <div><div class="v" id="dayTakings">R0</div><div class="k">Food sales today</div></div>
+      </div>
+      <h3 class="section">Recent completed orders</h3>
+      <div id="histList"><div class="empty">No completed orders yet.</div></div>
+    </div>
+
+    <div id="pane-menu" style="display:none;">
     <div class="card">
-      <h2 id="restaurantHeading">Restaurant</h2>
       <p id="restaurantMeta"></p>
 
       <h2 style="font-size:15px;">Add a menu item</h2>
@@ -187,6 +318,7 @@
       <div id="emptyState" style="display:none;">No menu items yet — add your first one above.</div>
       <div id="menuList"></div>
     </div>
+    </div>
   </div>
 
 </main>
@@ -204,8 +336,10 @@
 
   function showView(view) {
     el('view-login').style.display = view === 'login' ? 'block' : 'none';
+    el('view-signup').style.display = view === 'signup' ? 'block' : 'none';
     el('view-dashboard').style.display = view === 'dashboard' ? 'block' : 'none';
     el('logoutBtn').style.display = view === 'dashboard' ? 'inline-block' : 'none';
+    if (view !== 'dashboard') stopPolling();
   }
 
   async function apiFetch(path, options = {}) {
@@ -229,9 +363,42 @@
   function logout() {
     token = null;
     localStorage.removeItem('midfood_portal_token');
+    stopPolling();
     showView('login');
   }
   el('logoutBtn').addEventListener('click', logout);
+  el('toSignup').addEventListener('click', () => {
+    showError('signupError', '');
+    el('signupOk').style.display = 'none';
+    showView('signup');
+  });
+  el('toLogin').addEventListener('click', () => { showError('loginError', ''); showView('login'); });
+
+  el('signupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showError('signupError', '');
+    el('signupOk').style.display = 'none';
+    try {
+      const data = await apiFetch('/api/restaurant-auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: el('rName').value.trim(),
+          cuisine: el('rCuisine').value.trim(),
+          phone: el('rPhone').value.trim(),
+          address: el('rAddress').value.trim(),
+          deliveryFee: Number(el('rFee').value),
+          etaMinutes: Number(el('rEta').value),
+          username: el('rUser').value.trim(),
+          password: el('rPass').value,
+        }),
+      });
+      el('signupForm').reset();
+      el('signupOk').textContent = data.message || 'Thanks! MidFood will be in touch.';
+      el('signupOk').style.display = 'block';
+    } catch (err) {
+      showError('signupError', err.message);
+    }
+  });
 
   el('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -339,13 +506,221 @@
     renderMenu(data.menu);
   }
 
+  // -------------------------------------------------------------------------
+  // Live orders board. Replaces the app's old "tap to simulate" button: what
+  // the kitchen presses here is what the customer sees on their phone.
+  // -------------------------------------------------------------------------
+
+  let pollTimer = null;
+  let lastNewIds = new Set();
+  const rand = (n) => 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, '');
+
+  function minsAgo(iso) {
+    const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    return m === 0 ? 'just now' : m + ' min ago';
+  }
+
+  function orderCard(o, kind) {
+    const div = document.createElement('div');
+    div.className = 'order' + (kind === 'new' ? ' new' : '');
+    const lines = (o.items || [])
+      .map(
+        (i) =>
+          '<div><span>' + escapeHtml(i.quantity + '× ' + i.name) + '</span><span>' +
+          rand(i.price * i.quantity) + '</span></div>'
+      )
+      .join('');
+    div.innerHTML =
+      '<div class="top"><div class="cust">' + escapeHtml(o.customerName) + '</div>' +
+      '<div class="amt">' + rand(o.total) + '</div></div>' +
+      '<div class="meta">' + escapeHtml(o.deliveryAddress) + ' · placed ' + minsAgo(o.createdAt) + '</div>' +
+      '<div class="lines">' + lines + '</div>' +
+      (o.notes ? '<div class="note">Note: ' + escapeHtml(o.notes) + '</div>' : '') +
+      (o.driverName
+        ? '<div class="driver">Driver: ' + escapeHtml(o.driverName) +
+          (o.driverPhone ? ' · ' + escapeHtml(o.driverPhone) : '') + '</div>'
+        : '') +
+      (kind === 'ready' && !o.driverName ? '<div class="stage">Waiting for a driver to accept</div>' : '') +
+      '<div class="order-actions"></div>';
+
+    const actions = div.querySelector('.order-actions');
+    const add = (cls, label, fn) => {
+      const b = document.createElement('button');
+      b.className = cls;
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      actions.appendChild(b);
+    };
+
+    if (kind === 'new') {
+      add('go', 'Accept order', () => act('/api/portal/orders/' + o.id + '/accept'));
+      add('no', 'Decline', () => {
+        const reason = prompt('Why are you declining? The customer will see this.', 'We are too busy right now');
+        if (reason === null) return;
+        act('/api/portal/orders/' + o.id + '/reject', { reason });
+      });
+    } else if (kind === 'active') {
+      if (o.status === 'confirmed') {
+        add('go', 'Start preparing', () => act('/api/portal/orders/' + o.id + '/preparing'));
+      }
+      add('done', 'Food is ready', () => act('/api/portal/orders/' + o.id + '/ready'));
+    }
+    if (o.customerPhone) {
+      add('call', 'Call customer', () => (window.location.href = 'tel:' + o.customerPhone));
+    }
+    return div;
+  }
+
+  async function act(path, body) {
+    try {
+      await apiFetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+    } catch (err) {
+      alert(err.message);
+    }
+    await loadOrders();
+  }
+
+  function fill(id, orders, kind, emptyText) {
+    const box = el(id);
+    box.innerHTML = '';
+    if (!orders.length) {
+      box.innerHTML = '<div class="empty">' + emptyText + '</div>';
+      return;
+    }
+    orders.forEach((o) => box.appendChild(orderCard(o, kind)));
+  }
+
+  // A short chime when a genuinely new order lands, so a busy kitchen notices
+  // without watching the screen. Uses the Web Audio API so there's no asset to
+  // host, and stays silent if the browser blocks audio before any interaction.
+  function chime() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      [880, 1175].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + i * 0.18 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.35);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.18);
+        osc.stop(ctx.currentTime + i * 0.18 + 0.4);
+      });
+    } catch (err) {
+      /* audio blocked: the red badge still shows the new order */
+    }
+  }
+
+  async function loadOrders() {
+    try {
+      const data = await apiFetch('/api/portal/orders');
+      const fresh = data.orders.filter((o) => o.status === 'placed');
+      const active = data.orders.filter(
+        (o) => (o.status === 'confirmed' || o.status === 'preparing') && !o.readyAt
+      );
+      const ready = data.orders.filter((o) => o.readyAt && o.status !== 'out_for_delivery');
+      const onWay = data.orders.filter((o) => o.status === 'out_for_delivery');
+
+      fill('newList', fresh, 'new', 'No new orders.');
+      fill('activeList', active, 'active', 'Nothing being prepared.');
+      fill('readyList', ready.concat(onWay), 'ready', 'Nothing waiting for collection.');
+
+      const badge = el('newCount');
+      badge.textContent = fresh.length || '';
+      badge.className = 'count' + (fresh.length ? ' show' : '');
+      document.title = (fresh.length ? '(' + fresh.length + ') ' : '') + 'MidFood Restaurant Portal';
+
+      const ids = new Set(fresh.map((o) => o.id));
+      let isNew = false;
+      ids.forEach((id) => { if (!lastNewIds.has(id)) isNew = true; });
+      if (isNew && lastNewIds.size >= 0 && document.visibilityState === 'visible') chime();
+      lastNewIds = ids;
+    } catch (err) {
+      /* transient network error: the next poll picks it up */
+    }
+  }
+
+  async function loadDay() {
+    try {
+      const data = await apiFetch('/api/portal/orders/history');
+      el('dayCount').textContent = data.todayCount;
+      el('dayTakings').textContent = rand(data.todayTakings);
+      const box = el('histList');
+      box.innerHTML = '';
+      if (!data.orders.length) {
+        box.innerHTML = '<div class="empty">No completed orders yet.</div>';
+        return;
+      }
+      data.orders.forEach((o) => {
+        const d = document.createElement('div');
+        d.className = 'order';
+        d.innerHTML =
+          '<div class="top"><div class="cust">' + escapeHtml(o.customerName) + '</div>' +
+          '<div class="amt">' + rand(o.total) + '</div></div>' +
+          '<div class="meta">' + escapeHtml(o.deliveryAddress) + '</div>';
+        box.appendChild(d);
+      });
+    } catch (err) {
+      /* leave the last known figures on screen */
+    }
+  }
+
+  el('openToggle').addEventListener('change', async (e) => {
+    const open = e.target.checked;
+    try {
+      await apiFetch('/api/portal/open', { method: 'PATCH', body: JSON.stringify({ open }) });
+      el('openState').textContent = open
+        ? 'Open — customers can order'
+        : 'Closed — customers cannot order';
+    } catch (err) {
+      e.target.checked = !open;
+      alert(err.message);
+    }
+  });
+
+  function tab(active) {
+    ['Orders', 'Menu', 'Day'].forEach((k) => {
+      el('tab' + k).className = k === active ? 'active' : '';
+      el('pane-' + k.toLowerCase()).style.display = k === active ? 'block' : 'none';
+    });
+    if (active === 'Menu') loadMenu();
+    if (active === 'Day') loadDay();
+    if (active === 'Orders') loadOrders();
+  }
+  el('tabOrders').addEventListener('click', () => tab('Orders'));
+  el('tabMenu').addEventListener('click', () => tab('Menu'));
+  el('tabDay').addEventListener('click', () => tab('Day'));
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(loadOrders, 8000);
+  }
+  function stopPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!token) return;
+    if (document.hidden) stopPolling();
+    else { loadOrders(); startPolling(); }
+  });
+
   async function loadDashboard() {
     try {
       const data = await apiFetch('/api/portal/restaurant');
       el('restaurantHeading').textContent = data.restaurant.name;
       el('restaurantMeta').textContent = `${data.restaurant.cuisine} · ${data.restaurant.etaMinutes} min · R${data.restaurant.deliveryFee} delivery`;
-      await loadMenu();
+      el('openToggle').checked = data.restaurant.open !== false;
+      el('openState').textContent = data.restaurant.open !== false
+        ? 'Open — customers can order'
+        : 'Closed — customers cannot order';
       showView('dashboard');
+      await loadOrders();
+      startPolling();
     } catch (err) {
       showView('login');
     }

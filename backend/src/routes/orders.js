@@ -5,12 +5,16 @@ const payfast = require('../payments/payfast');
 
 const router = express.Router();
 
+// Real status flow, now driven by the restaurant portal and the driver app
+// rather than the old development-only "advance" button.
 const STATUS_FLOW = ['placed', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 
 const ORDER_COLUMNS = `id, user_id AS "userId", restaurant_id AS "restaurantId", restaurant_name AS "restaurantName",
                        subtotal::float8 AS subtotal, delivery_fee::float8 AS "deliveryFee", total::float8 AS total,
                        delivery_address AS "deliveryAddress", status,
                        payment_status AS "paymentStatus", payment_reference AS "paymentReference",
+                       ready_at AS "readyAt", driver_id AS "driverId", notes,
+                       rejected_reason AS "rejectedReason",
                        created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 // All order routes require a logged-in user.
@@ -48,7 +52,7 @@ function paymentUrlsFor(req, orderId) {
 // includes a `paymentUrl` to redirect them to next. See src/payments/payfast.js
 // and src/routes/payments.js for how payment is actually confirmed.
 router.post('/', async (req, res, next) => {
-  const { restaurantId, items, deliveryAddress } = req.body || {};
+  const { restaurantId, items, deliveryAddress, customerPhone, notes } = req.body || {};
 
   if (!restaurantId || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'restaurantId and a non-empty items array are required' });
@@ -62,13 +66,17 @@ router.post('/', async (req, res, next) => {
     await client.query('BEGIN');
 
     const restaurantResult = await client.query(
-      'SELECT id, name, delivery_fee::float8 AS "deliveryFee" FROM restaurants WHERE id = $1',
+      'SELECT id, name, delivery_fee::float8 AS "deliveryFee", open, approved FROM restaurants WHERE id = $1',
       [restaurantId]
     );
     const restaurant = restaurantResult.rows[0];
-    if (!restaurant) {
+    if (!restaurant || !restaurant.approved) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    if (!restaurant.open) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: `${restaurant.name} is closed right now. Please try again later.` });
     }
 
     const orderItems = [];
@@ -96,9 +104,10 @@ router.post('/', async (req, res, next) => {
     const trimmedAddress = String(deliveryAddress).trim();
 
     await client.query(
-      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, payment_status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $9)`,
-      [orderId, req.userId, restaurant.id, restaurant.name, subtotal, deliveryFee, total, trimmedAddress, now]
+      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, payment_status, customer_phone, notes, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $10, $11, $11)`,
+      [orderId, req.userId, restaurant.id, restaurant.name, subtotal, deliveryFee, total, trimmedAddress,
+       customerPhone ? String(customerPhone).trim() : null, notes ? String(notes).trim() : null, now]
     );
 
     for (const item of orderItems) {
@@ -214,34 +223,22 @@ router.post('/:id/payfast-checkout', async (req, res, next) => {
   }
 });
 
-// PATCH /api/orders/:id/advance - move the order to the next status.
-// Stands in for real courier/restaurant status updates so the tracking
-// screen has something real to poll during development. Replace with
-// webhook-driven updates from your delivery/restaurant partners later.
-router.patch('/:id/advance', async (req, res, next) => {
+// GET /api/orders/:id/tracking - live status plus the driver's last known
+// position, so the customer can watch the driver approach.
+router.get('/:id/tracking', async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT id, status FROM orders WHERE id = $1 AND user_id = $2', [
-      req.params.id,
-      req.userId,
-    ]);
-    const order = rows[0];
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    const currentIndex = STATUS_FLOW.indexOf(order.status);
-    const nextStatus = STATUS_FLOW[currentIndex + 1];
-    if (!nextStatus) {
-      return res.status(400).json({ error: `Order is already ${order.status}` });
-    }
-
-    const now = new Date().toISOString();
-    await pool.query('UPDATE orders SET status = $1, updated_at = $2 WHERE id = $3', [nextStatus, now, order.id]);
-
-    const updatedResult = await pool.query(`SELECT ${ORDER_COLUMNS} FROM orders WHERE id = $1`, [order.id]);
-    const updated = updatedResult.rows[0];
-    await attachItems(updated);
-    res.json({ order: updated });
+    const { rows } = await pool.query(
+      `SELECT o.id, o.status, o.payment_status AS "paymentStatus", o.ready_at AS "readyAt",
+              o.restaurant_name AS "restaurantName", o.delivery_address AS "deliveryAddress",
+              o.rejected_reason AS "rejectedReason", o.updated_at AS "updatedAt",
+              d.name AS "driverName", d.phone AS "driverPhone",
+              d.lat AS "driverLat", d.lng AS "driverLng", d.location_updated_at AS "driverSeenAt"
+       FROM orders o LEFT JOIN drivers d ON d.id = o.driver_id
+       WHERE o.id = $1 AND o.user_id = $2`,
+      [req.params.id, req.userId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Order not found' });
+    res.json({ tracking: rows[0] });
   } catch (err) {
     next(err);
   }

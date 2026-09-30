@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#d97757" />
+<link rel="icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<title>MidFood Driver</title>
+<link rel="manifest" href="/driver/manifest.webmanifest" />
+<style>
+  :root {
+    --bg-app: #faf9f5;
+    --bg-surface: #ffffff;
+    --bg-muted: #f0eee6;
+    --border: rgba(15, 12, 8, 0.12);
+    --text-primary: rgba(15, 12, 8, 0.92);
+    --text-secondary: rgba(15, 12, 8, 0.64);
+    --text-tertiary: rgba(15, 12, 8, 0.6);
+    --accent: #d97757;
+    --accent-hover: #c46a4d;
+    --success: #558a42;
+    --warning: #c9a82d;
+    --error: #a63244;
+    --blue: #2a78d6;
+    --shadow: rgba(20, 20, 19, 0.1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  header {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 18px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .brand { font-size: 17px; font-weight: 800; }
+  .brand span { color: var(--accent); }
+  .subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  #logoutBtn {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  main { max-width: 620px; margin: 0 auto; padding: 18px 16px 80px; }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 1px 3px var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card p.hint { margin: 0 0 16px; font-size: 13px; color: var(--text-secondary); }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+  form label:first-of-type { margin-top: 0; }
+  input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    background: var(--bg-app);
+    color: var(--text-primary);
+  }
+  button.primary {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 18px;
+  }
+  button.primary:disabled { opacity: 0.5; }
+  button.ghost {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  .msg { font-size: 13px; margin-top: 12px; display: none; }
+  .msg.error { color: var(--error); }
+  .msg.ok { color: var(--success); }
+  /* Online switch */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .status-bar .who { font-weight: 700; font-size: 15px; }
+  .status-bar .state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .switch { position: relative; width: 56px; height: 32px; flex: none; }
+  .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .switch .track {
+    position: absolute; inset: 0; border-radius: 999px;
+    background: var(--bg-muted); border: 1px solid var(--border);
+    transition: background 0.15s; pointer-events: none;
+  }
+  .switch .knob {
+    position: absolute; top: 4px; left: 4px; width: 24px; height: 24px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    transition: transform 0.15s; pointer-events: none;
+  }
+  .switch input:checked ~ .track { background: var(--success); border-color: var(--success); }
+  .switch input:checked ~ .knob { transform: translateX(24px); }
+  /* Order cards */
+  h3.section { font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-tertiary); margin: 22px 0 10px; }
+  .order {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .order.mine { border-color: var(--accent); }
+  .order .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .order .resto { font-weight: 800; font-size: 15px; }
+  .order .fee { font-weight: 800; color: var(--success); font-size: 15px; white-space: nowrap; }
+  .leg { display: flex; gap: 10px; margin-top: 12px; font-size: 13px; }
+  .leg .pin { flex: none; width: 20px; text-align: center; color: var(--accent); font-weight: 700; }
+  .leg .txt { color: var(--text-secondary); }
+  .leg .txt strong { color: var(--text-primary); font-weight: 600; display: block; }
+  .items { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; }
+  .note { font-size: 12px; color: var(--warning); margin-top: 6px; font-weight: 600; }
+  .order-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .order-actions button {
+    flex: 1; border: none; border-radius: 10px; padding: 12px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .order-actions .go { background: var(--accent); color: #fff; }
+  .order-actions .done { background: var(--success); color: #fff; }
+  .order-actions .call { background: var(--bg-muted); color: var(--text-primary); }
+  .order-actions .map { background: var(--blue); color: #fff; }
+  .empty { color: var(--text-secondary); font-size: 14px; padding: 8px 0 4px; }
+  .earn { display: flex; gap: 12px; margin-bottom: 4px; }
+  .earn > div { flex: 1; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; text-align: center; }
+  .earn .v { font-size: 22px; font-weight: 800; color: var(--accent); }
+  .earn .k { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .gps { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; text-align: center; }
+  .gps.bad { color: var(--error); }
+  #view-login, #view-signup, #view-app { display: none; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 4px; }
+  .tabs button {
+    flex: 1; background: none; border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px; font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer;
+  }
+  .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">Mid<span>Food</span> Driver</div>
+    <div class="subtitle" id="headerSubtitle">Deliveries in Middelburg</div>
+  </div>
+  <button id="logoutBtn">Log out</button>
+</header>
+
+<main>
+
+  <div id="view-login">
+    <div class="card">
+      <h2>Driver sign in</h2>
+      <p class="hint">Use the username and password you signed up with.</p>
+      <form id="loginForm">
+        <label for="lu">Username</label>
+        <input id="lu" autocomplete="username" required />
+        <label for="lp">Password</label>
+        <input id="lp" type="password" autocomplete="current-password" required />
+        <div class="msg error" id="loginError"></div>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+      <button class="ghost" id="toSignup">I'm new — sign up to drive</button>
+    </div>
+  </div>
+
+  <div id="view-signup">
+    <div class="card">
+      <h2>Drive for MidFood</h2>
+      <p class="hint">Sign up here. MidFood checks your details and calls you before your account goes live.</p>
+      <form id="signupForm">
+        <label for="sn">Full name</label>
+        <input id="sn" autocomplete="name" required />
+        <label for="sp">Phone number</label>
+        <input id="sp" type="tel" autocomplete="tel" placeholder="082 123 4567" required />
+        <label for="su">Choose a username</label>
+        <input id="su" autocomplete="username" required />
+        <label for="spw">Choose a password</label>
+        <input id="spw" type="password" autocomplete="new-password" minlength="6" required />
+        <div class="msg error" id="signupError"></div>
+        <div class="msg ok" id="signupOk"></div>
+        <button class="primary" type="submit">Apply to drive</button>
+      </form>
+      <button class="ghost" id="toLogin">Back to sign in</button>
+    </div>
+  </div>
+
+  <div id="view-app">
+    <div class="status-bar">
+      <div>
+        <div class="who" id="driverName">Driver</div>
+        <div class="state" id="onlineState">Offline — you won't get deliveries</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="onlineToggle" />
+        <span class="track"></span>
+        <span class="knob"></span>
+      </label>
+    </div>
+
+    <div class="tabs">
+      <button id="tabJobs" class="active">Deliveries</button>
+      <button id="tabEarnings">Earnings</button>
+    </div>
+
+    <div id="pane-jobs">
+      <h3 class="section">Your delivery</h3>
+      <div id="mineList"><div class="empty">Nothing on the go right now.</div></div>
+
+      <h3 class="section">Available now</h3>
+      <div id="availList"><div class="empty">No orders waiting. Stay online and they'll appear here.</div></div>
+
+      <div class="gps" id="gpsNote"></div>
+    </div>
+
+    <div id="pane-earnings" style="display:none;">
+      <div class="earn">
+        <div><div class="v" id="earnToday">R0</div><div class="k">Today</div></div>
+        <div><div class="v" id="earnAll">R0</div><div class="k">All time</div></div>
+      </div>
+      <h3 class="section">Recent deliveries</h3>
+      <div id="histList"><div class="empty">No completed deliveries yet.</div></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  let token = localStorage.getItem('midfood_driver_token') || null;
+  let driver = null;
+  let pollTimer = null;
+  let geoWatch = null;
+
+  const setMsg = (id, text, kind) => {
+    const n = el(id);
+    n.textContent = text || '';
+    n.className = 'msg ' + (kind || 'error');
+    n.style.display = text ? 'block' : 'none';
+  };
+  const esc = (s) => { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+  const rand = (n) => 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, '');
+
+  function showView(v) {
+    ['login', 'signup', 'app'].forEach((k) => {
+      el('view-' + k).style.display = v === k ? 'block' : 'none';
+    });
+    el('logoutBtn').style.display = v === 'app' ? 'inline-block' : 'none';
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) logout();
+      throw new Error(data.error || 'Something went wrong');
+    }
+    return data;
+  }
+
+  function logout() {
+    token = null;
+    driver = null;
+    localStorage.removeItem('midfood_driver_token');
+    stopPolling();
+    stopGeo();
+    showView('login');
+  }
+  el('logoutBtn').addEventListener('click', logout);
+  el('toSignup').addEventListener('click', () => { setMsg('signupError', ''); setMsg('signupOk', ''); showView('signup'); });
+  el('toLogin').addEventListener('click', () => { setMsg('loginError', ''); showView('login'); });
+
+  el('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setMsg('loginError', '');
+    try {
+      const data = await api('/api/driver-auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username: el('lu').value.trim(), password: el('lp').value }),
+      });
+      token = data.token;
+      driver = data.driver;
+      localStorage.setItem('midfood_driver_token', token);
+      localStorage.setItem('midfood_driver_name', driver.name);
+      start();
+    } catch (err) {
+      setMsg('loginError', err.message);
+    }
+  });
+
+  el('signupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setMsg('signupError', '');
+    setMsg('signupOk', '');
+    try {
+      const data = await api('/api/driver-auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: el('sn').value.trim(),
+          phone: el('sp').value.trim(),
+          username: el('su').value.trim(),
+          password: el('spw').value,
+        }),
+      });
+      el('signupForm').reset();
+      setMsg('signupOk', data.message || 'Thanks! MidFood will be in touch.', 'ok');
+    } catch (err) {
+      setMsg('signupError', err.message);
+    }
+  });
+
+  // --- Online switch -------------------------------------------------------
+
+  el('onlineToggle').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    try {
+      await api('/api/driver/status', { method: 'PATCH', body: JSON.stringify({ online: on }) });
+      el('onlineState').textContent = on
+        ? 'Online — you can take deliveries'
+        : "Offline — you won't get deliveries";
+      localStorage.setItem('midfood_driver_online', on ? '1' : '0');
+      if (on) startGeo(); else stopGeo();
+      refresh();
+    } catch (err) {
+      e.target.checked = !on;
+      alert(err.message);
+    }
+  });
+
+  // --- Live location -------------------------------------------------------
+  // Posted while the driver is online so the customer's tracking screen can
+  // show where they are. Stops the moment they go offline or log out.
+
+  function startGeo() {
+    if (geoWatch != null || !navigator.geolocation) {
+      if (!navigator.geolocation) el('gpsNote').textContent = 'This phone does not support location sharing.';
+      return;
+    }
+    geoWatch = navigator.geolocation.watchPosition(
+      (pos) => {
+        el('gpsNote').className = 'gps';
+        el('gpsNote').textContent = 'Sharing your location with customers';
+        api('/api/driver/location', {
+          method: 'POST',
+          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        }).catch(() => {});
+      },
+      () => {
+        el('gpsNote').className = 'gps bad';
+        el('gpsNote').textContent = 'Location is off. Turn it on so customers can track their order.';
+      },
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }
+    );
+  }
+
+  function stopGeo() {
+    if (geoWatch != null) navigator.geolocation.clearWatch(geoWatch);
+    geoWatch = null;
+    el('gpsNote').textContent = '';
+    el('gpsNote').className = 'gps';
+  }
+
+  // --- Order lists ---------------------------------------------------------
+
+  function mapsLink(text) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(text || '');
+  }
+
+  function orderCard(o, mine) {
+    const div = document.createElement('div');
+    div.className = 'order' + (mine ? ' mine' : '');
+    const items = (o.items || []).map((i) => i.quantity + '× ' + i.name).join(', ');
+    const picked = o.status === 'out_for_delivery';
+    div.innerHTML =
+      '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
+      '<div class="fee">' + rand(o.deliveryFee) + '</div></div>' +
+      '<div class="leg"><div class="pin">▲</div><div class="txt"><strong>Collect</strong>' +
+      esc(o.restaurantAddress || o.restaurantName) + '</div></div>' +
+      '<div class="leg"><div class="pin">▼</div><div class="txt"><strong>Deliver to ' +
+      esc(o.customerName) + '</strong>' + esc(o.deliveryAddress) + '</div></div>' +
+      '<div class="items">' + esc(items) + ' · order total ' + rand(o.total) + '</div>' +
+      (o.notes ? '<div class="note">Note: ' + esc(o.notes) + '</div>' : '') +
+      '<div class="order-actions"></div>';
+
+    const actions = div.querySelector('.order-actions');
+    const add = (cls, label, fn) => {
+      const b = document.createElement('button');
+      b.className = cls;
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      actions.appendChild(b);
+    };
+
+    if (!mine) {
+      add('go', 'Accept · ' + rand(o.deliveryFee), () => act('/api/driver/orders/' + o.id + '/accept'));
+      return div;
+    }
+
+    const target = picked ? o.deliveryAddress : o.restaurantAddress || o.restaurantName;
+    add('map', picked ? 'Directions' : 'To restaurant', () => window.open(mapsLink(target), '_blank'));
+    const phone = picked ? o.customerPhone : o.restaurantPhone;
+    if (phone) add('call', 'Call', () => (window.location.href = 'tel:' + phone));
+    if (picked) {
+      add('done', 'Delivered', () => {
+        if (confirm('Mark this order as delivered?')) act('/api/driver/orders/' + o.id + '/deliver');
+      });
+    } else {
+      add('go', 'Picked up', () => act('/api/driver/orders/' + o.id + '/pickup'));
+    }
+    return div;
+  }
+
+  async function act(path) {
+    try {
+      await api(path, { method: 'POST' });
+      await refresh();
+    } catch (err) {
+      alert(err.message);
+      await refresh();
+    }
+  }
+
+  function fill(containerId, orders, mine, emptyText) {
+    const box = el(containerId);
+    box.innerHTML = '';
+    if (!orders.length) {
+      box.innerHTML = '<div class="empty">' + emptyText + '</div>';
+      return;
+    }
+    orders.forEach((o) => box.appendChild(orderCard(o, mine)));
+  }
+
+  async function refresh() {
+    try {
+      const mine = await api('/api/driver/orders/mine');
+      fill('mineList', mine.orders, true, 'Nothing on the go right now.');
+
+      // Offline means offline: no deliveries are offered, which is what the
+      // switch promises. A delivery already accepted still shows above, so a
+      // driver can always finish what they've started.
+      if (!el('onlineToggle').checked) {
+        el('availList').innerHTML =
+          '<div class="empty">You\'re offline. Switch on above to start getting deliveries.</div>';
+        return;
+      }
+
+      const avail = await api('/api/driver/orders/available');
+      // An order this driver already has shouldn't also show as available.
+      const taken = new Set(mine.orders.map((o) => o.id));
+      fill(
+        'availList',
+        avail.orders.filter((o) => !taken.has(o.id)),
+        false,
+        "No orders waiting. Stay online and they'll appear here."
+      );
+    } catch (err) {
+      /* transient network error: the next poll picks it up */
+    }
+  }
+
+  async function loadEarnings() {
+    try {
+      const data = await api('/api/driver/orders/history');
+      el('earnToday').textContent = rand(data.earningsToday);
+      el('earnAll').textContent = rand(data.earnings);
+      const box = el('histList');
+      box.innerHTML = '';
+      if (!data.orders.length) {
+        box.innerHTML = '<div class="empty">No completed deliveries yet.</div>';
+        return;
+      }
+      data.orders.forEach((o) => {
+        const d = document.createElement('div');
+        d.className = 'order';
+        d.innerHTML =
+          '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
+          '<div class="fee">' + rand(o.deliveryFee) + '</div></div>' +
+          '<div class="items">' + esc(o.deliveryAddress) + '</div>';
+        box.appendChild(d);
+      });
+    } catch (err) {
+      /* leave the last known figures on screen */
+    }
+  }
+
+  el('tabJobs').addEventListener('click', () => {
+    el('tabJobs').className = 'active';
+    el('tabEarnings').className = '';
+    el('pane-jobs').style.display = 'block';
+    el('pane-earnings').style.display = 'none';
+  });
+  el('tabEarnings').addEventListener('click', () => {
+    el('tabEarnings').className = 'active';
+    el('tabJobs').className = '';
+    el('pane-earnings').style.display = 'block';
+    el('pane-jobs').style.display = 'none';
+    loadEarnings();
+  });
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(refresh, 10000);
+  }
+  function stopPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  // Don't poll in the background — saves the driver's data and battery.
+  document.addEventListener('visibilitychange', () => {
+    if (!token) return;
+    if (document.hidden) stopPolling();
+    else { refresh(); startPolling(); }
+  });
+
+  async function start() {
+    el('driverName').textContent = driver?.name || localStorage.getItem('midfood_driver_name') || 'Driver';
+    showView('app');
+    const wasOnline = localStorage.getItem('midfood_driver_online') === '1';
+    el('onlineToggle').checked = wasOnline;
+    el('onlineState').textContent = wasOnline
+      ? 'Online — you can take deliveries'
+      : "Offline — you won't get deliveries";
+    if (wasOnline) {
+      api('/api/driver/status', { method: 'PATCH', body: JSON.stringify({ online: true }) }).catch(() => {});
+      startGeo();
+    }
+    await refresh();
+    startPolling();
+  }
+
+  if (token) {
+    // Confirm the saved token still works before showing the app.
+    api('/api/driver/orders/mine')
+      .then(() => start())
+      .catch(() => showView('login'));
+  } else {
+    showView('login');
+  }
+</script>
+</body>
+</html>

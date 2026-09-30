@@ -22,8 +22,8 @@ router.get('/restaurants', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
-              rating::float8 AS rating, hero_color AS "heroColor", username,
-              (password_hash IS NOT NULL) AS "hasAccount"
+              rating::float8 AS rating, hero_color AS "heroColor", username, approved, open,
+              phone, address, (password_hash IS NOT NULL) AS "hasAccount"
        FROM restaurants ORDER BY name`
     );
     res.json({ restaurants: rows });
@@ -114,6 +114,127 @@ router.delete('/restaurants/:id', async (req, res, next) => {
         error: 'This restaurant already has orders on it, so it can\'t be deleted. Remove it from the app instead by having it mark all menu items sold out.',
       });
     }
+    next(err);
+  }
+});
+
+// POST /api/admin/restaurants/:id/approve - let a self-signed-up restaurant
+// go live (it stays hidden from customers until this happens)
+router.post('/restaurants/:id/approve', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'UPDATE restaurants SET approved = true WHERE id = $1 RETURNING id, name, approved',
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
+    res.json({ restaurant: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/restaurants/:id/suspend - take a restaurant back offline
+router.post('/restaurants/:id/suspend', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'UPDATE restaurants SET approved = false WHERE id = $1 RETURNING id, name, approved',
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
+    res.json({ restaurant: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Drivers ---------------------------------------------------------------
+
+router.get('/drivers', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.id, d.name, d.phone, d.username, d.approved, d.online, d.created_at AS "createdAt",
+              (SELECT COUNT(*)::int FROM orders o WHERE o.driver_id = d.id AND o.status = 'delivered') AS deliveries
+       FROM drivers d ORDER BY d.approved, d.name`
+    );
+    res.json({ drivers: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/drivers', async (req, res, next) => {
+  try {
+    const { name, phone, username, password } = req.body || {};
+    if (!name || !username || !password) {
+      return res.status(400).json({ error: 'name, username and password are required' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'password must be at least 6 characters' });
+    }
+    const u = normalizeUsername(username);
+    const existing = await pool.query('SELECT id FROM drivers WHERE username = $1', [u]);
+    if (existing.rows.length) return res.status(409).json({ error: 'That username is already taken' });
+    const id = uuid();
+    await pool.query(
+      'INSERT INTO drivers (id, name, phone, username, password_hash, approved) VALUES ($1,$2,$3,$4,$5,true)',
+      [id, name, phone || null, u, await bcrypt.hash(password, 10)]
+    );
+    res.status(201).json({ driver: { id, name, username: u } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/drivers/:id/approve', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'UPDATE drivers SET approved = true WHERE id = $1 RETURNING id, name, approved',
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Driver not found' });
+    res.json({ driver: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/drivers/:id/suspend', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'UPDATE drivers SET approved = false, online = false WHERE id = $1 RETURNING id, name, approved',
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Driver not found' });
+    res.json({ driver: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/orders - everything happening right now, across the platform
+router.get('/orders', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT o.id, o.restaurant_name AS "restaurantName", u.name AS "customerName",
+              o.total::float8 AS total, o.status, o.payment_status AS "paymentStatus",
+              o.ready_at AS "readyAt", d.name AS "driverName",
+              o.created_at AS "createdAt"
+       FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN drivers d ON d.id = o.driver_id
+       ORDER BY o.created_at DESC LIMIT 100`
+    );
+    // Computed in SQL over ALL orders (not just the 100 listed above) and
+    // against the South African business day.
+    const stats = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE payment_status = 'paid' AND status NOT IN ('delivered','rejected'))::int AS live,
+         COUNT(*) FILTER (WHERE payment_status = 'paid' AND status = 'delivered'
+           AND (updated_at AT TIME ZONE 'Africa/Johannesburg')::date
+               = (now() AT TIME ZONE 'Africa/Johannesburg')::date)::int AS "deliveredToday",
+         COALESCE(SUM(total) FILTER (WHERE payment_status = 'paid'), 0)::float8 AS gmv
+       FROM orders`
+    );
+    res.json({ orders: rows, stats: stats.rows[0] });
+  } catch (err) {
     next(err);
   }
 });

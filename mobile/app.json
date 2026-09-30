@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "MidFood",
+    "slug": "midfood",
+    "scheme": "midfood",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "primaryColor": "#d97757",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#faf9f5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "za.co.midfood.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "za.co.midfood.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#faf9f5",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["android.permission.POST_NOTIFICATIONS"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#d97757"
+        }
+      ]
+    ]
+  }
+}

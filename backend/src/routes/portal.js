@@ -4,6 +4,7 @@
 const express = require('express');
 const { pool, uuid } = require('../db');
 const { requireRestaurantAuth } = require('../middleware/auth');
+const { notifyOrderStatus } = require('../notify');
 
 const router = express.Router();
 router.use(requireRestaurantAuth);
@@ -17,7 +18,8 @@ router.get('/restaurant', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
-              rating::float8 AS rating, hero_color AS "heroColor", username
+              rating::float8 AS rating, hero_color AS "heroColor", username, open, approved,
+              phone, address
        FROM restaurants WHERE id = $1`,
       [req.restaurantId]
     );
@@ -113,6 +115,152 @@ router.delete('/menu/:id', async (req, res, next) => {
     );
     if (rowCount === 0) return res.status(404).json({ error: 'Menu item not found' });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Live order handling. Replaces the old "tap to simulate" button in the app:
+// the kitchen now really accepts, prepares and hands orders over to a driver.
+// Only paid orders are shown -- an abandoned checkout never reaches a kitchen.
+// ---------------------------------------------------------------------------
+
+const ORDER_COLS = `o.id, u.name AS "customerName", o.customer_phone AS "customerPhone",
+  o.delivery_address AS "deliveryAddress", o.subtotal::float8 AS subtotal,
+  o.delivery_fee::float8 AS "deliveryFee", o.total::float8 AS total, o.status, o.notes,
+  o.payment_status AS "paymentStatus", o.ready_at AS "readyAt",
+  o.created_at AS "createdAt", o.updated_at AS "updatedAt",
+  d.name AS "driverName", d.phone AS "driverPhone"`;
+const ORDER_FROM = `FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN drivers d ON d.id = o.driver_id`;
+
+async function attachOrderItems(orders) {
+  for (const o of orders) {
+    const { rows } = await pool.query(
+      'SELECT name, price::float8 AS price, quantity FROM order_items WHERE order_id = $1',
+      [o.id]
+    );
+    o.items = rows;
+  }
+  return orders;
+}
+
+// GET /api/portal/orders - live board: everything not yet delivered.
+// The portal polls this every few seconds.
+router.get('/orders', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${ORDER_COLS} ${ORDER_FROM}
+       WHERE o.restaurant_id = $1 AND o.payment_status = 'paid' AND o.status <> 'delivered'
+       ORDER BY o.created_at`,
+      [req.restaurantId]
+    );
+    res.json({ orders: await attachOrderItems(rows) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/portal/orders/history - delivered orders + today's takings
+router.get('/orders/history', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${ORDER_COLS} ${ORDER_FROM}
+       WHERE o.restaurant_id = $1 AND o.status = 'delivered' AND o.payment_status = 'paid'
+       ORDER BY o.updated_at DESC LIMIT 100`,
+      [req.restaurantId]
+    );
+    // Totals are computed in SQL against the South African business day, so
+    // they don't drift with the server's own timezone.
+    const totals = await pool.query(
+      `SELECT COUNT(*)::int AS count, COALESCE(SUM(subtotal), 0)::float8 AS takings
+       FROM orders
+       WHERE restaurant_id = $1 AND status = 'delivered' AND payment_status = 'paid'
+         AND (updated_at AT TIME ZONE 'Africa/Johannesburg')::date
+             = (now() AT TIME ZONE 'Africa/Johannesburg')::date`,
+      [req.restaurantId]
+    );
+    res.json({
+      orders: await attachOrderItems(rows),
+      todayCount: totals.rows[0].count,
+      todayTakings: totals.rows[0].takings,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/portal/orders/:id/accept - kitchen takes the order
+router.post('/orders/:id/accept', async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE orders SET status = 'confirmed', updated_at = now()
+       WHERE id = $1 AND restaurant_id = $2 AND status = 'placed' AND payment_status = 'paid'`,
+      [req.params.id, req.restaurantId]
+    );
+    if (!rowCount) return res.status(400).json({ error: 'That order can no longer be accepted' });
+    notifyOrderStatus(req.params.id, 'confirmed');
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/portal/orders/:id/reject { reason }
+router.post('/orders/:id/reject', async (req, res, next) => {
+  try {
+    const reason = (req.body && req.body.reason) || 'The restaurant could not take this order';
+    const { rowCount } = await pool.query(
+      `UPDATE orders SET status = 'rejected', rejected_reason = $1, updated_at = now()
+       WHERE id = $2 AND restaurant_id = $3 AND status = 'placed'`,
+      [reason, req.params.id, req.restaurantId]
+    );
+    if (!rowCount) return res.status(400).json({ error: 'That order can no longer be declined' });
+    notifyOrderStatus(req.params.id, 'rejected');
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/portal/orders/:id/preparing
+router.post('/orders/:id/preparing', async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE orders SET status = 'preparing', updated_at = now()
+       WHERE id = $1 AND restaurant_id = $2 AND status = 'confirmed'`,
+      [req.params.id, req.restaurantId]
+    );
+    if (!rowCount) return res.status(400).json({ error: 'Order is not in a state to start preparing' });
+    notifyOrderStatus(req.params.id, 'preparing');
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/portal/orders/:id/ready - food is up; drivers can now claim it
+router.post('/orders/:id/ready', async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE orders SET ready_at = now(), updated_at = now()
+       WHERE id = $1 AND restaurant_id = $2 AND status IN ('confirmed','preparing') AND ready_at IS NULL`,
+      [req.params.id, req.restaurantId]
+    );
+    if (!rowCount) return res.status(400).json({ error: 'Order is not ready to be handed over' });
+    notifyOrderStatus(req.params.id, 'ready');
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/portal/open { open: true|false } - "we're closed" switch
+router.patch('/open', async (req, res, next) => {
+  try {
+    const open = !!(req.body && req.body.open);
+    await pool.query('UPDATE restaurants SET open = $1 WHERE id = $2', [open, req.restaurantId]);
+    res.json({ open });
   } catch (err) {
     next(err);
   }

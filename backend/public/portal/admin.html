@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
 <title>MidFood Admin</title>
 <style>
   :root {
@@ -107,6 +109,22 @@
     padding: 0;
   }
   #view-lock, #view-admin { display: none; }
+  .stats { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stats > div { flex: 1; min-width: 130px; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; text-align: center; box-shadow: 0 1px 3px var(--shadow); }
+  .stats .v { font-size: 24px; font-weight: 800; color: var(--accent); }
+  .stats .k { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .pending { border-color: var(--accent); border-width: 2px; }
+  .pending h2 { color: var(--accent); }
+  .empty { color: var(--text-secondary); font-size: 14px; padding: 6px 0; }
+  .appl { border-bottom: 1px solid var(--border); padding: 14px 0; }
+  .appl:last-child { border-bottom: none; }
+  .appl .nm { font-weight: 700; font-size: 15px; }
+  .appl .dt { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .appl .btns { margin-top: 10px; display: flex; gap: 8px; }
+  .appl .btns button { border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .appl .btns .yes-btn { background: var(--success); color: #fff; }
+  .appl .btns .no-btn { background: none; border: 1px solid var(--error); color: var(--error); }
 </style>
 </head>
 <body>
@@ -133,6 +151,40 @@
   </div>
 
   <div id="view-admin">
+    <div class="stats">
+      <div><div class="v" id="sLive">0</div><div class="k">Orders live now</div></div>
+      <div><div class="v" id="sToday">0</div><div class="k">Delivered today</div></div>
+      <div><div class="v" id="sGmv">R0</div><div class="k">Total paid orders</div></div>
+      <div><div class="v" id="sDrivers">0</div><div class="k">Drivers online</div></div>
+    </div>
+
+    <div class="card pending" id="pendingCard" style="display:none;">
+      <h2>Waiting for your approval</h2>
+      <p class="hint">These signed up themselves. Nothing goes live until you approve it.</p>
+      <div id="pendingList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Drivers</h2>
+      <p class="hint">Drivers sign up at <strong>/driver</strong>. Approve them here, or add one yourself.</p>
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Deliveries</th><th></th></tr></thead>
+        <tbody id="driverTableBody"></tbody>
+      </table>
+      <form id="addDriverForm">
+        <div class="row">
+          <div><label for="dName">Name</label><input id="dName" required /></div>
+          <div><label for="dPhone">Phone</label><input id="dPhone" type="tel" /></div>
+        </div>
+        <div class="row">
+          <div><label for="dUsername">Username</label><input id="dUsername" required /></div>
+          <div><label for="dPassword">Password</label><input id="dPassword" type="password" minlength="6" required /></div>
+        </div>
+        <div class="error-msg" id="addDriverError"></div>
+        <button class="primary" type="submit">Add driver</button>
+      </form>
+    </div>
+
     <div class="card">
       <h2>Add a new restaurant</h2>
       <p class="hint">This creates the restaurant's listing and its portal login in one step. Give the username/password to the restaurant owner so they can sign in at /portal.</p>
@@ -180,7 +232,7 @@
       <p class="hint">Restaurants without a portal login yet (like the four original ones) can be given one here.</p>
       <table>
         <thead>
-          <tr><th>Name</th><th>Username</th><th>Portal login</th><th></th></tr>
+          <tr><th>Name</th><th>Username</th><th>Live</th><th>Portal login</th><th></th></tr>
         </thead>
         <tbody id="restaurantTableBody"></tbody>
       </table>
@@ -259,13 +311,24 @@
       tr.innerHTML = `
         <td>${escapeHtml(r.name)}</td>
         <td>${r.username ? escapeHtml(r.username) : '—'}</td>
+        <td><span class="pill ${r.approved ? 'yes' : 'no'}">${r.approved ? (r.open === false ? 'Closed' : 'Live') : 'Suspended'}</span></td>
         <td><span class="pill ${r.hasAccount ? 'yes' : 'no'}">${r.hasAccount ? 'Active' : 'No login yet'}</span></td>
         <td>
+          <button class="link-btn" data-action="toggle">${r.approved ? 'Suspend' : 'Approve'}</button>
+          &nbsp;·&nbsp;
           <button class="link-btn" data-action="set-account">${r.hasAccount ? 'Reset login' : 'Create login'}</button>
           &nbsp;·&nbsp;
           <button class="link-btn" data-action="delete" style="color: var(--error);">Delete</button>
         </td>
       `;
+      tr.querySelector('[data-action="toggle"]').addEventListener('click', async () => {
+        const path = r.approved ? 'suspend' : 'approve';
+        if (r.approved && !confirm(`Suspend "${r.name}"? It disappears from the app until you approve it again.`)) return;
+        try {
+          await adminFetch(`/api/admin/restaurants/${r.id}/${path}`, { method: 'POST' });
+          await loadAll();
+        } catch (err) { alert(err.message); }
+      });
       tr.querySelector('[data-action="set-account"]').addEventListener('click', () => setAccount(r));
       tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteRestaurant(r));
       body.appendChild(tr);
@@ -299,9 +362,126 @@
     }
   }
 
+  const rand = (n) => 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, '');
+
+  function renderDrivers(drivers) {
+    const body = el('driverTableBody');
+    body.innerHTML = '';
+    if (!drivers.length) {
+      body.innerHTML = '<tr><td colspan="5" class="empty">No drivers yet.</td></tr>';
+      return;
+    }
+    drivers.forEach((d) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(d.name)}</td>
+        <td>${d.phone ? escapeHtml(d.phone) : '—'}</td>
+        <td><span class="pill ${d.approved ? 'yes' : 'no'}">${d.approved ? (d.online ? 'Online' : 'Approved') : 'Waiting'}</span></td>
+        <td>${d.deliveries}</td>
+        <td><button class="link-btn" data-action="toggle">${d.approved ? 'Suspend' : 'Approve'}</button></td>
+      `;
+      tr.querySelector('[data-action="toggle"]').addEventListener('click', async () => {
+        try {
+          await adminFetch(`/api/admin/drivers/${d.id}/${d.approved ? 'suspend' : 'approve'}`, { method: 'POST' });
+          await loadAll();
+        } catch (err) { alert(err.message); }
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  // Self-signups, surfaced at the top so nothing sits unnoticed.
+  function renderPending(restaurants, drivers) {
+    const list = el('pendingList');
+    const pendingR = restaurants.filter((r) => !r.approved);
+    const pendingD = drivers.filter((d) => !d.approved);
+    el('pendingCard').style.display = pendingR.length || pendingD.length ? 'block' : 'none';
+    list.innerHTML = '';
+
+    const row = (title, detail, approvePath, rejectPath, rejectLabel) => {
+      const div = document.createElement('div');
+      div.className = 'appl';
+      div.innerHTML =
+        `<div class="nm">${escapeHtml(title)}</div><div class="dt">${escapeHtml(detail)}</div>` +
+        '<div class="btns"></div>';
+      const btns = div.querySelector('.btns');
+      const yes = document.createElement('button');
+      yes.className = 'yes-btn';
+      yes.textContent = 'Approve';
+      yes.addEventListener('click', async () => {
+        try { await adminFetch(approvePath, { method: 'POST' }); await loadAll(); }
+        catch (err) { alert(err.message); }
+      });
+      const no = document.createElement('button');
+      no.className = 'no-btn';
+      no.textContent = rejectLabel;
+      no.addEventListener('click', async () => {
+        if (!confirm(`${rejectLabel} "${title}"?`)) return;
+        try { await adminFetch(rejectPath.path, { method: rejectPath.method }); await loadAll(); }
+        catch (err) { alert(err.message); }
+      });
+      btns.appendChild(yes);
+      btns.appendChild(no);
+      list.appendChild(div);
+    };
+
+    pendingR.forEach((r) =>
+      row(
+        r.name,
+        `Restaurant · ${r.cuisine || ''} · ${r.phone || 'no phone'} · ${r.address || 'no address'} · login "${r.username}"`,
+        `/api/admin/restaurants/${r.id}/approve`,
+        { path: `/api/admin/restaurants/${r.id}`, method: 'DELETE' },
+        'Reject'
+      )
+    );
+    pendingD.forEach((d) =>
+      row(
+        d.name,
+        `Driver · ${d.phone || 'no phone'} · login "${d.username}"`,
+        `/api/admin/drivers/${d.id}/approve`,
+        { path: `/api/admin/drivers/${d.id}/suspend`, method: 'POST' },
+        'Leave pending'
+      )
+    );
+  }
+
+  el('addDriverForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showMsg('addDriverError', '');
+    try {
+      await adminFetch('/api/admin/drivers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: el('dName').value.trim(),
+          phone: el('dPhone').value.trim(),
+          username: el('dUsername').value.trim(),
+          password: el('dPassword').value,
+        }),
+      });
+      el('addDriverForm').reset();
+      await loadAll();
+    } catch (err) {
+      showMsg('addDriverError', err.message);
+    }
+  });
+
+  async function loadAll() {
+    const [rest, drv, ord] = await Promise.all([
+      adminFetch('/api/admin/restaurants'),
+      adminFetch('/api/admin/drivers'),
+      adminFetch('/api/admin/orders'),
+    ]);
+    renderRestaurants(rest.restaurants);
+    renderDrivers(drv.drivers);
+    renderPending(rest.restaurants, drv.drivers);
+    el('sLive').textContent = ord.stats.live;
+    el('sToday').textContent = ord.stats.deliveredToday;
+    el('sGmv').textContent = rand(ord.stats.gmv);
+    el('sDrivers').textContent = drv.drivers.filter((d) => d.online && d.approved).length;
+  }
+
   async function loadRestaurants() {
-    const data = await adminFetch('/api/admin/restaurants');
-    renderRestaurants(data.restaurants);
+    await loadAll();
   }
 
   el('addRestaurantForm').addEventListener('submit', async (e) => {
@@ -329,10 +509,17 @@
   });
 
   if (adminKey) {
-    loadRestaurants().then(() => showView('admin')).catch(() => showView('lock'));
+    loadAll().then(() => showView('admin')).catch(() => showView('lock'));
   } else {
     showView('lock');
   }
+
+  // Keep the dashboard current while it's open on screen.
+  setInterval(() => {
+    if (adminKey && el('view-admin').style.display === 'block' && !document.hidden) {
+      loadAll().catch(() => {});
+    }
+  }, 15000);
 </script>
 </body>
 </html>

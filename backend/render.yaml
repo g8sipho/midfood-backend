@@ -40,6 +40,11 @@ services:
         generateValue: true
       - key: PAYFAST_MODE
         value: sandbox
+      # Leave blank: the app and the portal/driver pages are served from this
+      # same host, so no other website needs cross-origin access. Add a
+      # comma-separated list only if a separate web front-end is ever added.
+      - key: ALLOWED_ORIGINS
+        value: ''
       - key: PAYFAST_MERCHANT_ID
         value: '10004002'
       - key: PAYFAST_MERCHANT_KEY

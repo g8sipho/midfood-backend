@@ -1,0 +1,15 @@
+{
+  "name": "MidFood Driver",
+  "short_name": "MidFood Driver",
+  "description": "Take and complete MidFood deliveries in Middelburg.",
+  "start_url": "/driver/",
+  "scope": "/driver/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf9f5",
+  "theme_color": "#d97757",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

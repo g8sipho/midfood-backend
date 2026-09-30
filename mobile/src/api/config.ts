@@ -9,8 +9,10 @@
 // Easiest way to find your LAN IP: run `ipconfig getifaddr en0` (Mac) or
 // `ipconfig` (Windows) while the backend is running.
 //
-// Now pointing at the live Render deployment, so the app works over any
-// internet connection, not just your home Wi-Fi. To go back to testing
-// against your own machine, swap this back to the local IP line below.
-// const API_BASE_URL = 'http://192.168.0.8:4000';
-export const API_BASE_URL = 'https://midfood-backend.onrender.com';
+// Live MidFood backend, on its own domain. The same server also serves the
+// public site, the restaurant portal and the driver app.
+//
+// To test against a backend running on your own machine instead, comment the
+// line below out and use the LAN address one (with your computer's own IP).
+// export const API_BASE_URL = 'http://192.168.0.8:4000';
+export const API_BASE_URL = 'https://midfood.co.za';

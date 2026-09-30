@@ -18,7 +18,8 @@
       "bundleIdentifier": "za.co.midfood.app",
       "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "MidFood uses your location only while you are delivering an order, so the customer waiting for it can see you approaching."
       }
     },
     "android": {
@@ -31,7 +32,9 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["android.permission.POST_NOTIFICATIONS"]
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,6 +47,12 @@
           "color": "#d97757"
         }
       ]
-    ]
+    ],
+    "description": "Order food from Middelburg's restaurants and takeaways. Pay securely and track your driver to the door.",
+    "privacy": "public",
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#faf9f5"
+    }
   }
 }

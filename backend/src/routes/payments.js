@@ -72,17 +72,16 @@ router.post('/payfast/notify', urlencodedCapturingRaw, async (req, res) => {
 // (see mobile CheckoutScreen) intercepts this redirect itself via
 // expo-web-browser before it fully loads, but these need to exist as a valid
 // destination regardless.
-router.get('/payfast/return', (req, res) => {
-  res.send(
-    '<html><body style="font-family:sans-serif;padding:40px;text-align:center;">' +
-      '<h2>Thanks!</h2><p>You can return to the MidFood app now.</p></body></html>'
-  );
-});
-router.get('/payfast/cancel', (req, res) => {
-  res.send(
-    '<html><body style="font-family:sans-serif;padding:40px;text-align:center;">' +
-      '<h2>Payment cancelled</h2><p>You can return to the MidFood app to try again.</p></body></html>'
-  );
-});
+// `order` is the id PayFast echoes back from the checkout link we built.
+// Anything else is ignored, so this can't be used to bounce a visitor
+// somewhere unexpected.
+function backToOrder(req, res) {
+  const id = String(req.query.order || '');
+  if (/^[0-9a-f-]{36}$/i.test(id)) return res.redirect(`/order/#order/${id}`);
+  return res.redirect('/order/#orders');
+}
+
+router.get('/payfast/return', backToOrder);
+router.get('/payfast/cancel', backToOrder);
 
 module.exports = router;

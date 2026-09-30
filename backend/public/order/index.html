@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#d97757" />
+<title>Order — MidFood</title>
+<meta name="description" content="Order food from Middelburg's restaurants and takeaways. Pay securely and track your driver to the door." />
+<link rel="icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="manifest" href="/order/manifest.webmanifest" />
+<style>
+  :root {
+    --bg-app: #faf9f5;
+    --bg-surface: #ffffff;
+    --bg-muted: #f0eee6;
+    --border: rgba(15, 12, 8, 0.12);
+    --text-primary: rgba(15, 12, 8, 0.92);
+    --text-secondary: rgba(15, 12, 8, 0.64);
+    --text-tertiary: rgba(15, 12, 8, 0.6);
+    --accent: #d97757;
+    --accent-hover: #c46a4d;
+    --ink: #191915;
+    --success: #558a42;
+    --warning: #c9a82d;
+    --error: #a63244;
+    --blue: #2a78d6;
+    --shadow: rgba(20, 20, 19, 0.1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  button, input, textarea { font-family: inherit; }
+
+  /* Header */
+  header {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 20;
+    padding-top: env(safe-area-inset-top);
+  }
+  .hdr { max-width: 720px; margin: 0 auto; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; text-decoration: none; color: inherit; }
+  .brand span { color: var(--accent); }
+  .hdr-right { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    background: none; border: 1px solid var(--border); border-radius: 9px;
+    padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+    position: relative; white-space: nowrap;
+  }
+  .icon-btn.solid { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .cart-count {
+    position: absolute; top: -7px; right: -7px; background: var(--error); color: #fff;
+    border-radius: 999px; font-size: 11px; font-weight: 800; min-width: 19px; padding: 1px 5px; display: none;
+  }
+  .cart-count.show { display: block; }
+  .back {
+    background: none; border: none; padding: 0; font-size: 14px; font-weight: 700;
+    color: var(--accent); cursor: pointer; margin-bottom: 14px; display: none;
+  }
+
+  main { max-width: 720px; margin: 0 auto; padding: 20px 16px 96px; }
+  h1.page { font-size: 25px; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 4px; }
+  p.page-sub { font-size: 14px; color: var(--text-secondary); margin: 0 0 22px; }
+  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-tertiary); margin: 26px 0 10px; font-weight: 800; }
+
+  .card {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 15px;
+    padding: 20px; box-shadow: 0 1px 3px var(--shadow); margin-bottom: 14px;
+  }
+  label { display: block; font-size: 13px; font-weight: 700; margin: 15px 0 6px; }
+  form label:first-of-type, .card > label:first-of-type { margin-top: 0; }
+  input, textarea {
+    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 16px; background: var(--bg-app); color: var(--text-primary);
+  }
+  textarea { min-height: 62px; resize: vertical; }
+  .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 5px; }
+  button.primary {
+    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 11px;
+    padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 18px;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+  button.ghost {
+    width: 100%; background: none; border: 1px solid var(--border); border-radius: 11px;
+    padding: 13px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; margin-top: 10px;
+  }
+  .msg { font-size: 13px; margin-top: 12px; display: none; }
+  .msg.err { color: var(--error); }
+  .msg.ok { color: var(--success); }
+
+  /* Restaurant list */
+  .resto {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 15px;
+    overflow: hidden; margin-bottom: 13px; cursor: pointer; box-shadow: 0 1px 3px var(--shadow);
+    transition: transform 0.12s;
+  }
+  .resto:hover { transform: translateY(-1px); }
+  .resto .hero { height: 74px; display: flex; align-items: center; justify-content: center; }
+  .resto .hero span { color: #fff; font-size: 27px; font-weight: 800; opacity: 0.92; letter-spacing: -0.5px; }
+  .resto .body { padding: 14px 16px; }
+  .resto .nm { font-weight: 800; font-size: 16px; }
+  .resto .mt { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .resto .ft { font-size: 12px; color: var(--text-tertiary); margin-top: 7px; }
+  .resto.shut { opacity: 0.55; }
+  .shut-tag {
+    display: inline-block; font-size: 11px; font-weight: 800; color: var(--error);
+    border: 1px solid var(--error); border-radius: 999px; padding: 1px 8px; margin-left: 7px; vertical-align: middle;
+  }
+
+  /* Menu */
+  .menu-hero { border-radius: 15px; height: 96px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  .menu-hero span { color: #fff; font-size: 30px; font-weight: 800; letter-spacing: -0.6px; }
+  .mi { display: flex; gap: 14px; align-items: flex-start; padding: 15px 0; border-bottom: 1px solid var(--border); }
+  .mi:last-child { border-bottom: none; }
+  .mi-main { flex: 1; min-width: 0; }
+  .mi .nm { font-weight: 700; font-size: 15px; }
+  .mi .ds { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .mi .pr { font-weight: 800; color: var(--accent); margin-top: 6px; font-size: 14px; }
+  .qty { display: flex; align-items: center; gap: 9px; flex: none; }
+  .qty button {
+    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border);
+    background: var(--bg-app); font-size: 18px; font-weight: 700; cursor: pointer; color: var(--text-primary);
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  .qty button.add { background: var(--accent); border-color: var(--accent); color: #fff; width: auto; padding: 0 15px; font-size: 13px; }
+  .qty .n { font-weight: 800; min-width: 17px; text-align: center; }
+
+  /* Cart bar */
+  .cartbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: var(--bg-surface); border-top: 1px solid var(--border);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(20,20,19,0.08); display: none;
+  }
+  .cartbar .inner { max-width: 720px; margin: 0 auto; }
+  .cartbar button {
+    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 11px;
+    padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .line { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 14px; }
+  .line .l { color: var(--text-secondary); }
+  .divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .total { font-weight: 800; font-size: 16px; }
+  .total .v { color: var(--accent); }
+
+  /* Tracking */
+  .track-step { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+  .track-step .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--border); flex: none; }
+  .track-step.on .dot { background: var(--accent); }
+  .track-step .lb { font-size: 14px; color: var(--text-tertiary); }
+  .track-step.on .lb { color: var(--text-primary); font-weight: 700; }
+  .banner { border-radius: 13px; padding: 15px; border: 1px solid; margin-bottom: 14px; }
+  .banner.wait { background: rgba(201,168,45,0.09); border-color: var(--warning); }
+  .banner.bad { background: rgba(166,50,68,0.08); border-color: var(--error); }
+  .banner.good { background: rgba(85,138,66,0.09); border-color: var(--success); }
+  .banner .t { font-weight: 800; font-size: 15px; }
+  .banner .b { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .driver-card { border: 1px solid var(--accent); border-radius: 13px; padding: 15px; background: var(--bg-surface); margin-top: 14px; }
+  .driver-card .k { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--accent); }
+  .driver-card .n { font-size: 17px; font-weight: 800; margin-top: 2px; }
+  .driver-card a { display: inline-block; font-size: 14px; font-weight: 700; color: var(--blue); text-decoration: none; margin-top: 8px; margin-right: 16px; }
+
+  .order-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .order-row:last-child { border-bottom: none; }
+  .order-row .nm { font-weight: 700; font-size: 15px; }
+  .order-row .mt { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .pill { font-size: 11px; font-weight: 800; border-radius: 999px; padding: 3px 9px; border: 1px solid; white-space: nowrap; }
+
+  .empty { color: var(--text-secondary); font-size: 14px; padding: 12px 0; }
+  .spin { text-align: center; padding: 40px 0; color: var(--text-tertiary); font-size: 14px; }
+  .view { display: none; }
+  .view.on { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr">
+    <a class="brand" href="/">Mid<span>Food</span></a>
+    <div class="hdr-right">
+      <button class="icon-btn" id="ordersBtn">My orders</button>
+      <button class="icon-btn" id="accountBtn">Sign in</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <button class="back" id="backBtn">← Back</button>
+
+  <!-- Restaurants -->
+  <div class="view" id="v-home">
+    <h1 class="page">Order in Middelburg</h1>
+    <p class="page-sub">Pick a restaurant, pay securely, and track your driver to the door.</p>
+    <div id="restoList"><div class="spin">Loading restaurants…</div></div>
+  </div>
+
+  <!-- One restaurant's menu -->
+  <div class="view" id="v-menu">
+    <div class="menu-hero" id="menuHero"><span id="menuHeroTxt"></span></div>
+    <h1 class="page" id="menuName"></h1>
+    <p class="page-sub" id="menuMeta"></p>
+    <div class="card" id="menuList"></div>
+  </div>
+
+  <!-- Checkout -->
+  <div class="view" id="v-checkout">
+    <h1 class="page">Checkout</h1>
+    <p class="page-sub" id="checkoutFrom"></p>
+
+    <div class="card">
+      <h2 class="sec" style="margin-top:0;">Your order</h2>
+      <div id="cartLines"></div>
+      <div class="divider"></div>
+      <div class="line"><span class="l">Delivery fee</span><span id="ckFee"></span></div>
+      <div class="line total"><span>Total</span><span class="v" id="ckTotal"></span></div>
+    </div>
+
+    <div class="card">
+      <label for="ckAddress">Delivery address</label>
+      <textarea id="ckAddress" placeholder="e.g. 41 Turquoise St, Mineralia, Middelburg"></textarea>
+      <label for="ckPhone">Contact number</label>
+      <input id="ckPhone" type="tel" placeholder="082 123 4567" autocomplete="tel" />
+      <div class="hint">Your driver calls this when they arrive.</div>
+      <label for="ckNotes">Note for the restaurant (optional)</label>
+      <textarea id="ckNotes" placeholder="e.g. no chilli, gate code 1234"></textarea>
+      <div class="msg err" id="ckError"></div>
+      <button class="primary" id="ckPlace">Place order</button>
+      <div class="hint" style="text-align:center;margin-top:12px;">
+        You'll be taken to PayFast to pay securely. The restaurant only sees your order once payment goes through.
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign in / register -->
+  <div class="view" id="v-auth">
+    <h1 class="page" id="authTitle">Sign in</h1>
+    <p class="page-sub" id="authSub">You need an account so we can track your order and reach you on delivery.</p>
+    <div class="card">
+      <form id="authForm">
+        <div id="nameWrap" style="display:none;">
+          <label for="auName">Your name</label>
+          <input id="auName" autocomplete="name" />
+        </div>
+        <label for="auEmail">Email</label>
+        <input id="auEmail" type="email" autocomplete="email" required />
+        <label for="auPass">Password</label>
+        <input id="auPass" type="password" autocomplete="current-password" minlength="6" required />
+        <div class="msg err" id="authError"></div>
+        <button class="primary" type="submit" id="authSubmit">Sign in</button>
+      </form>
+      <button class="ghost" id="authSwap">New here? Create an account</button>
+    </div>
+  </div>
+
+  <!-- Order list -->
+  <div class="view" id="v-orders">
+    <h1 class="page">My orders</h1>
+    <p class="page-sub">Tap an order to see where it is.</p>
+    <div class="card" id="ordersList"></div>
+  </div>
+
+  <!-- Tracking -->
+  <div class="view" id="v-track">
+    <h1 class="page" id="trName"></h1>
+    <p class="page-sub" id="trAddr"></p>
+    <div id="trBanner"></div>
+    <div class="card" id="trSteps"></div>
+    <div id="trDriver"></div>
+    <div class="card" id="trItems"></div>
+  </div>
+
+  <!-- Account -->
+  <div class="view" id="v-account">
+    <h1 class="page">Account</h1>
+    <div class="card">
+      <div style="font-weight:800;font-size:17px;" id="acName"></div>
+      <div style="font-size:14px;color:var(--text-secondary);margin-top:2px;" id="acEmail"></div>
+      <button class="ghost" id="acLogout" style="margin-top:20px;">Log out</button>
+    </div>
+  </div>
+</main>
+
+<div class="cartbar" id="cartBar">
+  <div class="inner">
+    <button id="cartGo"><span id="cartLabel"></span><span id="cartTotal"></span></button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TOKEN_KEY = 'midfood_customer_token';
+  var token = localStorage.getItem(TOKEN_KEY) || null;
+  var user = null;
+  var restaurants = [];
+  var current = null;          // restaurant whose menu is open
+  var cart = { restaurantId: null, restaurantName: '', deliveryFee: 0, lines: {} };
+  var trackTimer = null;
+  var payPoll = 0;
+
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+  var rand = function (n) { return 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, ''); };
+  function setMsg(id, text, kind) {
+    var n = el(id);
+    n.textContent = text || '';
+    n.className = 'msg ' + (kind || 'err');
+    n.style.display = text ? 'block' : 'none';
+  }
+
+  // --- cart persistence: a half-built order survives a PayFast round trip ---
+  try {
+    var saved = JSON.parse(localStorage.getItem('midfood_cart') || 'null');
+    if (saved && saved.lines) cart = saved;
+  } catch (e) { /* corrupt cart: start empty */ }
+  function saveCart() {
+    try { localStorage.setItem('midfood_cart', JSON.stringify(cart)); } catch (e) {}
+  }
+
+  // --- API ---------------------------------------------------------------
+  function api(path, options) {
+    options = options || {};
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    return fetch(path, {
+      method: options.method || 'GET',
+      headers: headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    }).then(function (res) {
+      if (res.status === 204) return null;
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) {
+          if (res.status === 401) signOut(true);
+          throw new Error(data.error || 'Something went wrong. Please try again.');
+        }
+        return data;
+      });
+    });
+  }
+
+  // --- routing ------------------------------------------------------------
+  // Hash routing so the browser back button works and a paid order can be
+  // linked straight to its tracking page from PayFast's return URL.
+  var VIEWS = ['home', 'menu', 'checkout', 'auth', 'orders', 'track', 'account'];
+  function show(view) {
+    VIEWS.forEach(function (v) { el('v-' + v).className = 'view' + (v === view ? ' on' : ''); });
+    el('backBtn').style.display = view === 'home' ? 'none' : 'block';
+    window.scrollTo(0, 0);
+    if (view !== 'track' && trackTimer) { clearTimeout(trackTimer); trackTimer = null; }
+    renderCartBar(view);
+  }
+
+  function go(hash) {
+    if (window.location.hash === hash) route();
+    else window.location.hash = hash;
+  }
+
+  function route() {
+    var h = (window.location.hash || '#').replace(/^#/, '');
+    if (h.indexOf('r/') === 0) return openRestaurant(h.slice(2));
+    if (h.indexOf('order/') === 0) return openTracking(h.slice(6));
+    if (h === 'checkout') return openCheckout();
+    if (h === 'orders') return openOrders();
+    if (h === 'account') return openAccount();
+    if (h === 'signin') return openAuth(false);
+    if (h === 'signup') return openAuth(true);
+    show('home');
+    loadRestaurants();
+  }
+  window.addEventListener('hashchange', route);
+
+  el('backBtn').addEventListener('click', function () {
+    if (window.history.length > 1) window.history.back();
+    else go('');
+  });
+
+  // --- restaurants --------------------------------------------------------
+  function loadRestaurants() {
+    api('/api/restaurants').then(function (data) {
+      restaurants = data.restaurants;
+      var box = el('restoList');
+      box.innerHTML = '';
+      if (!restaurants.length) {
+        box.innerHTML = '<div class="empty">No restaurants are listed yet. Check back soon.</div>';
+        return;
+      }
+      restaurants.forEach(function (r) {
+        var d = document.createElement('div');
+        d.className = 'resto' + (r.open === false ? ' shut' : '');
+        d.innerHTML =
+          '<div class="hero" style="background:' + esc(r.heroColor || '#d97757') + '"><span>' +
+          esc((r.name || '?').charAt(0)) + '</span></div>' +
+          '<div class="body"><div class="nm">' + esc(r.name) +
+          (r.open === false ? '<span class="shut-tag">CLOSED</span>' : '') + '</div>' +
+          '<div class="mt">' + esc(r.cuisine) + '</div>' +
+          '<div class="ft">' + esc(r.etaMinutes) + ' min · ' + rand(r.deliveryFee) + ' delivery · ★ ' +
+          esc(r.rating) + '</div></div>';
+        d.addEventListener('click', function () { go('#r/' + r.id); });
+        box.appendChild(d);
+      });
+    }).catch(function () {
+      el('restoList').innerHTML = '<div class="empty">Could not load restaurants. Check your connection and refresh.</div>';
+    });
+  }
+
+  function openRestaurant(id) {
+    show('menu');
+    el('menuList').innerHTML = '<div class="spin">Loading menu…</div>';
+    api('/api/restaurants/' + id).then(function (data) {
+      current = data.restaurant;
+      el('menuHero').style.background = current.heroColor || '#d97757';
+      el('menuHeroTxt').textContent = (current.name || '?').charAt(0);
+      el('menuName').textContent = current.name;
+      el('menuMeta').textContent =
+        current.cuisine + ' · ' + current.etaMinutes + ' min · ' + rand(current.deliveryFee) + ' delivery' +
+        (current.open === false ? ' · CLOSED right now' : '');
+      renderMenu();
+    }).catch(function (err) {
+      el('menuList').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+    });
+  }
+
+  function renderMenu() {
+    var box = el('menuList');
+    box.innerHTML = '';
+    var items = (current && current.menu) || [];
+    if (!items.length) {
+      box.innerHTML = '<div class="empty">This restaurant has nothing on the menu right now.</div>';
+      return;
+    }
+    items.forEach(function (it) {
+      var qty = cart.restaurantId === current.id && cart.lines[it.id] ? cart.lines[it.id].quantity : 0;
+      var row = document.createElement('div');
+      row.className = 'mi';
+      row.innerHTML =
+        '<div class="mi-main"><div class="nm">' + esc(it.name) + '</div>' +
+        '<div class="ds">' + esc(it.description) + '</div>' +
+        '<div class="pr">' + rand(it.price) + '</div></div>' +
+        '<div class="qty"></div>';
+      var q = row.querySelector('.qty');
+      if (current.open === false) {
+        q.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);">Closed</span>';
+      } else if (qty === 0) {
+        var add = document.createElement('button');
+        add.className = 'add';
+        add.textContent = 'Add';
+        add.addEventListener('click', function () { change(it, 1); });
+        q.appendChild(add);
+      } else {
+        var minus = document.createElement('button');
+        minus.textContent = '−';
+        minus.addEventListener('click', function () { change(it, -1); });
+        var n = document.createElement('span');
+        n.className = 'n';
+        n.textContent = qty;
+        var plus = document.createElement('button');
+        plus.textContent = '+';
+        plus.addEventListener('click', function () { change(it, 1); });
+        q.appendChild(minus); q.appendChild(n); q.appendChild(plus);
+      }
+      box.appendChild(row);
+    });
+  }
+
+  // One restaurant per order: switching restaurants replaces the cart, with a
+  // warning first so nobody loses a basket by accident.
+  function change(item, delta) {
+    if (cart.restaurantId && cart.restaurantId !== current.id && countItems() > 0) {
+      if (!confirm('Your basket has food from ' + cart.restaurantName +
+        '. Start a new order from ' + current.name + '?')) return;
+      cart.lines = {};
+    }
+    cart.restaurantId = current.id;
+    cart.restaurantName = current.name;
+    cart.deliveryFee = current.deliveryFee;
+
+    var line = cart.lines[item.id] || { id: item.id, name: item.name, price: item.price, quantity: 0 };
+    line.quantity += delta;
+    if (line.quantity <= 0) delete cart.lines[item.id];
+    else cart.lines[item.id] = line;
+
+    saveCart();
+    renderMenu();
+    renderCartBar('menu');
+  }
+
+  function cartLines() {
+    return Object.keys(cart.lines).map(function (k) { return cart.lines[k]; });
+  }
+  function countItems() {
+    return cartLines().reduce(function (s, l) { return s + l.quantity; }, 0);
+  }
+  function subtotal() {
+    return cartLines().reduce(function (s, l) { return s + l.price * l.quantity; }, 0);
+  }
+
+  function renderCartBar(view) {
+    var n = countItems();
+    var showBar = n > 0 && (view === 'menu' || view === 'home');
+    el('cartBar').style.display = showBar ? 'block' : 'none';
+    if (showBar) {
+      el('cartLabel').textContent = n + (n === 1 ? ' item · ' : ' items · ') + cart.restaurantName;
+      el('cartTotal').textContent = rand(subtotal() + cart.deliveryFee);
+    }
+    var c = el('cartCountBadge');
+    if (c) { c.textContent = n; c.className = 'cart-count' + (n ? ' show' : ''); }
+  }
+  el('cartGo').addEventListener('click', function () { go('#checkout'); });
+
+  // --- checkout -----------------------------------------------------------
+  function openCheckout() {
+    if (countItems() === 0) { go(''); return; }
+    if (!token) { pendingAfterAuth = '#checkout'; go('#signin'); return; }
+    show('checkout');
+    el('checkoutFrom').textContent = 'From ' + cart.restaurantName;
+    var box = el('cartLines');
+    box.innerHTML = '';
+    cartLines().forEach(function (l) {
+      var d = document.createElement('div');
+      d.className = 'line';
+      d.innerHTML = '<span class="l">' + esc(l.quantity + '× ' + l.name) + '</span><span>' +
+        rand(l.price * l.quantity) + '</span>';
+      box.appendChild(d);
+    });
+    el('ckFee').textContent = rand(cart.deliveryFee);
+    el('ckTotal').textContent = rand(subtotal() + cart.deliveryFee);
+    setMsg('ckError', '');
+    // Reuse the last address and number, so a repeat order is a few taps.
+    el('ckAddress').value = el('ckAddress').value || localStorage.getItem('midfood_addr') || '';
+    el('ckPhone').value = el('ckPhone').value || localStorage.getItem('midfood_phone') || '';
+  }
+
+  el('ckPlace').addEventListener('click', function () {
+    var address = el('ckAddress').value.trim();
+    var phone = el('ckPhone').value.replace(/[\s-]/g, '');
+    if (!address) return setMsg('ckError', 'Please enter your delivery address.');
+    if (!/^0\d{9}$/.test(phone)) return setMsg('ckError', 'Please enter a valid 10-digit phone number, e.g. 082 123 4567.');
+
+    setMsg('ckError', '');
+    var btn = el('ckPlace');
+    btn.disabled = true;
+    btn.textContent = 'Placing your order…';
+
+    api('/api/orders', {
+      method: 'POST',
+      body: {
+        restaurantId: cart.restaurantId,
+        items: cartLines().map(function (l) { return { menuItemId: l.id, quantity: l.quantity }; }),
+        deliveryAddress: address,
+        customerPhone: phone,
+        notes: el('ckNotes').value.trim() || undefined,
+      },
+    }).then(function (data) {
+      try {
+        localStorage.setItem('midfood_addr', address);
+        localStorage.setItem('midfood_phone', phone);
+      } catch (e) {}
+      cart = { restaurantId: null, restaurantName: '', deliveryFee: 0, lines: {} };
+      saveCart();
+      // PayFast sends the browser back to /order/#order/<id>, which lands on
+      // this order's tracking page.
+      if (data.paymentUrl) window.location.href = data.paymentUrl;
+      else go('#order/' + data.order.id);
+    }).catch(function (err) {
+      setMsg('ckError', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Place order';
+    });
+  });
+
+  // --- auth ---------------------------------------------------------------
+  var isRegister = false;
+  var pendingAfterAuth = null;
+
+  function openAuth(register) {
+    isRegister = register;
+    show('auth');
+    el('authTitle').textContent = register ? 'Create your account' : 'Sign in';
+    el('authSub').textContent = register
+      ? 'So we can track your order and reach you on delivery.'
+      : 'Welcome back.';
+    el('nameWrap').style.display = register ? 'block' : 'none';
+    el('auName').required = register;
+    el('auPass').autocomplete = register ? 'new-password' : 'current-password';
+    el('authSubmit').textContent = register ? 'Create account' : 'Sign in';
+    el('authSwap').textContent = register ? 'I already have an account' : 'New here? Create an account';
+    setMsg('authError', '');
+  }
+  el('authSwap').addEventListener('click', function () { go(isRegister ? '#signin' : '#signup'); });
+
+  el('authForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    setMsg('authError', '');
+    var body = { email: el('auEmail').value.trim(), password: el('auPass').value };
+    if (isRegister) body.name = el('auName').value.trim();
+    var btn = el('authSubmit');
+    btn.disabled = true;
+
+    api(isRegister ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: body })
+      .then(function (data) {
+        token = data.token;
+        user = data.user;
+        try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
+        paintAccount();
+        var next = pendingAfterAuth;
+        pendingAfterAuth = null;
+        go(next || '');
+      })
+      .catch(function (err) { setMsg('authError', err.message); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  function signOut(silent) {
+    token = null;
+    user = null;
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    paintAccount();
+    if (!silent) go('');
+  }
+
+  function paintAccount() {
+    el('accountBtn').textContent = user ? (user.name || 'Account').split(' ')[0] : 'Sign in';
+  }
+
+  el('accountBtn').addEventListener('click', function () { go(token ? '#account' : '#signin'); });
+  el('ordersBtn').addEventListener('click', function () {
+    if (!token) { pendingAfterAuth = '#orders'; go('#signin'); }
+    else go('#orders');
+  });
+
+  function openAccount() {
+    if (!token) { go('#signin'); return; }
+    show('account');
+    el('acName').textContent = user ? user.name : '';
+    el('acEmail').textContent = user ? user.email : '';
+  }
+  el('acLogout').addEventListener('click', function () { signOut(); });
+
+  // --- my orders ----------------------------------------------------------
+  var STATUS = {
+    placed: ['Placed', 'var(--warning)'],
+    confirmed: ['Accepted', 'var(--blue)'],
+    preparing: ['Preparing', 'var(--blue)'],
+    out_for_delivery: ['On the way', 'var(--accent)'],
+    delivered: ['Delivered', 'var(--success)'],
+    rejected: ['Declined', 'var(--error)'],
+  };
+
+  function openOrders() {
+    if (!token) { pendingAfterAuth = '#orders'; go('#signin'); return; }
+    show('orders');
+    el('ordersList').innerHTML = '<div class="spin">Loading…</div>';
+    api('/api/orders').then(function (data) {
+      var box = el('ordersList');
+      box.innerHTML = '';
+      if (!data.orders.length) {
+        box.innerHTML = '<div class="empty">You haven\'t ordered yet.</div>';
+        return;
+      }
+      data.orders.forEach(function (o) {
+        var st = STATUS[o.status] || ['—', 'var(--text-tertiary)'];
+        var unpaid = o.paymentStatus !== 'paid';
+        var row = document.createElement('div');
+        row.className = 'order-row';
+        row.innerHTML =
+          '<div><div class="nm">' + esc(o.restaurantName) + '</div>' +
+          '<div class="mt">' + rand(o.total) + ' · ' + new Date(o.createdAt).toLocaleDateString('en-ZA', {
+            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+          }) + '</div></div>' +
+          '<span class="pill" style="color:' + (unpaid ? 'var(--error)' : st[1]) +
+          ';border-color:' + (unpaid ? 'var(--error)' : st[1]) + '">' +
+          (unpaid ? 'Not paid' : st[0]) + '</span>';
+        row.addEventListener('click', function () { go('#order/' + o.id); });
+        box.appendChild(row);
+      });
+    }).catch(function (err) {
+      el('ordersList').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+    });
+  }
+
+  // --- tracking -----------------------------------------------------------
+  var STEPS = [
+    ['placed', 'Order placed'],
+    ['confirmed', 'Restaurant accepted'],
+    ['preparing', 'Preparing your food'],
+    ['out_for_delivery', 'Out for delivery'],
+    ['delivered', 'Delivered'],
+  ];
+
+  function openTracking(id) {
+    if (!token) { pendingAfterAuth = '#order/' + id; go('#signin'); return; }
+    show('track');
+    el('trBanner').innerHTML = '';
+    el('trSteps').innerHTML = '<div class="spin">Loading…</div>';
+    el('trDriver').innerHTML = '';
+    el('trItems').innerHTML = '';
+    payPoll = 0;
+    loadTracking(id, true);
+  }
+
+  function loadTracking(id, withOrder) {
+    api('/api/orders/' + id).then(function (data) {
+      var o = data.order;
+      el('trName').textContent = o.restaurantName;
+      el('trAddr').textContent = 'Delivering to ' + o.deliveryAddress;
+
+      if (withOrder) {
+        var items = el('trItems');
+        items.innerHTML = '';
+        o.items.forEach(function (i) {
+          var d = document.createElement('div');
+          d.className = 'line';
+          d.innerHTML = '<span class="l">' + esc(i.quantity + '× ' + i.name) + '</span><span>' +
+            rand(i.price * i.quantity) + '</span>';
+          items.appendChild(d);
+        });
+        var div = document.createElement('div');
+        div.className = 'divider';
+        items.appendChild(div);
+        var fee = document.createElement('div');
+        fee.className = 'line';
+        fee.innerHTML = '<span class="l">Delivery fee</span><span>' + rand(o.deliveryFee) + '</span>';
+        items.appendChild(fee);
+        var tot = document.createElement('div');
+        tot.className = 'line total';
+        tot.innerHTML = '<span>Total</span><span class="v">' + rand(o.total) + '</span>';
+        items.appendChild(tot);
+      }
+
+      if (o.paymentStatus !== 'paid') return renderUnpaid(o, id);
+      return api('/api/orders/' + id + '/tracking').then(function (t) { renderTracking(o, t.tracking, id); });
+    }).catch(function (err) {
+      el('trSteps').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+    });
+  }
+
+  function renderUnpaid(o, id) {
+    var pending = o.paymentStatus === 'pending';
+    el('trSteps').innerHTML = '';
+    el('trBanner').innerHTML =
+      '<div class="banner ' + (pending ? 'wait' : 'bad') + '">' +
+      '<div class="t">' + (pending ? 'Waiting for payment confirmation' : "Payment didn't go through") + '</div>' +
+      '<div class="b">' + (pending
+        ? 'If you just paid, this updates on its own within a few seconds. If you closed the payment page, tap below to pay again.'
+        : 'Your order is saved. Pay to send it to the kitchen.') +
+      '</div><button class="primary" id="payAgain">Pay now</button></div>';
+    el('payAgain').addEventListener('click', function () {
+      var b = el('payAgain');
+      b.disabled = true;
+      b.textContent = 'Opening PayFast…';
+      api('/api/orders/' + id + '/payfast-checkout', { method: 'POST' })
+        .then(function (d) { window.location.href = d.paymentUrl; })
+        .catch(function (err) { alert(err.message); b.disabled = false; b.textContent = 'Pay now'; });
+    });
+    // PayFast's confirmation lands server-to-server moments after payment.
+    if (pending && payPoll < 20) {
+      payPoll += 1;
+      trackTimer = setTimeout(function () { loadTracking(id, false); }, 3000);
+    }
+  }
+
+  function renderTracking(o, t, id) {
+    var status = t.status;
+    el('trBanner').innerHTML = status === 'rejected'
+      ? '<div class="banner bad"><div class="t">The restaurant couldn\'t take this order</div>' +
+        '<div class="b">' + esc(t.rejectedReason || 'No reason was given.') +
+        ' You\'ll be refunded — contact MidFood if you don\'t see it within 3 working days.</div></div>'
+      : status === 'delivered'
+        ? '<div class="banner good"><div class="t">Delivered</div><div class="b">Enjoy your meal.</div></div>'
+        : '';
+
+    var box = el('trSteps');
+    box.innerHTML = '';
+    if (status === 'rejected') {
+      box.style.display = 'none';
+    } else {
+      box.style.display = 'block';
+      var idx = STEPS.map(function (s) { return s[0]; }).indexOf(status);
+      STEPS.forEach(function (s, i) {
+        var d = document.createElement('div');
+        d.className = 'track-step' + (i <= idx ? ' on' : '');
+        d.innerHTML = '<span class="dot"></span><span class="lb">' + s[1] + '</span>';
+        box.appendChild(d);
+      });
+    }
+
+    var dbox = el('trDriver');
+    dbox.innerHTML = '';
+    if (t.driverName && status !== 'rejected') {
+      var mins = t.driverSeenAt
+        ? Math.max(0, Math.round((Date.now() - new Date(t.driverSeenAt).getTime()) / 60000))
+        : null;
+      var html = '<div class="driver-card"><div class="k">' +
+        (status === 'out_for_delivery' ? 'Your driver is on the way' : 'Your driver') + '</div>' +
+        '<div class="n">' + esc(t.driverName) + '</div>';
+      if (t.driverPhone) html += '<a href="tel:' + esc(t.driverPhone) + '">Call ' + esc(t.driverPhone) + '</a>';
+      if (t.driverLat != null && t.driverLng != null) {
+        html += '<a href="https://www.google.com/maps/search/?api=1&query=' +
+          encodeURIComponent(t.driverLat + ',' + t.driverLng) + '" target="_blank" rel="noopener">See on a map</a>' +
+          '<div style="font-size:12px;color:var(--text-tertiary);margin-top:6px;">' +
+          (mins === 0 ? 'Location updated just now' : mins != null ? 'Location updated ' + mins + ' min ago' : '') +
+          '</div>';
+      }
+      dbox.innerHTML = html + '</div>';
+    }
+
+    if (status !== 'delivered' && status !== 'rejected') {
+      trackTimer = setTimeout(function () { loadTracking(id, false); }, 8000);
+    }
+  }
+
+  // Stop polling in a background tab; pick straight back up on return.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && trackTimer) { clearTimeout(trackTimer); trackTimer = null; }
+    else if (!document.hidden && (window.location.hash || '').indexOf('#order/') === 0) route();
+  });
+
+  // --- boot ---------------------------------------------------------------
+  // A cart badge on the header, for when the bottom bar isn't showing.
+  var badge = document.createElement('span');
+  badge.className = 'cart-count';
+  badge.id = 'cartCountBadge';
+  el('ordersBtn').appendChild(badge);
+
+  if (token) {
+    api('/api/auth/me')
+      .then(function (d) { user = d.user; paintAccount(); })
+      .catch(function () { token = null; try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} })
+      .then(route);
+  } else {
+    route();
+  }
+})();
+</script>
+</body>
+</html>

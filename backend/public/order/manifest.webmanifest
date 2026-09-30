@@ -1,0 +1,15 @@
+{
+  "name": "MidFood",
+  "short_name": "MidFood",
+  "description": "Order food from Middelburg's restaurants and takeaways.",
+  "start_url": "/order/",
+  "scope": "/order/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf9f5",
+  "theme_color": "#d97757",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -5,7 +5,7 @@
 **Owner:** Sipho Masombuka · Middelburg, Mpumalanga, South Africa
 **What it is:** A food delivery platform for Middelburg — customers order from
 local restaurants, pay by card, and a MidFood driver delivers.
-**Status:** Live on midfood.co.za. No real restaurants signed up yet.
+**Status:** Live on midfood.co.za. First real signups in, awaiting approval.
 
 ---
 
@@ -34,6 +34,9 @@ All served by the one backend, so there is nothing extra to host.
 | `/driver/` | Drivers | Go online, accept deliveries, navigate, mark delivered, earnings. Also self-signup. |
 | `/portal/admin.html` | Sipho | Approve restaurants and drivers, live stats. Needs `ADMIN_KEY` (Render → Environment). |
 | `/privacy/` | Everyone | Privacy policy (POPIA), required by both app stores |
+
+The admin page has two tabs: **Operations** (approvals, live orders) and
+**Payouts** (who is owed, statements, rates, payment history).
 
 There is also a React Native / Expo customer app in `mobile/`, configured for
 the stores as `za.co.midfood.app`. **Not submitted, never yet run on a phone.**
@@ -104,28 +107,48 @@ plus `rejected`. Payment is tracked separately: `pending / paid / failed`.
 - The flyer promises **weekly EFT payouts with a statement**. Nothing in the
   system produces that yet — it is a promise on paper only.
 
+## Who is waiting (as of 2 Oct 2026)
+
+Both signed themselves up and are **unapproved**, so neither can log in:
+
+- **Chef Lue** — restaurant, 1953 South 32, Rockdale · 071 528 6926 ·
+  login `cheflue1` · "Cakes, Platters, Chips, Kotas, Meals".
+  Two things to settle first: its **delivery fee is R100** (3–4x the norm, will
+  put customers off), and it has **no `free_until` date** because it signed up
+  before the free period existed — so it would pay 15% from its first order,
+  contradicting the offer on the flyer.
+- **Lucky** — driver, 082 615 2028.
+
+The demo restaurants are gone. Three were deleted; **Sushi Yama** could not be
+(it is attached to an unpaid test order from 14 Sept) so it is **suspended** —
+invisible to customers, still listed in admin.
+
 ## Still to do, roughly in order
 
-1. **Real restaurants.** Nothing else matters until this is done. The four
-   demo restaurants (Braai House, Mama Thandi's, Sushi Yama, Pizza Nonna) are
-   seed data and are still showing to customers — delete them on the admin page.
+1. **Call Chef Lue and Lucky, then approve them.** Sort the R100 delivery fee
+   and set Chef Lue's free period at the same time.
 2. **Fill in the flyer blanks** — phone number, payout day — and print it.
+   Then more restaurants.
 3. **PayFast live credentials** — swap 3 env vars in Render, set
    `PAYFAST_MODE=live`, set the ITN URL to `/api/payments/payfast/notify`.
-4. **Payouts and commission** — weekly statements per restaurant and driver,
-   and taking the 15% automatically. Also makes the flyer's promise true.
-5. **Submit the phone app** — needs `npx eas login` / `eas init` / `npm run
+   Nothing takes real money until this is done.
+4. **Submit the phone app** — needs `npx eas login` / `eas init` / `npm run
    build:apk` on a machine that can reach Expo, a Google Play account, an Apple
    Developer account, and screenshots with real restaurants in them. See
    `mobile/README-BUILD.md`. Will be rejected while the app is an empty shell.
-6. **A live map** for the customer, instead of a map link.
+5. **A live map** for the customer, instead of a map link.
 
 ## Tests
 
-- `backend` API suite: 40 checks over the whole flow.
-- Browser suites drive the real portal, driver and ordering pages end to end
-  (18 checks on the ordering flow alone).
-- All were passing when this was written.
+Suites live in the session scratchpad, not the repo (worth moving in):
+
+- Order flow API: 40 checks.
+- Ordering page in a browser: 18 checks.
+- Money and payouts: 36 checks — splits, rounding, free period, delivery cut,
+  double-payout prevention, admin-only access.
+- Payout screens in a browser: 12 checks.
+- Rate limiter: 7 checks.
+- All passing as of 2 Oct 2026.
 
 ## Working notes
 

@@ -5,6 +5,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const payfast = require('../payments/payfast');
+const money = require('../money');
 
 const router = express.Router();
 
@@ -63,6 +64,13 @@ router.post('/payfast/notify', urlencodedCapturingRaw, async (req, res) => {
       body.pf_payment_id || null,
       orderId,
     ]);
+
+    // Freeze how this order's money splits, now that it is actually paid for.
+    // Doing it here rather than at payout time means a later rate change never
+    // rewrites an order that has already happened.
+    if (newPaymentStatus === 'paid') {
+      await money.recordSplit(orderId);
+    }
   } catch (err) {
     console.error('PayFast ITN handling error:', err);
   }

@@ -23,7 +23,8 @@ router.get('/restaurants', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
               rating::float8 AS rating, hero_color AS "heroColor", username, approved, open,
-              phone, address, (password_hash IS NOT NULL) AS "hasAccount"
+              phone, address, free_until AS "freeUntil", commission_rate::float8 AS "commissionRate",
+              (password_hash IS NOT NULL) AS "hasAccount"
        FROM restaurants ORDER BY name`
     );
     res.json({ restaurants: rows });
@@ -55,8 +56,9 @@ router.post('/restaurants', async (req, res, next) => {
     const id = uuid();
     // New restaurants start at a neutral rating; there's no review system yet.
     await pool.query(
-      `INSERT INTO restaurants (id, name, cuisine, eta_minutes, delivery_fee, rating, hero_color, username, password_hash)
-       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8)`,
+      `INSERT INTO restaurants (id, name, cuisine, eta_minutes, delivery_fee, rating, hero_color, username, password_hash, free_until)
+       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8,
+               (now() + ((SELECT value FROM settings WHERE key = 'free_months')::int || ' months')::interval)::date)`,
       [id, name, cuisine, etaMinutes, deliveryFee, heroColor, normalizedUsername, passwordHash]
     );
     res.status(201).json({ restaurant: { id, name, username: normalizedUsername } });

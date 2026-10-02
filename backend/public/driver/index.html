@@ -266,6 +266,12 @@
         <div><div class="v" id="earnToday">R0</div><div class="k">Today</div></div>
         <div><div class="v" id="earnAll">R0</div><div class="k">All time</div></div>
       </div>
+      <h3 class="section">Owed to you</h3>
+      <div class="order" id="owedBox"><div class="empty">Loading…</div></div>
+
+      <h3 class="section">Payments received</h3>
+      <div id="payList"><div class="empty">Nothing paid out yet.</div></div>
+
       <h3 class="section">Recent deliveries</h3>
       <div id="histList"><div class="empty">No completed deliveries yet.</div></div>
     </div>
@@ -516,9 +522,41 @@
 
   async function loadEarnings() {
     try {
-      const data = await api('/api/driver/orders/history');
+      const [data, money] = await Promise.all([
+        api('/api/driver/orders/history'),
+        api('/api/driver/earnings'),
+      ]);
       el('earnToday').textContent = rand(data.earningsToday);
       el('earnAll').textContent = rand(data.earnings);
+
+      // What MidFood still owes, and what it has already paid.
+      const owedBox = el('owedBox');
+      owedBox.innerHTML =
+        '<div class="top"><div class="resto">Waiting to be paid</div>' +
+        '<div class="fee">' + rand(money.pending.amount) + '</div></div>' +
+        '<div class="items">' + money.pending.orderCount +
+        (money.pending.orderCount === 1 ? ' delivery' : ' deliveries') +
+        ' since your last payment</div>';
+
+      const payBox = el('payList');
+      payBox.innerHTML = '';
+      if (!money.payouts.length) {
+        payBox.innerHTML = '<div class="empty">Nothing paid out yet.</div>';
+      } else {
+        money.payouts.forEach((p) => {
+          const d = document.createElement('div');
+          d.className = 'order';
+          d.innerHTML =
+            '<div class="top"><div class="resto">' +
+            new Date(p.paidAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long' }) +
+            '</div><div class="fee">' + rand(p.amount) + '</div></div>' +
+            '<div class="items">' + p.orderCount +
+            (p.orderCount === 1 ? ' delivery' : ' deliveries') +
+            (p.reference ? ' · ref ' + esc(p.reference) : '') + '</div>';
+          payBox.appendChild(d);
+        });
+      }
+
       const box = el('histList');
       box.innerHTML = '';
       if (!data.orders.length) {

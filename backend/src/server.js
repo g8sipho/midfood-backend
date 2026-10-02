@@ -14,6 +14,7 @@ const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payments');
 const driverAuthRoutes = require('./routes/driverAuth');
 const driverRoutes = require('./routes/driver');
+const payoutRoutes = require('./routes/payouts');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -65,35 +66,73 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/health', (req, res) => res.json({ ok: true, service: 'midfood-backend' }));
 
-// Simple in-memory rate limit on the login/sign-up endpoints, so a stolen
-// username can't be brute-forced. One process per Render instance, which is
-// enough at this scale; swap for a shared store if the API is ever scaled out.
-const attempts = new Map();
-const WINDOW_MS = 10 * 60 * 1000;
-const MAX_ATTEMPTS = 20;
+// Brute-force protection on the auth endpoints.
+//
+// Deliberately NOT a plain per-IP cap: South African mobile networks put very
+// large numbers of customers behind a single carrier-grade NAT address, so a
+// tight per-IP limit locks out real people who have done nothing wrong. What
+// actually needs protecting is one account against repeated guesses, so the
+// limit that bites is per account identifier and counts only FAILED attempts.
+// A loose per-IP ceiling stays as a backstop against a crude flood.
+
+const failures = new Map();   // identifier -> { start, count }
+const ipHits = new Map();     // ip -> { start, count }
+
+const FAIL_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILURES = 10;      // per account, per 15 minutes
+const IP_WINDOW_MS = 10 * 60 * 1000;
+const MAX_IP_HITS = 300;      // per IP, per 10 minutes — a flood, not a user
+
+function bump(map, key, windowMs) {
+  const now = Date.now();
+  const rec = map.get(key);
+  if (!rec || now - rec.start > windowMs) {
+    map.set(key, { start: now, count: 1 });
+    return 1;
+  }
+  rec.count += 1;
+  return rec.count;
+}
+
+function countOf(map, key, windowMs) {
+  const rec = map.get(key);
+  if (!rec || Date.now() - rec.start > windowMs) return 0;
+  return rec.count;
+}
 
 function rateLimitAuth(req, res, next) {
   const ip = req.ip || 'unknown';
-  const now = Date.now();
-  const rec = attempts.get(ip);
-  if (!rec || now - rec.start > WINDOW_MS) {
-    attempts.set(ip, { start: now, count: 1 });
-    return next();
+  if (bump(ipHits, ip, IP_WINDOW_MS) > MAX_IP_HITS) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a few minutes and try again.' });
   }
-  rec.count += 1;
-  if (rec.count > MAX_ATTEMPTS) {
-    return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes and try again.' });
+
+  // The account being tried: email for customers, username for the others.
+  const body = req.body || {};
+  const who = String(body.email || body.username || '').trim().toLowerCase();
+  if (who && countOf(failures, who, FAIL_WINDOW_MS) >= MAX_FAILURES) {
+    return res.status(429).json({
+      error: 'Too many failed attempts for this account. Please wait 15 minutes, or reset your password.',
+    });
+  }
+
+  // Count the attempt as a failure only once we see the response go out as a
+  // 401. A correct password clears the count, so a customer who fat-fingers
+  // their password a few times is not punished after they get it right.
+  if (who) {
+    res.on('finish', () => {
+      if (res.statusCode === 401) bump(failures, who, FAIL_WINDOW_MS);
+      else if (res.statusCode < 400) failures.delete(who);
+    });
   }
   next();
 }
 
-// Keep the map from growing without bound on a long-running instance.
+// Keep both maps from growing without bound on a long-running instance.
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, rec] of attempts) {
-    if (now - rec.start > WINDOW_MS) attempts.delete(ip);
-  }
-}, WINDOW_MS).unref();
+  for (const [k, rec] of failures) if (now - rec.start > FAIL_WINDOW_MS) failures.delete(k);
+  for (const [k, rec] of ipHits) if (now - rec.start > IP_WINDOW_MS) ipHits.delete(k);
+}, 5 * 60 * 1000).unref();
 
 app.use(['/api/auth/login', '/api/auth/register'], rateLimitAuth);
 app.use(['/api/restaurant-auth', '/api/driver-auth'], rateLimitAuth);
@@ -107,6 +146,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/driver-auth', driverAuthRoutes);
 app.use('/api/driver', driverRoutes);
+app.use('/api/payouts', payoutRoutes);
 
 // Fallback 404 for anything unmatched under /api
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

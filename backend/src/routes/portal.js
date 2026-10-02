@@ -255,6 +255,53 @@ router.post('/orders/:id/ready', async (req, res, next) => {
   }
 });
 
+// GET /api/portal/earnings - what this restaurant is owed and has been paid.
+// The kitchen sees its own money without having to ask MidFood.
+router.get('/earnings', async (req, res, next) => {
+  try {
+    const pending = await pool.query(
+      `SELECT COUNT(*)::int AS "orderCount",
+              COALESCE(SUM(subtotal), 0)::float8 AS gross,
+              COALESCE(SUM(commission), 0)::float8 AS commission,
+              COALESCE(SUM(restaurant_payout), 0)::float8 AS amount
+       FROM orders
+       WHERE restaurant_id = $1 AND payment_status = 'paid' AND status = 'delivered'
+         AND restaurant_payout_id IS NULL AND restaurant_payout IS NOT NULL`,
+      [req.restaurantId]
+    );
+
+    const paid = await pool.query(
+      `SELECT id, order_count AS "orderCount", gross::float8 AS gross,
+              deductions::float8 AS commission, amount::float8 AS amount,
+              reference, period_start AS "periodStart", period_end AS "periodEnd",
+              paid_at AS "paidAt"
+       FROM payouts WHERE restaurant_id = $1 ORDER BY paid_at DESC LIMIT 26`,
+      [req.restaurantId]
+    );
+
+    const terms = await pool.query(
+      `SELECT free_until AS "freeUntil", commission_rate::float8 AS "ownRate",
+              (SELECT value FROM settings WHERE key = 'commission_rate')::float8 AS "defaultRate"
+       FROM restaurants WHERE id = $1`,
+      [req.restaurantId]
+    );
+    const t = terms.rows[0] || {};
+    const inFreePeriod = !!(t.freeUntil && new Date(t.freeUntil) >= new Date());
+
+    res.json({
+      pending: pending.rows[0],
+      payouts: paid.rows,
+      terms: {
+        freeUntil: t.freeUntil,
+        inFreePeriod,
+        rate: inFreePeriod ? 0 : (t.ownRate != null ? t.ownRate : t.defaultRate),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/portal/open { open: true|false } - "we're closed" switch
 router.patch('/open', async (req, res, next) => {
   try {

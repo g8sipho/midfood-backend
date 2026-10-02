@@ -69,8 +69,9 @@ router.post('/register', async (req, res, next) => {
     const colors = ['#d97757', '#558a42', '#2a78d6', '#c9a82d', '#8b6ac8', '#a63244'];
     const passwordHash = await bcrypt.hash(password, 10);
     await pool.query(
-      `INSERT INTO restaurants (id, name, cuisine, eta_minutes, delivery_fee, rating, hero_color, username, password_hash, approved, phone, address)
-       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8, false, $9, $10)`,
+      `INSERT INTO restaurants (id, name, cuisine, eta_minutes, delivery_fee, rating, hero_color, username, password_hash, approved, phone, address, free_until)
+       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8, false, $9, $10,
+               (now() + ((SELECT value FROM settings WHERE key = 'free_months')::int || ' months')::interval)::date)`,
       [
         uuid(), name, cuisine,
         Number(etaMinutes) > 0 ? Number(etaMinutes) : 35,

@@ -115,6 +115,29 @@ router.post('/orders/:id/deliver', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/driver/earnings - what this driver is owed and has been paid.
+router.get('/earnings', async (req, res, next) => {
+  try {
+    const pending = await pool.query(
+      `SELECT COUNT(*)::int AS "orderCount",
+              COALESCE(SUM(delivery_fee), 0)::float8 AS gross,
+              COALESCE(SUM(delivery_cut), 0)::float8 AS deductions,
+              COALESCE(SUM(driver_payout), 0)::float8 AS amount
+       FROM orders
+       WHERE driver_id = $1 AND payment_status = 'paid' AND status = 'delivered'
+         AND driver_payout_id IS NULL AND driver_payout IS NOT NULL`,
+      [req.driverId]
+    );
+    const paid = await pool.query(
+      `SELECT id, order_count AS "orderCount", amount::float8 AS amount, reference,
+              period_start AS "periodStart", period_end AS "periodEnd", paid_at AS "paidAt"
+       FROM payouts WHERE driver_id = $1 ORDER BY paid_at DESC LIMIT 26`,
+      [req.driverId]
+    );
+    res.json({ pending: pending.rows[0], payouts: paid.rows });
+  } catch (err) { next(err); }
+});
+
 // POST /api/driver/location { lat, lng } - called every few seconds by the app
 router.post('/location', async (req, res, next) => {
   try {

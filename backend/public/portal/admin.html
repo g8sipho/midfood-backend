@@ -125,6 +125,33 @@
   .appl .btns button { border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .appl .btns .yes-btn { background: var(--success); color: #fff; }
   .appl .btns .no-btn { background: none; border: 1px solid var(--error); color: var(--error); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tabs button {
+    flex: 1; background: none; border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px; font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer;
+  }
+  .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .owe { border-bottom: 1px solid var(--border); padding: 16px 0; }
+  .owe:last-child { border-bottom: none; }
+  .owe .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .owe .nm { font-weight: 700; font-size: 16px; }
+  .owe .amt { font-weight: 800; font-size: 18px; color: var(--accent); white-space: nowrap; }
+  .owe .mt { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+  .owe .bank { font-size: 13px; color: var(--text-primary); margin-top: 7px; background: var(--bg-app);
+    border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+  .owe .bank.missing { color: var(--error); border-color: var(--error); }
+  .owe .btns { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+  .owe .btns button { border: none; border-radius: 9px; padding: 9px 15px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .owe .btns .pay { background: var(--success); color: #fff; }
+  .owe .btns .view { background: none; border: 1px solid var(--border); color: var(--text-primary); }
+  .stmt { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; }
+  .stmt table { margin: 0; }
+  .stmt th, .stmt td { padding: 8px 11px; font-size: 13px; }
+  .stmt tfoot td { font-weight: 800; background: var(--bg-app); }
+  .num { text-align: right; }
+  .rate-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .rate-form > div { flex: 1; min-width: 130px; }
+  .rate-form label { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -151,6 +178,64 @@
   </div>
 
   <div id="view-admin">
+    <div class="tabs">
+      <button id="tabOps" class="active">Operations</button>
+      <button id="tabPay">Payouts<span id="payBadge" style="display:none"></span></button>
+    </div>
+
+    <div id="pane-pay" style="display:none;">
+      <div class="stats">
+        <div><div class="v" id="pOweR">R0</div><div class="k">Owed to restaurants</div></div>
+        <div><div class="v" id="pOweD">R0</div><div class="k">Owed to drivers</div></div>
+        <div><div class="v" id="pEarned">R0</div><div class="k">Your commission earned</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Restaurants</h2>
+        <p class="hint">Food money less your commission. Pay by EFT, then record it here.</p>
+        <div id="oweRestaurants"><div class="empty">Nobody is owed anything.</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Drivers</h2>
+        <p class="hint">Delivery fees for completed deliveries.</p>
+        <div id="oweDrivers"><div class="empty">Nobody is owed anything.</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Your rates</h2>
+        <p class="hint">Changing these only affects orders placed from now on. Past orders keep the rate they were charged.</p>
+        <form id="ratesForm" class="rate-form">
+          <div>
+            <label for="fCommission">Commission %</label>
+            <input id="fCommission" type="number" min="0" max="100" step="0.5" required />
+          </div>
+          <div>
+            <label for="fDelivery">Your % of the delivery fee</label>
+            <input id="fDelivery" type="number" min="0" max="100" step="1" required />
+          </div>
+          <div>
+            <label for="fFree">Free months for new restaurants</label>
+            <input id="fFree" type="number" min="0" max="24" step="1" required />
+          </div>
+          <div style="flex: 0 0 auto;">
+            <button class="primary" type="submit" style="margin-top:0;">Save</button>
+          </div>
+        </form>
+        <div class="error-msg" id="ratesError"></div>
+        <div class="msg-ok" id="ratesOk"></div>
+      </div>
+
+      <div class="card">
+        <h2>Payout history</h2>
+        <table>
+          <thead><tr><th>Paid</th><th>Who</th><th>Orders</th><th class="num">Amount</th><th>Reference</th></tr></thead>
+          <tbody id="payHistory"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="pane-ops">
     <div class="stats">
       <div><div class="v" id="sLive">0</div><div class="k">Orders live now</div></div>
       <div><div class="v" id="sToday">0</div><div class="k">Delivered today</div></div>
@@ -227,7 +312,7 @@
       </form>
     </div>
 
-    <div class="card">
+    <div class="card" id="existingRestaurants">
       <h2>Existing restaurants</h2>
       <p class="hint">Restaurants without a portal login yet (like the four original ones) can be given one here.</p>
       <table>
@@ -236,6 +321,7 @@
         </thead>
         <tbody id="restaurantTableBody"></tbody>
       </table>
+    </div>
     </div>
   </div>
 
@@ -508,6 +594,198 @@
     }
   });
 
+  // --- Payouts --------------------------------------------------------------
+
+  function bankLine(x) {
+    if (!x.bankAccountNumber) {
+      return '<div class="bank missing">No bank details yet — add them before paying.</div>';
+    }
+    return '<div class="bank">' + escapeHtml(x.bankName || 'Bank not set') + ' · ' +
+      escapeHtml(x.bankAccountName || '') + ' · ' + escapeHtml(x.bankAccountNumber) + '</div>';
+  }
+
+  function sinceWhen(iso) {
+    if (!iso) return '';
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (days <= 0) return 'since today';
+    if (days === 1) return 'oldest 1 day ago';
+    return 'oldest ' + days + ' days ago';
+  }
+
+  function oweRow(x, type) {
+    const div = document.createElement('div');
+    div.className = 'owe';
+    div.innerHTML =
+      '<div class="top"><div class="nm">' + escapeHtml(x.name) + '</div>' +
+      '<div class="amt">' + rand(x.amount) + '</div></div>' +
+      '<div class="mt">' + x.orderCount + (x.orderCount === 1 ? ' order · ' : ' orders · ') +
+      rand(x.gross) + ' gross less ' + rand(x.deductions) +
+      (type === 'restaurant' ? ' commission' : ' platform fee') + ' · ' + sinceWhen(x.oldest) + '</div>' +
+      bankLine(x) +
+      '<div class="btns"></div>' +
+      '<div class="stmt"><table><thead><tr><th>Delivered</th><th>Customer</th>' +
+      '<th class="num">' + (type === 'restaurant' ? 'Food' : 'Fee') + '</th>' +
+      '<th class="num">Less</th><th class="num">You get</th></tr></thead>' +
+      '<tbody></tbody><tfoot></tfoot></table></div>';
+
+    const btns = div.querySelector('.btns');
+    const stmt = div.querySelector('.stmt');
+
+    const view = document.createElement('button');
+    view.className = 'view';
+    view.textContent = 'See every order';
+    view.addEventListener('click', async () => {
+      if (stmt.style.display === 'block') { stmt.style.display = 'none'; view.textContent = 'See every order'; return; }
+      try {
+        const d = await adminFetch('/api/payouts/statement/' + type + '/' + x.id);
+        const tb = stmt.querySelector('tbody');
+        tb.innerHTML = '';
+        d.orders.forEach((o) => {
+          const gross = type === 'restaurant' ? o.subtotal : o.deliveryFee;
+          const less = type === 'restaurant' ? o.commission : o.deliveryCut;
+          const net = type === 'restaurant' ? o.restaurantPayout : o.driverPayout;
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + new Date(o.deliveredAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + '</td>' +
+            '<td>' + escapeHtml(o.customerName) + '</td>' +
+            '<td class="num">' + rand(gross) + '</td>' +
+            '<td class="num">' + rand(less) + '</td>' +
+            '<td class="num">' + rand(net) + '</td>';
+          tb.appendChild(tr);
+        });
+        stmt.querySelector('tfoot').innerHTML =
+          '<tr><td colspan="2">' + d.totals.orderCount +
+          (d.totals.orderCount === 1 ? ' order' : ' orders') + '</td>' +
+          '<td class="num">' + rand(d.totals.gross) + '</td>' +
+          '<td class="num">' + rand(d.totals.deductions) + '</td>' +
+          '<td class="num">' + rand(d.totals.amount) + '</td></tr>';
+        stmt.style.display = 'block';
+        view.textContent = 'Hide';
+      } catch (err) { alert(err.message); }
+    });
+    btns.appendChild(view);
+
+    const bank = document.createElement('button');
+    bank.className = 'view';
+    bank.textContent = x.bankAccountNumber ? 'Edit bank details' : 'Add bank details';
+    bank.addEventListener('click', async () => {
+      const bankName = prompt('Bank', x.bankName || '');
+      if (bankName === null) return;
+      const accName = prompt('Account name', x.bankAccountName || x.name);
+      if (accName === null) return;
+      const accNo = prompt('Account number', x.bankAccountNumber || '');
+      if (accNo === null) return;
+      try {
+        await adminFetch('/api/payouts/bank/' + type + '/' + x.id, {
+          method: 'PUT',
+          body: JSON.stringify({ bankName, bankAccountName: accName, bankAccountNumber: accNo }),
+        });
+        await loadPayouts();
+      } catch (err) { alert(err.message); }
+    });
+    btns.appendChild(bank);
+
+    const pay = document.createElement('button');
+    pay.className = 'pay';
+    pay.textContent = 'Mark ' + rand(x.amount) + ' as paid';
+    pay.addEventListener('click', async () => {
+      if (!confirm('Record that you have paid ' + x.name + ' ' + rand(x.amount) + '?\n\n' +
+        'Do this AFTER the EFT has gone through. These ' + x.orderCount +
+        ' orders will be marked settled and cannot be paid again.')) return;
+      const reference = prompt('Your EFT reference (optional)', '');
+      if (reference === null) return;
+      try {
+        await adminFetch('/api/payouts/' + type + '/' + x.id, {
+          method: 'POST',
+          body: JSON.stringify({ reference: reference || null }),
+        });
+        await loadPayouts();
+      } catch (err) { alert(err.message); }
+    });
+    btns.appendChild(pay);
+
+    return div;
+  }
+
+  async function loadPayouts() {
+    const [owing, history, settings] = await Promise.all([
+      adminFetch('/api/payouts/owing'),
+      adminFetch('/api/payouts/history'),
+      adminFetch('/api/payouts/settings'),
+    ]);
+
+    el('pOweR').textContent = rand(owing.owed.restaurants);
+    el('pOweD').textContent = rand(owing.owed.drivers);
+    el('pEarned').textContent = rand(owing.earned.commission + owing.earned.deliveryCut);
+
+    const fill = (id, list, type) => {
+      const box = el(id);
+      box.innerHTML = '';
+      if (!list.length) { box.innerHTML = '<div class="empty">Nobody is owed anything.</div>'; return; }
+      list.forEach((x) => box.appendChild(oweRow(x, type)));
+    };
+    fill('oweRestaurants', owing.restaurants, 'restaurant');
+    fill('oweDrivers', owing.drivers, 'driver');
+
+    const pending = owing.restaurants.length + owing.drivers.length;
+    const badge = el('payBadge');
+    badge.textContent = pending ? ' (' + pending + ')' : '';
+    badge.style.display = pending ? 'inline' : 'none';
+
+    el('fCommission').value = (settings.settings.commissionRate * 100).toFixed(1).replace(/\.0$/, '');
+    el('fDelivery').value = Math.round(settings.settings.deliveryCutRate * 100);
+    el('fFree').value = settings.settings.freeMonths;
+
+    const hb = el('payHistory');
+    hb.innerHTML = '';
+    if (!history.payouts.length) {
+      hb.innerHTML = '<tr><td colspan="5" class="empty">Nothing paid out yet.</td></tr>';
+    } else {
+      history.payouts.forEach((p) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + new Date(p.paidAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + '</td>' +
+          '<td>' + escapeHtml(p.payeeName || '—') + '<br><span style="font-size:11px;color:var(--text-secondary)">' +
+          p.payeeType + '</span></td>' +
+          '<td>' + p.orderCount + '</td>' +
+          '<td class="num">' + rand(p.amount) + '</td>' +
+          '<td>' + escapeHtml(p.reference || '—') + '</td>';
+        hb.appendChild(tr);
+      });
+    }
+  }
+
+  el('ratesForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showMsg('ratesError', '');
+    showMsg('ratesOk', '');
+    try {
+      await adminFetch('/api/payouts/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          commissionRate: Number(el('fCommission').value) / 100,
+          deliveryCutRate: Number(el('fDelivery').value) / 100,
+          freeMonths: Number(el('fFree').value),
+        }),
+      });
+      showMsg('ratesOk', 'Saved. Orders from now on use the new rates.');
+      await loadPayouts();
+    } catch (err) {
+      showMsg('ratesError', err.message);
+    }
+  });
+
+  function adminTab(which) {
+    el('tabOps').className = which === 'ops' ? 'active' : '';
+    el('tabPay').className = which === 'pay' ? 'active' : '';
+    el('pane-ops').style.display = which === 'ops' ? 'block' : 'none';
+    el('pane-pay').style.display = which === 'pay' ? 'block' : 'none';
+    if (which === 'pay') loadPayouts().catch((e) => alert(e.message));
+    else loadAll().catch(() => {});
+  }
+  el('tabOps').addEventListener('click', () => adminTab('ops'));
+  el('tabPay').addEventListener('click', () => adminTab('pay'));
+
   if (adminKey) {
     loadAll().then(() => showView('admin')).catch(() => showView('lock'));
   } else {
@@ -516,9 +794,9 @@
 
   // Keep the dashboard current while it's open on screen.
   setInterval(() => {
-    if (adminKey && el('view-admin').style.display === 'block' && !document.hidden) {
-      loadAll().catch(() => {});
-    }
+    if (!adminKey || el('view-admin').style.display !== 'block' || document.hidden) return;
+    if (el('pane-pay').style.display === 'block') loadPayouts().catch(() => {});
+    else loadAll().catch(() => {});
   }, 15000);
 </script>
 </body>

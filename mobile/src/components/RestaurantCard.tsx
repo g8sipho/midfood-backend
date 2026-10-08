@@ -26,7 +26,7 @@ export default function RestaurantCard({
           {restaurant.cuisine}
         </Text>
         <View style={styles.metaRow}>
-          <Text style={styles.meta}>⭐ {restaurant.rating.toFixed(1)}</Text>
+          <Text style={styles.meta}>{restaurant.rating == null ? 'New' : `⭐ ${restaurant.rating.toFixed(1)}`}</Text>
           <Text style={styles.metaDot}>·</Text>
           <Text style={styles.meta}>{restaurant.etaMinutes} min</Text>
           <Text style={styles.metaDot}>·</Text>

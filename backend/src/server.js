@@ -15,6 +15,7 @@ const paymentRoutes = require('./routes/payments');
 const driverAuthRoutes = require('./routes/driverAuth');
 const driverRoutes = require('./routes/driver');
 const payoutRoutes = require('./routes/payouts');
+const images = require('./routes/images');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -150,11 +151,21 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/driver-auth', driverAuthRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/payouts', payoutRoutes);
+app.use('/api/images', images.router);
 
 // Fallback 404 for anything unmatched under /api
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.too.large') {
+    const photo = /^image\//.test(req.headers['content-type'] || '');
+    return res.status(413).json({
+      error: photo ? 'That photo is too large. It must be under 600 KB once resized.' : 'That is too much to send at once. Send it in smaller parts.',
+    });
+  }
+  if (err && (err.type === 'entity.parse.failed' || err.status === 400)) {
+    return res.status(400).json({ error: 'That request could not be read' });
+  }
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
 });

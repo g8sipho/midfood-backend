@@ -191,8 +191,25 @@
   .dish .pr { font-weight: 800; white-space: nowrap; font-size: 14px; }
   .dish .do { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 190px; }
   .dish.off .nm, .dish.off .pr { color: var(--text-secondary); text-decoration: line-through; }
-  .dish .grid { display: grid; grid-template-columns: 2fr 3fr 90px; gap: 8px; }
-  .menu-add { display: grid; grid-template-columns: 2fr 3fr 100px auto; gap: 8px; align-items: end; margin-top: 14px; }
+  .dish .grid { display: grid; grid-template-columns: 2fr 3fr 1.3fr 90px; gap: 8px; }
+  .dish .ph {
+    flex: none; width: 56px; height: 56px; border-radius: 9px; border: 1px dashed var(--border); background: var(--bg-app);
+    padding: 0; cursor: pointer; overflow: hidden; font-size: 11px; font-weight: 700; color: var(--accent); line-height: 1.2;
+  }
+  .dish .ph.has { border-style: solid; }
+  .dish .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dish .ph:disabled { opacity: 0.5; cursor: default; }
+  .sec-head { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-secondary); padding: 14px 0 2px; }
+  .cover-row { display: flex; gap: 14px; align-items: center; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .cover-ph {
+    flex: none; width: 150px; height: 84px; border-radius: 10px; border: 1px dashed var(--border); background: var(--bg-app);
+    overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-secondary);
+  }
+  .cover-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cover-row .t { font-weight: 700; font-size: 14px; }
+  .cover-row .d { font-size: 12px; color: var(--text-secondary); margin: 2px 0 6px; }
+  .cover-row .link-btn { margin-right: 12px; }
+  .menu-add { display: grid; grid-template-columns: 2fr 3fr 1.3fr 100px auto; gap: 8px; align-items: end; margin-top: 14px; }
   .menu-add label, .menu-bulk label { margin-top: 0; }
   .menu-bulk { margin-top: 14px; }
   .menu-bulk summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); }
@@ -200,7 +217,7 @@
     width: 100%; min-height: 130px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border);
     border-radius: 10px; font-size: 14px; font-family: inherit; background: var(--bg-surface); color: var(--text-primary);
   }
-  @media (max-width: 640px) { .menu-add, .dish .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .menu-add, .dish .grid { grid-template-columns: 1fr; } .cover-ph { width: 110px; height: 62px; } }
 </style>
 </head>
 <body>
@@ -535,29 +552,113 @@
   }
 
   // Turns pasted text into dishes. One dish per line, with the price last:
+  //   Kotas:
   //   Full House Kota - polony, russian, egg, cheese, chips - 45
   //   Large chips R30
+  // A line ending in a colon is a section heading for the dishes under it.
   // Returns { dishes } or { error } naming the first line it cannot read.
   function parseDishes(text) {
     const dishes = [];
     const lines = String(text).split(/\r?\n/);
+    let section = '';
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i].trim();
       if (!line) continue;
+      const head = line.match(/^(.*[^\s:])\s*:$/);
+      if (head) { section = head[1].trim(); continue; }
       // The price is the last number on the line, after a space or other
       // separator, with an optional R in front. The separator is required: it
       // is what stops the "r" at the end of "Platter" being read as the R.
       const m = line.match(/^(.*?)[\s\-–—:|,;]+(?:R\s*)?(\d{1,6}(?:[.,]\d{1,2})?)\s*$/i);
       if (!m || !m[1].trim()) return { error: 'Line ' + (i + 1) + ' needs a dish name followed by a price: “' + line.slice(0, 40) + '”' };
       const parts = m[1].trim().split(/\s+[\-–—|]\s+/);
-      dishes.push({
+      const dish = {
         name: parts[0].trim(),
         description: parts.slice(1).join(' - ').trim(),
         price: Number(m[2].replace(',', '.')),
-      });
+      };
+      if (section) dish.category = section;
+      dishes.push(dish);
     }
     return dishes.length ? { dishes } : { error: 'Type at least one dish.' };
   }
+
+  // --- photos -----------------------------------------------------------------
+  // A phone photo is several megabytes. Before it is sent it is made menu-sized
+  // here in the browser: either fitted inside `max` pixels, or cut to a centred
+  // square of `square` pixels for the menu list. Always saved as a JPEG.
+  async function shrink(file, { max, square, quality }) {
+    let pic;
+    try {
+      pic = await createImageBitmap(file);   // also turns sideways phone photos upright
+    } catch (e) {
+      pic = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('This picture could not be read. Try a JPEG or PNG photo.'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('This picture could not be read. Try a JPEG or PNG photo.'));
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    const w = pic.width;
+    const h = pic.height;
+    let sx = 0, sy = 0, sw = w, sh = h, dw, dh;
+    if (square) {
+      // Centred across, a little above centre down: on a tall phone photo the
+      // dish and anything standing on it sit high, and whatever a phone
+      // camera stamps on its photos sits along the bottom.
+      const side = Math.min(w, h);
+      sx = (w - side) / 2; sy = (h - side) * 0.3; sw = side; sh = side;
+      dw = dh = Math.min(square, side);
+    } else {
+      const k = Math.min(1, max / Math.max(w, h));
+      dw = Math.max(1, Math.round(w * k));
+      dh = Math.max(1, Math.round(h * k));
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';              // a see-through PNG gets a white background
+    ctx.fillRect(0, 0, dw, dh);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(pic, sx, sy, sw, sh, 0, 0, dw, dh);
+    const save = (q) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', q));
+    let blob = await save(quality);
+    if (blob && blob.size > 560 * 1024) blob = await save(0.6);
+    if (!blob) throw new Error('This picture could not be read. Try a JPEG or PNG photo.');
+    return blob;
+  }
+
+  // Sends a photo for a dish or a restaurant. `target` is the thing it belongs
+  // to: /api/admin/menu/<dish id> or /api/admin/restaurants/<restaurant id>.
+  // Two copies go up: the photo itself, and a small one for lists (a square
+  // for a dish, a card-sized picture for a restaurant's cover).
+  // Returns { imageUrl, thumbUrl }, plus smallCopyMissing: true if the photo
+  // was saved but its small copy could not be sent.
+  async function uploadPhoto(target, file) {
+    if (!file || !/^image\//.test(file.type || '')) throw new Error('Choose a photo (a JPEG or PNG picture).');
+    const send = (path, blob) => adminFetch(path, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+    const isDish = target.indexOf('/menu/') !== -1;
+    const res = await send(target + '/image', await shrink(file, { max: isDish ? 1000 : 1200, quality: 0.8 }));
+    const small = await shrink(file, isDish ? { square: 240, quality: 0.72 } : { max: 640, quality: 0.72 });
+    // The photo is saved by now. If the small copy fails (a dropped signal),
+    // it is tried once more; after that the photo still stands and the page
+    // says the small copy is missing, rather than pretending nothing was saved.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await send(target + '/image/thumb', small);
+      } catch (e) {
+        if (!adminKey) throw e;   // locked out: nothing more can be sent
+      }
+    }
+    return { ...res, smallCopyMissing: true };
+  }
+  const SMALL_COPY_NOTE = ' Its small copy for lists was not sent (weak signal?), so it will load slowly for customers. Send the photo again when you can.';
 
   // A restaurant's whole menu, opened under its row: see it, fix it, add to it.
   // Built for loading a menu on a kitchen's behalf from a photo or a price list.
@@ -567,22 +668,77 @@
     const td = document.createElement('td');
     td.colSpan = 6;
     td.className = 'menu-panel';
+    const listId = 'sections-' + r.id;
     td.innerHTML =
       '<h3>' + escapeHtml(r.name) + ' — menu</h3><div class="sub" data-a="count">Loading…</div>' +
+      '<div class="cover-row"><div class="cover-ph" data-a="cover-ph"></div><div>' +
+      '<div class="t">Cover photo</div>' +
+      '<div class="d">Shown on the restaurant’s card and at the top of its menu. A wide photo of the food works best.</div>' +
+      '<button class="link-btn" data-a="cover"></button><button class="link-btn" data-a="cover-del" style="color:var(--error);">Remove</button>' +
+      '</div></div>' +
       '<div data-a="list"></div>' +
       '<div class="menu-add">' +
       '<div><label>Dish</label><input data-f="name" maxlength="120" placeholder="e.g. Full House Kota" /></div>' +
       '<div><label>Description (optional)</label><input data-f="desc" maxlength="400" placeholder="What is in it" /></div>' +
+      '<div><label>Section</label><input data-f="cat" maxlength="40" placeholder="e.g. Kotas" list="' + listId + '" /></div>' +
       '<div><label>Price (R)</label><input data-f="price" type="number" min="0" step="0.5" /></div>' +
       '<div><button class="btn go" data-a="add">Add dish</button></div></div>' +
+      '<datalist id="' + listId + '"></datalist>' +
       '<details class="menu-bulk"><summary>Add several at once</summary>' +
-      '<textarea data-f="bulk" placeholder="One dish per line, price last. For example:&#10;Full House Kota - polony, russian, egg, cheese, chips - 45&#10;Large chips 30&#10;Family platter - wings, ribs, chips and rolls for four - R320"></textarea>' +
+      '<textarea data-f="bulk" placeholder="One dish per line, price last. A line ending in a colon starts a section. For example:&#10;Kotas:&#10;Full House Kota - polony, russian, egg, cheese, chips - 45&#10;Sides:&#10;Large chips 30&#10;Family platter - wings, ribs, chips and rolls for four - R320"></textarea>' +
       '<div class="acts"><button class="btn go" data-a="bulk">Add these dishes</button></div></details>' +
       '<div class="acts"><button class="btn plain" data-a="close">Close menu</button><span class="inline-err" data-a="err"></span>' +
-      '<span style="font-size:13px;color:var(--success);" data-a="ok"></span></div>';
+      '<span style="font-size:13px;color:var(--success);" data-a="ok"></span></div>' +
+      '<input type="file" accept="image/jpeg,image/png,image/webp" data-a="file" hidden />';
 
     const q = (sel) => td.querySelector(sel);
     const say = (err, ok) => { q('[data-a="err"]').textContent = err || ''; q('[data-a="ok"]').textContent = ok || ''; };
+
+    // One file picker for the whole panel. Whoever asked for a photo says what
+    // to do with the file that comes back.
+    const picker = q('[data-a="file"]');
+    let onPicked = null;
+    const pickPhoto = (then) => { onPicked = then; picker.value = ''; picker.click(); };
+    picker.addEventListener('change', () => {
+      const file = picker.files && picker.files[0];
+      if (file && onPicked) onPicked(file);
+      onPicked = null;
+    });
+
+    const paintCover = () => {
+      const box = q('[data-a="cover-ph"]');
+      box.innerHTML = '';
+      if (r.imageUrl) {
+        const img = new Image();
+        img.alt = 'Cover photo of ' + r.name;
+        img.src = r.imageUrl;
+        box.appendChild(img);
+      } else {
+        box.textContent = 'No cover photo';
+      }
+      q('[data-a="cover"]').textContent = r.imageUrl ? 'Change cover photo' : 'Add cover photo';
+      q('[data-a="cover-del"]').style.display = r.imageUrl ? '' : 'none';
+    };
+    q('[data-a="cover"]').addEventListener('click', () => pickPhoto(async (file) => {
+      say('', 'Sending the cover photo…');
+      try {
+        const res = await uploadPhoto('/api/admin/restaurants/' + r.id, file);
+        r.imageUrl = res.imageUrl;
+        r.thumbUrl = res.thumbUrl;
+        paintCover();
+        if (res.smallCopyMissing) say('Cover photo saved.' + SMALL_COPY_NOTE);
+        else say('', 'Cover photo saved.');
+      } catch (e) { say(e.message); }
+    }));
+    q('[data-a="cover-del"]').addEventListener('click', async () => {
+      try {
+        await adminFetch('/api/admin/restaurants/' + r.id + '/image', { method: 'DELETE' });
+        r.imageUrl = null;
+        paintCover();
+        say('', 'Cover photo removed.');
+      } catch (e) { say(e.message); }
+    });
+    paintCover();
 
     const dishRow = (d) => {
       const row = document.createElement('div');
@@ -590,12 +746,38 @@
       const show = () => {
         row.className = 'dish' + (d.available ? '' : ' off');
         row.innerHTML =
+          '<button class="ph' + (d.thumbUrl ? ' has' : '') + '" data-a="photo"></button>' +
           '<div class="info"><div class="nm">' + escapeHtml(d.name) + (d.available ? '' : ' (sold out)') + '</div>' +
           (d.description ? '<div class="ds">' + escapeHtml(d.description) + '</div>' : '') + '</div>' +
           '<div class="pr">' + rand(d.price) + '</div>' +
           '<div class="do"><button class="link-btn" data-a="edit">Edit</button>' +
           '<button class="link-btn" data-a="toggle">' + (d.available ? 'Mark sold out' : 'Back in stock') + '</button>' +
           '<button class="link-btn" data-a="del" style="color:var(--error);">Remove</button></div>';
+        const ph = row.querySelector('[data-a="photo"]');
+        ph.setAttribute('aria-label', (d.thumbUrl ? 'Change the photo of ' : 'Add a photo of ') + d.name);
+        ph.title = d.thumbUrl ? 'Change photo' : 'Add photo';
+        if (d.thumbUrl) {
+          const img = new Image();
+          img.alt = '';
+          img.loading = 'lazy';
+          img.src = d.thumbUrl;
+          ph.appendChild(img);
+        } else {
+          ph.textContent = '+ Photo';
+        }
+        ph.addEventListener('click', () => pickPhoto(async (file) => {
+          ph.disabled = true;
+          say('', 'Sending the photo of ' + d.name + '…');
+          try {
+            const res = await uploadPhoto('/api/admin/menu/' + d.id, file);
+            d.imageUrl = res.imageUrl;
+            d.thumbUrl = res.thumbUrl;
+            show();
+            if (res.smallCopyMissing) say('Photo saved for ' + d.name + '.' + SMALL_COPY_NOTE);
+            else say('', 'Photo saved for ' + d.name + '.');
+            count();
+          } catch (e) { ph.disabled = false; say(e.message); }
+        }));
         row.querySelector('[data-a="edit"]').addEventListener('click', edit);
         row.querySelector('[data-a="toggle"]').addEventListener('click', async () => {
           try {
@@ -603,6 +785,7 @@
             Object.assign(d, res.item);
             show();
             say();
+            count();
           } catch (e) { say(e.message); }
         });
         // Two presses to remove, in the page rather than a pop-up.
@@ -624,25 +807,42 @@
         row.innerHTML = '<div class="info"><div class="grid">' +
           '<input data-e="name" maxlength="120" aria-label="Dish name" />' +
           '<input data-e="desc" maxlength="400" aria-label="Description" placeholder="Description (optional)" />' +
+          '<input data-e="cat" maxlength="40" aria-label="Section" placeholder="Section (optional)" list="' + listId + '" />' +
           '<input data-e="price" type="number" min="0" step="0.5" aria-label="Price" /></div></div>' +
-          '<div class="do"><button class="link-btn" data-a="save">Save</button><button class="link-btn" data-a="cancel">Cancel</button></div>';
+          '<div class="do"><button class="link-btn" data-a="save">Save</button><button class="link-btn" data-a="cancel">Cancel</button>' +
+          (d.imageUrl ? '<button class="link-btn" data-a="nophoto" style="color:var(--error);">Remove photo</button>' : '') + '</div>';
         row.querySelector('[data-e="name"]').value = d.name;
         row.querySelector('[data-e="desc"]').value = d.description || '';
+        row.querySelector('[data-e="cat"]').value = d.category || '';
         row.querySelector('[data-e="price"]').value = d.price;
         row.querySelector('[data-a="cancel"]').addEventListener('click', show);
+        const noPhoto = row.querySelector('[data-a="nophoto"]');
+        if (noPhoto) noPhoto.addEventListener('click', async () => {
+          try {
+            await adminFetch('/api/admin/menu/' + d.id + '/image', { method: 'DELETE' });
+            d.imageUrl = null;
+            d.thumbUrl = null;
+            show();
+            say('', 'Photo removed from ' + d.name + '.');
+            count();
+          } catch (e) { say(e.message); }
+        });
         row.querySelector('[data-a="save"]').addEventListener('click', async () => {
           try {
+            const moved = (row.querySelector('[data-e="cat"]').value.trim() || null) !== (d.category || null);
             const res = await adminFetch('/api/admin/menu/' + d.id, {
               method: 'PATCH',
               body: JSON.stringify({
                 name: row.querySelector('[data-e="name"]').value,
                 description: row.querySelector('[data-e="desc"]').value,
+                category: row.querySelector('[data-e="cat"]').value,
                 price: row.querySelector('[data-e="price"]').value,
               }),
             });
             Object.assign(d, res.item);
-            show();
             say();
+            // A dish that changed section moves to its new place in the list.
+            if (moved) await load(); else show();
           } catch (e) { say(e.message); }
         });
       };
@@ -650,16 +850,39 @@
       return row;
     };
 
+    let menu = [];
+    const count = () => {
+      const live = menu.filter((d) => d.available).length;
+      const pics = menu.filter((d) => d.imageUrl).length;
+      q('[data-a="count"]').textContent = menu.length
+        ? menu.length + (menu.length === 1 ? ' dish' : ' dishes') + ', ' + live + ' on sale to customers now, ' +
+          (pics === menu.length ? 'all with a photo.' : pics + ' with a photo. Dishes with a photo sell better: press “+ Photo” next to a dish.')
+        : 'Nothing on the menu yet. Customers see this restaurant with nothing to order.';
+      r.menuCount = menu.length;
+      r.photoCount = pics;
+    };
+
     const load = async () => {
       const data = await adminFetch('/api/admin/restaurants/' + r.id + '/menu');
+      menu = data.menu;
       const list = q('[data-a="list"]');
       list.innerHTML = '';
-      data.menu.forEach((d) => list.appendChild(dishRow(d)));
-      const live = data.menu.filter((d) => d.available).length;
-      q('[data-a="count"]').textContent = data.menu.length
-        ? data.menu.length + (data.menu.length === 1 ? ' dish' : ' dishes') + ', ' + live + ' on sale to customers now.'
-        : 'Nothing on the menu yet. Customers see this restaurant with nothing to order.';
-      r.menuCount = data.menu.length;
+      const sections = [];
+      menu.forEach((d) => { if (d.category && sections.indexOf(d.category) === -1) sections.push(d.category); });
+      let last;
+      menu.forEach((d) => {
+        const sec = d.category || '';
+        if (sections.length && sec !== last) {
+          const h = document.createElement('div');
+          h.className = 'sec-head';
+          h.textContent = sec || 'Not in a section';
+          list.appendChild(h);
+          last = sec;
+        }
+        list.appendChild(dishRow(d));
+      });
+      q('#' + CSS.escape(listId)).innerHTML = sections.map((n) => '<option value="' + escapeHtml(n) + '"></option>').join('');
+      count();
     };
 
     const addDishes = async (dishes, clear) => {
@@ -667,15 +890,19 @@
         const res = await adminFetch('/api/admin/restaurants/' + r.id + '/menu', { method: 'POST', body: JSON.stringify({ items: dishes }) });
         clear();
         await load();
+        const moved = res.moved || [];
+        const left = res.skipped.filter((n) => moved.indexOf(n) === -1);
         say('', 'Added ' + res.added.length + (res.added.length === 1 ? ' dish' : ' dishes') +
-          (res.skipped.length ? '. Already on the menu, so left alone: ' + res.skipped.join(', ') : '') + '.');
+          (moved.length ? '. Already on the menu, now filed under their section: ' + moved.join(', ') : '') +
+          (left.length ? '. Already on the menu, so left alone: ' + left.join(', ') : '') + '.');
       } catch (e) { say(e.message); }
     };
 
     q('[data-a="add"]').addEventListener('click', () => {
       say();
       addDishes(
-        [{ name: q('[data-f="name"]').value, description: q('[data-f="desc"]').value, price: q('[data-f="price"]').value }],
+        [{ name: q('[data-f="name"]').value, description: q('[data-f="desc"]').value, category: q('[data-f="cat"]').value, price: q('[data-f="price"]').value }],
+        // The section is kept: the next dish typed usually belongs to it too.
         () => { q('[data-f="name"]').value = ''; q('[data-f="desc"]').value = ''; q('[data-f="price"]').value = ''; q('[data-f="name"]').focus(); }
       );
     });
@@ -701,7 +928,7 @@
     restaurants.forEach((r) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><strong>${escapeHtml(r.name)}</strong><div class="terms">${r.username ? 'login ' + escapeHtml(r.username) + ' · ' : ''}${r.menuCount ? r.menuCount + (r.menuCount === 1 ? ' dish' : ' dishes') : '<span class="no-menu">no menu yet</span>'}</div></td>
+        <td><strong>${escapeHtml(r.name)}</strong><div class="terms">${r.username ? 'login ' + escapeHtml(r.username) + ' · ' : ''}${r.menuCount ? r.menuCount + (r.menuCount === 1 ? ' dish' : ' dishes') + (r.photoCount < r.menuCount ? ', ' + (r.menuCount - r.photoCount) + ' without a photo' : '') : '<span class="no-menu">no menu yet</span>'}</div></td>
         <td><span class="pill ${r.approved ? 'yes' : 'no'}">${r.approved ? (r.open === false ? 'Closed' : 'Live') : 'Suspended'}</span></td>
         <td>${rand(r.deliveryFee)}</td>
         <td class="terms">${termsLine(r)}</td>

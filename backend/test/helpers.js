@@ -62,12 +62,16 @@ async function stop() {
 }
 
 // api('POST', '/api/orders', { token, body }) -> { status, data }
-async function api(method, path, { token, admin, body, form } = {}) {
+// `raw: { type, data }` sends a file's bytes as they are (a photo upload).
+async function api(method, path, { token, admin, body, form, raw } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   if (admin) headers['x-admin-key'] = admin;
   let payload;
-  if (form) {
+  if (raw) {
+    headers['Content-Type'] = raw.type;
+    payload = raw.data;
+  } else if (form) {
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
     payload = new URLSearchParams(form).toString();
   } else if (body !== undefined) {
@@ -75,6 +79,10 @@ async function api(method, path, { token, admin, body, form } = {}) {
     payload = JSON.stringify(body);
   }
   const res = await fetch(BASE + path, { method, headers, body: payload, redirect: 'manual' });
+  // A picture comes back as bytes; everything else as JSON (or text).
+  if ((res.headers.get('content-type') || '').startsWith('image/')) {
+    return { status: res.status, data: Buffer.from(await res.arrayBuffer()), headers: res.headers };
+  }
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }

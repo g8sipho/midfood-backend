@@ -96,34 +96,100 @@
   .msg.err { color: var(--error); }
   .msg.ok { color: var(--success); }
 
+  /* Search */
+  .search { position: relative; margin: 0 0 18px; }
+  .search input { padding-left: 42px; padding-right: 44px; background: var(--bg-surface); border-radius: 12px; }
+  .search input::-webkit-search-cancel-button { display: none; }
+  .search > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); pointer-events: none; }
+  .search .clear {
+    position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: none;
+    width: 36px; height: 36px; border: none; background: none; cursor: pointer; font-size: 20px; line-height: 1; color: var(--text-secondary);
+  }
+  .search.has .clear { display: block; }
+
   /* Restaurant list */
+  .resto-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 620px) { .resto-grid { grid-template-columns: 1fr 1fr; } }
   .resto {
+    display: block; text-decoration: none; color: inherit;
     background: var(--bg-surface); border: 1px solid var(--border); border-radius: 15px;
-    overflow: hidden; margin-bottom: 13px; cursor: pointer; box-shadow: 0 1px 3px var(--shadow);
+    overflow: hidden; cursor: pointer; box-shadow: 0 1px 3px var(--shadow);
     transition: transform 0.12s;
   }
   .resto:hover { transform: translateY(-1px); }
-  .resto .hero { height: 74px; display: flex; align-items: center; justify-content: center; }
-  .resto .hero span { color: #fff; font-size: 27px; font-weight: 800; opacity: 0.92; letter-spacing: -0.5px; }
-  .resto .body { padding: 14px 16px; }
-  .resto .nm { font-weight: 800; font-size: 16px; }
+  .resto .hero { height: 150px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .resto .hero.plain { height: 96px; }
+  .resto .hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .resto .hero .ltr { color: #fff; font-size: 30px; font-weight: 800; opacity: 0.92; letter-spacing: -0.5px; }
+  .resto .body { padding: 13px 16px 14px; }
+  .resto .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .resto .nm { font-weight: 800; font-size: 16px; min-width: 0; }
   .resto .mt { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
   .resto .ft { font-size: 12px; color: var(--text-tertiary); margin-top: 7px; }
-  .resto.shut { opacity: 0.55; }
+  .resto .hit { font-size: 12px; color: var(--text-secondary); margin-top: 7px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .resto .hit strong { color: var(--text-primary); }
+  .resto.shut .hero img, .resto.shut .hero { filter: grayscale(0.85); opacity: 0.8; }
   .shut-tag {
-    display: inline-block; font-size: 11px; font-weight: 800; color: var(--error);
-    border: 1px solid var(--error); border-radius: 999px; padding: 1px 8px; margin-left: 7px; vertical-align: middle;
+    position: absolute; left: 10px; top: 10px; z-index: 1; font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+    color: #fff; background: rgba(25, 25, 21, 0.86); border-radius: 999px; padding: 4px 10px;
+  }
+  /* A rating is only ever what customers gave: stars and how many rated. */
+  .rate { font-size: 13px; font-weight: 800; white-space: nowrap; flex: none; }
+  .rate .st { color: #b7791f; }
+  .rate .ct { font-weight: 600; color: var(--text-tertiary); }
+  .new-tag {
+    font-size: 11px; font-weight: 800; color: var(--success); border: 1px solid var(--success);
+    border-radius: 999px; padding: 1px 8px; white-space: nowrap; flex: none;
   }
 
   /* Menu */
-  .menu-hero { border-radius: 15px; height: 96px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
-  .menu-hero span { color: #fff; font-size: 30px; font-weight: 800; letter-spacing: -0.6px; }
-  .mi { display: flex; gap: 14px; align-items: flex-start; padding: 15px 0; border-bottom: 1px solid var(--border); }
+  .menu-hero { border-radius: 15px; height: 96px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; position: relative; overflow: hidden; }
+  .menu-hero.pic { height: 190px; }
+  @media (min-width: 620px) { .menu-hero.pic { height: 250px; } }
+  .menu-hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .menu-hero .ltr { color: #fff; font-size: 30px; font-weight: 800; letter-spacing: -0.6px; }
+  #v-menu p.page-sub { margin-bottom: 14px; }
+  .menu-closed { background: rgba(166,50,68,0.08); border: 1px solid var(--error); border-radius: 11px; padding: 10px 13px; font-size: 13px; font-weight: 700; color: var(--error); margin-bottom: 14px; display: none; }
+
+  /* Section chips: stay under the header while the menu scrolls. */
+  .chips {
+    position: sticky; top: var(--hdr-h, 58px); z-index: 10; display: none;
+    margin: 0 -16px; padding: 9px 16px; gap: 8px; overflow-x: auto; white-space: nowrap;
+    background: var(--bg-app); border-bottom: 1px solid var(--border); scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips.on { display: flex; }
+  .chip {
+    flex: none; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary);
+    border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  h2.menu-sec { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; margin: 22px 0 10px; scroll-margin-top: calc(var(--hdr-h, 58px) + 62px); }
+  h2.menu-sec .n { font-size: 13px; font-weight: 600; color: var(--text-tertiary); margin-left: 6px; }
+  .menu-card { padding: 2px 16px; }
+
+  .mi { display: flex; gap: 14px; align-items: stretch; padding: 15px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
   .mi:last-child { border-bottom: none; }
   .mi-main { flex: 1; min-width: 0; }
-  .mi .nm { font-weight: 700; font-size: 15px; }
-  .mi .ds { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .mi .nm {
+    font-weight: 700; font-size: 15px; background: none; border: none; padding: 0; margin: 0;
+    color: inherit; text-align: left; cursor: pointer; display: block;
+  }
+  .mi .ds {
+    font-size: 13px; color: var(--text-secondary); margin-top: 2px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
   .mi .pr { font-weight: 800; color: var(--accent); margin-top: 6px; font-size: 14px; }
+  .mi-side { flex: none; display: flex; align-items: center; position: relative; }
+  .mi.has-pic .mi-side { width: 104px; height: 104px; }
+  .mi-side img { width: 104px; height: 104px; object-fit: cover; border-radius: 12px; display: block; background: var(--bg-muted); }
+  .mi.has-pic .qty {
+    position: absolute; right: 6px; bottom: 6px; background: var(--bg-surface); border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(20,20,19,0.28); padding: 2px; gap: 2px;
+  }
+  .mi.has-pic .qty button { width: 32px; height: 32px; border-radius: 50%; border: none; background: none; }
+  .mi.has-pic .qty button.add { background: var(--bg-surface); color: var(--accent); padding: 0; width: 32px; font-size: 22px; }
+  .mi.has-pic .qty .n { min-width: 14px; font-size: 14px; }
   .qty { display: flex; align-items: center; gap: 9px; flex: none; }
   .qty button {
     width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border);
@@ -132,6 +198,54 @@
   }
   .qty button.add { background: var(--accent); border-color: var(--accent); color: #fff; width: auto; padding: 0 15px; font-size: 13px; }
   .qty .n { font-weight: 800; min-width: 17px; text-align: center; }
+  .closed-note { font-size: 12px; color: var(--text-tertiary); }
+
+  /* One dish, opened: the big photo, the full description, how many. */
+  .sheet-wrap { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 50; display: none; }
+  .sheet-wrap.on { display: flex; align-items: flex-end; justify-content: center; }
+  .sheet-back { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: rgba(20, 20, 19, 0.58); }
+  .sheet {
+    position: relative; width: 100%; max-width: 520px; max-height: 94vh; max-height: 94dvh;
+    background: var(--bg-surface); border-radius: 20px 20px 0 0; display: flex; flex-direction: column; overflow: hidden;
+    animation: sheet-up 0.2s ease-out;
+  }
+  @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (min-width: 620px) {
+    .sheet-wrap.on { align-items: center; }
+    .sheet { border-radius: 20px; max-height: 90vh; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } .resto { transition: none; } }
+  .sheet-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .sheet-pic { width: 100%; aspect-ratio: 1 / 1; max-height: 50vh; background: var(--bg-muted); display: none; }
+  .sheet-pic.on { display: block; }
+  .sheet-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sheet-x {
+    position: absolute; right: 12px; top: 12px; z-index: 2; width: 38px; height: 38px; border-radius: 50%;
+    border: none; background: var(--bg-surface); box-shadow: 0 2px 8px rgba(20,20,19,0.28);
+    font-size: 22px; line-height: 1; cursor: pointer; color: var(--text-primary);
+  }
+  .sheet-body { padding: 18px 20px 6px; }
+  .sheet-body h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.4px; padding-right: 40px; }
+  .sheet-body .pr { font-weight: 800; color: var(--accent); font-size: 16px; margin-top: 4px; }
+  .sheet-body p { font-size: 14px; color: var(--text-secondary); margin: 10px 0 0; white-space: pre-line; }
+  .sheet-foot {
+    display: flex; align-items: center; gap: 14px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border); background: var(--bg-surface);
+  }
+  .sheet-foot .qty button { width: 42px; height: 42px; border-radius: 50%; font-size: 21px; }
+  .sheet-foot .qty .n { font-size: 17px; min-width: 22px; }
+  .sheet-foot button.primary { margin-top: 0; flex: 1; }
+
+  /* Rating a delivered order */
+  .rate-card { text-align: center; }
+  .rate-card .t { font-weight: 800; font-size: 16px; }
+  .stars { display: flex; justify-content: center; gap: 4px; margin: 10px 0 4px; }
+  .stars button {
+    background: none; border: none; cursor: pointer; padding: 4px; font-size: 36px; line-height: 1;
+    color: rgba(15, 12, 8, 0.2);
+  }
+  .stars button.on { color: #d99a1c; }
+  .stars button:disabled { cursor: default; }
 
   /* Cart bar */
   .cartbar {
@@ -165,7 +279,7 @@
   .banner.good { background: rgba(85,138,66,0.09); border-color: var(--success); }
   .banner .t { font-weight: 800; font-size: 15px; }
   .banner .b { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
-  .driver-card { border: 1px solid var(--accent); border-radius: 13px; padding: 15px; background: var(--bg-surface); margin-top: 14px; }
+  .driver-card { border: 1px solid var(--accent); border-radius: 13px; padding: 15px; background: var(--bg-surface); margin: 14px 0; }
   .driver-card .k { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--accent); }
   .driver-card .n { font-size: 17px; font-weight: 800; margin-top: 2px; }
   .driver-card a { display: inline-block; font-size: 14px; font-weight: 700; color: var(--blue); text-decoration: none; margin-top: 8px; margin-right: 16px; }
@@ -232,15 +346,22 @@
   <div class="view" id="v-home">
     <h1 class="page">Order in Middelburg</h1>
     <p class="page-sub">Pick a restaurant, pay securely, and track your driver to the door.</p>
+    <div class="search" id="searchBox">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+      <input id="search" type="search" placeholder="Search for a dish or a restaurant" aria-label="Search for a dish or a restaurant" autocomplete="off" enterkeyhint="search" maxlength="60" />
+      <button type="button" class="clear" id="searchClear" aria-label="Clear search">×</button>
+    </div>
     <div id="restoList"><div class="spin">Loading restaurants…</div></div>
   </div>
 
   <!-- One restaurant's menu -->
   <div class="view" id="v-menu">
-    <div class="menu-hero" id="menuHero"><span id="menuHeroTxt"></span></div>
+    <div class="menu-hero" id="menuHero"></div>
     <h1 class="page" id="menuName"></h1>
     <p class="page-sub" id="menuMeta"></p>
-    <div class="card" id="menuList"></div>
+    <div class="menu-closed" id="menuClosed">Closed right now. You can look at the menu, but not order yet.</div>
+    <div class="chips" id="menuChips" role="navigation" aria-label="Menu sections"></div>
+    <div id="menuList"></div>
   </div>
 
   <!-- Checkout -->
@@ -313,6 +434,7 @@
     <h1 class="page" id="trName"></h1>
     <p class="page-sub" id="trAddr"></p>
     <div id="trBanner"></div>
+    <div id="trRate"></div>
     <div class="card" id="trSteps"></div>
     <div id="trDriver"></div>
     <div class="card map-card" id="trMapCard">
@@ -320,6 +442,7 @@
       <div class="map-foot"><span id="trMapNote"></span><span id="trMapSeen"></span></div>
     </div>
     <div class="card" id="trItems"></div>
+    <div id="trAgain"></div>
     <p class="help-line">Problem with this order? Call MidFood on <a href="tel:0726437784">072 643 7784</a>.</p>
   </div>
 
@@ -347,6 +470,30 @@
   </div>
 </main>
 
+<!-- One dish, opened from the menu -->
+<div class="sheet-wrap" id="sheet">
+  <div class="sheet-back" id="sheetBack"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shName">
+    <button type="button" class="sheet-x" id="sheetClose" aria-label="Close">×</button>
+    <div class="sheet-scroll">
+      <div class="sheet-pic" id="shPic"></div>
+      <div class="sheet-body">
+        <h2 id="shName"></h2>
+        <div class="pr" id="shPrice"></div>
+        <p id="shDesc"></p>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <div class="qty" id="shQty">
+        <button type="button" id="shMinus" aria-label="One fewer">−</button>
+        <span class="n" id="shN" aria-live="polite">1</span>
+        <button type="button" id="shPlus" aria-label="One more">+</button>
+      </div>
+      <button type="button" class="primary" id="shAdd"></button>
+    </div>
+  </div>
+</div>
+
 <div class="cartbar" id="cartBar">
   <div class="inner">
     <button id="cartGo"><span id="cartLabel"></span><span id="cartTotal"></span></button>
@@ -369,6 +516,7 @@
   var trackingId = null;       // the order whose tracking page is on screen, if any
   var mapState = null;         // the live map on the tracking page, while one is open
   var leafletLoading = null;
+  var carryNote = '';          // something to tell the customer at the top of checkout
 
   var el = function (id) { return document.getElementById(id); };
   // Safe for text AND for attribute values: quotes are escaped too, so nothing
@@ -427,6 +575,8 @@
     window.scrollTo(0, 0);
     if (view !== 'track' && trackTimer) { clearTimeout(trackTimer); trackTimer = null; }
     if (view !== 'track') { trackingId = null; closeMap(); }
+    if (view !== 'checkout') carryNote = '';
+    hideSheet();
     renderCartBar(view);
   }
 
@@ -455,99 +605,432 @@
   });
 
   // --- restaurants --------------------------------------------------------
+  // Stars are only ever what customers gave. A restaurant too new to have a
+  // rating says "New"; nothing is made up.
+  function ratingHtml(r) {
+    if (r.rating == null) return '<span class="new-tag">New</span>';
+    return '<span class="rate"><span class="st">★</span> ' + Number(r.rating).toFixed(1) +
+      ' <span class="ct">(' + esc(r.ratingCount) + ')</span></span>';
+  }
+
+  // A photo if there is one; the coloured block with the first letter if not
+  // (or if the photo fails to load on a weak connection).
+  // `small` asks for the card-sized copy of the photo (the home page list).
+  function heroInto(box, r, plainClass, small) {
+    box.innerHTML = '';
+    box.style.background = r.heroColor || '#d97757';
+    var letter = function () {
+      if (plainClass) box.classList.add(plainClass);
+      var sp = document.createElement('span');
+      sp.className = 'ltr';
+      sp.textContent = (r.name || '?').charAt(0);
+      box.appendChild(sp);
+    };
+    var src = small ? (r.thumbUrl || r.imageUrl) : r.imageUrl;
+    if (!src) return letter();
+    if (plainClass) box.classList.remove(plainClass);
+    var img = new Image();
+    img.alt = '';
+    img.decoding = 'async';
+    if (small) img.loading = 'lazy';
+    img.addEventListener('error', function () {
+      // The box may have been given to another restaurant since this photo
+      // was asked for. Only the box still showing this photo falls back.
+      if (img.parentNode !== box) return;
+      box.removeChild(img);
+      letter();
+    });
+    box.appendChild(img);
+    img.src = src;
+  }
+
+  var searchSeq = 0;
   function loadRestaurants() {
-    api('/api/restaurants').then(function (data) {
+    var q = el('search').value.trim();
+    var seq = ++searchSeq;
+    el('searchBox').className = 'search' + (q ? ' has' : '');
+    api('/api/restaurants' + (q ? '?q=' + encodeURIComponent(q) : '')).then(function (data) {
+      // A slower answer to an older search must not replace a newer one.
+      if (seq !== searchSeq) return;
       restaurants = data.restaurants;
       var box = el('restoList');
       box.innerHTML = '';
       if (!restaurants.length) {
-        box.innerHTML = '<div class="empty">No restaurants are listed yet. Check back soon.</div>';
+        var none = document.createElement('div');
+        none.className = 'empty';
+        none.textContent = q
+          ? 'Nothing matches “' + q + '”. Try another dish or a restaurant name.'
+          : 'No restaurants are listed yet. Check back soon.';
+        box.appendChild(none);
         return;
       }
+      var grid = document.createElement('div');
+      grid.className = 'resto-grid';
       restaurants.forEach(function (r) {
-        var d = document.createElement('div');
-        d.className = 'resto' + (r.open === false ? ' shut' : '');
-        d.innerHTML =
-          '<div class="hero" style="background:' + esc(r.heroColor || '#d97757') + '"><span>' +
-          esc((r.name || '?').charAt(0)) + '</span></div>' +
-          '<div class="body"><div class="nm">' + esc(r.name) +
-          (r.open === false ? '<span class="shut-tag">CLOSED</span>' : '') + '</div>' +
+        var shut = r.open === false;
+        var a = document.createElement('a');
+        a.className = 'resto' + (shut ? ' shut' : '');
+        a.href = '#r/' + r.id;
+        a.innerHTML =
+          '<div class="hero"></div>' +
+          '<div class="body"><div class="top"><div class="nm">' + esc(r.name) + '</div>' + ratingHtml(r) + '</div>' +
           '<div class="mt">' + esc(r.cuisine) + '</div>' +
-          '<div class="ft">' + esc(r.etaMinutes) + ' min · ' + rand(r.deliveryFee) + ' delivery · ★ ' +
-          esc(r.rating) + '</div></div>';
-        d.addEventListener('click', function () { go('#r/' + r.id); });
-        box.appendChild(d);
+          '<div class="ft">' + esc(r.etaMinutes) + ' min · ' + rand(r.deliveryFee) + ' delivery</div>' +
+          (q && r.matches && r.matches.length
+            ? '<div class="hit">On the menu: <strong>' + r.matches.map(esc).join('</strong>, <strong>') + '</strong></div>'
+            : '') +
+          '</div>';
+        var hero = a.querySelector('.hero');
+        heroInto(hero, r, 'plain', true);
+        if (shut) {
+          var tag = document.createElement('span');
+          tag.className = 'shut-tag';
+          tag.textContent = 'CLOSED';
+          hero.appendChild(tag);
+        }
+        grid.appendChild(a);
       });
+      box.appendChild(grid);
     }).catch(function () {
+      if (seq !== searchSeq) return;
       el('restoList').innerHTML = '<div class="empty">Could not load restaurants. Check your connection and refresh.</div>';
     });
   }
 
+  var searchTimer = null;
+  el('search').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadRestaurants, 250);
+  });
+  el('search').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { clearTimeout(searchTimer); loadRestaurants(); el('search').blur(); }
+  });
+  el('searchClear').addEventListener('click', function () {
+    el('search').value = '';
+    loadRestaurants();
+    el('search').focus();
+  });
+
+  // --- one restaurant's menu ----------------------------------------------
+  var rowPaint = {};      // dish id -> redraws that dish's quantity control
+  var chipEls = [];
+  var secEls = [];
+
   function openRestaurant(id) {
     show('menu');
+    current = null;
+    el('menuChips').className = 'chips';
+    el('menuChips').innerHTML = '';
+    el('menuHero').className = 'menu-hero';
+    el('menuHero').innerHTML = '';
+    el('menuHero').style.background = 'var(--bg-muted)';
+    el('menuName').textContent = '';
+    el('menuMeta').textContent = '';
+    el('menuClosed').style.display = 'none';
     el('menuList').innerHTML = '<div class="spin">Loading menu…</div>';
+    // The customer may have gone on to another restaurant before this answer
+    // arrives. An old answer is never painted over the page they are on now.
+    var stillHere = function () { return (window.location.hash || '') === '#r/' + id; };
     api('/api/restaurants/' + id).then(function (data) {
+      if (!stillHere()) return;
       current = data.restaurant;
-      el('menuHero').style.background = current.heroColor || '#d97757';
-      el('menuHeroTxt').textContent = (current.name || '?').charAt(0);
+      var hero = el('menuHero');
+      hero.className = 'menu-hero pic';
+      heroInto(hero, current, null);
+      if (!current.imageUrl) hero.className = 'menu-hero';
       el('menuName').textContent = current.name;
-      el('menuMeta').textContent =
-        current.cuisine + ' · ' + current.etaMinutes + ' min · ' + rand(current.deliveryFee) + ' delivery' +
-        (current.open === false ? ' · CLOSED right now' : '');
+      el('menuMeta').innerHTML = ratingHtml(current) + ' · ' + esc(current.cuisine) + ' · ' +
+        esc(current.etaMinutes) + ' min · ' + rand(current.deliveryFee) + ' delivery';
+      el('menuClosed').style.display = current.open === false ? 'block' : 'none';
       renderMenu();
     }).catch(function (err) {
-      el('menuList').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+      if (!stillHere()) return;
+      el('menuList').innerHTML = '<div class="card"><div class="empty">' + esc(err.message) + '</div></div>';
     });
+  }
+
+  function qtyOf(id) {
+    return current && cart.restaurantId === current.id && cart.lines[id] ? cart.lines[id].quantity : 0;
   }
 
   function renderMenu() {
     var box = el('menuList');
+    var chips = el('menuChips');
     box.innerHTML = '';
+    chips.innerHTML = '';
+    chips.className = 'chips';
+    rowPaint = {};
+    chipEls = [];
+    secEls = [];
     var items = (current && current.menu) || [];
     if (!items.length) {
-      box.innerHTML = '<div class="empty">This restaurant has nothing on the menu right now.</div>';
+      box.innerHTML = '<div class="card"><div class="empty">This restaurant has nothing on the menu right now.</div></div>';
       return;
     }
+
+    // The menu's sections, in the order the server sends them (alphabetical).
+    // Dishes that were never put in a section come last.
+    var sections = [];
+    var byName = Object.create(null);
     items.forEach(function (it) {
-      var qty = cart.restaurantId === current.id && cart.lines[it.id] ? cart.lines[it.id].quantity : 0;
-      var row = document.createElement('div');
-      row.className = 'mi';
-      row.innerHTML =
-        '<div class="mi-main"><div class="nm">' + esc(it.name) + '</div>' +
-        '<div class="ds">' + esc(it.description) + '</div>' +
-        '<div class="pr">' + rand(it.price) + '</div></div>' +
-        '<div class="qty"></div>';
-      var q = row.querySelector('.qty');
-      if (current.open === false) {
-        q.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);">Closed</span>';
-      } else if (qty === 0) {
-        var add = document.createElement('button');
-        add.className = 'add';
-        add.textContent = 'Add';
-        add.addEventListener('click', function () { change(it, 1); });
-        q.appendChild(add);
-      } else {
-        var minus = document.createElement('button');
-        minus.textContent = '−';
-        minus.addEventListener('click', function () { change(it, -1); });
+      var key = it.category || '';
+      if (!byName[key]) { byName[key] = { name: key, items: [] }; sections.push(byName[key]); }
+      byName[key].items.push(it);
+    });
+    var named = sections.some(function (sec) { return sec.name; });
+
+    sections.forEach(function (sec, i) {
+      var title = sec.name || (named ? 'More' : '');
+      if (title) {
+        var h = document.createElement('h2');
+        h.className = 'menu-sec';
+        h.id = 'sec-' + i;
+        h.textContent = title;
         var n = document.createElement('span');
         n.className = 'n';
-        n.textContent = qty;
-        var plus = document.createElement('button');
-        plus.textContent = '+';
-        plus.addEventListener('click', function () { change(it, 1); });
-        q.appendChild(minus); q.appendChild(n); q.appendChild(plus);
+        n.textContent = sec.items.length;
+        h.appendChild(n);
+        box.appendChild(h);
+        secEls.push(h);
+
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip' + (i === 0 ? ' on' : '');
+        chip.textContent = title;
+        chip.addEventListener('click', function () {
+          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        chips.appendChild(chip);
+        chipEls.push(chip);
       }
-      box.appendChild(row);
+      var card = document.createElement('div');
+      card.className = 'card menu-card';
+      sec.items.forEach(function (it) { card.appendChild(dishRow(it)); });
+      box.appendChild(card);
     });
+    if (chipEls.length > 1) chips.className = 'chips on';
   }
 
+  function dishRow(it) {
+    var row = document.createElement('div');
+    row.className = 'mi';
+    row.innerHTML =
+      '<div class="mi-main"><button type="button" class="nm">' + esc(it.name) + '</button>' +
+      (it.description ? '<div class="ds">' + esc(it.description) + '</div>' : '') +
+      '<div class="pr">' + rand(it.price) + '</div></div>' +
+      '<div class="mi-side"></div>';
+    var side = row.querySelector('.mi-side');
+    if (it.thumbUrl) {
+      row.className = 'mi has-pic';
+      var img = new Image();
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.width = 104;
+      img.height = 104;
+      img.addEventListener('error', function () { row.className = 'mi'; img.remove(); });
+      // On the page before it is given its address, so the browser can hold
+      // back the photos far down a long menu until they are scrolled near.
+      side.appendChild(img);
+      img.src = it.thumbUrl;
+    }
+    var ctl = document.createElement('div');
+    ctl.className = 'qty';
+    // The + and − belong to the dish, not to "open this dish".
+    ctl.addEventListener('click', function (e) { e.stopPropagation(); });
+    side.appendChild(ctl);
+
+    rowPaint[it.id] = function () {
+      var qty = qtyOf(it.id);
+      ctl.innerHTML = '';
+      if (current.open === false) {
+        ctl.innerHTML = it.thumbUrl ? '' : '<span class="closed-note">Closed</span>';
+        ctl.style.display = it.thumbUrl ? 'none' : '';
+        return;
+      }
+      if (qty === 0) {
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'add';
+        add.textContent = it.thumbUrl ? '+' : 'Add';
+        add.setAttribute('aria-label', 'Add ' + it.name);
+        add.addEventListener('click', function () { change(it, 1); });
+        ctl.appendChild(add);
+        return;
+      }
+      var minus = document.createElement('button');
+      minus.type = 'button';
+      minus.textContent = '−';
+      minus.setAttribute('aria-label', 'One fewer ' + it.name);
+      minus.addEventListener('click', function () { change(it, -1); });
+      var n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = qty;
+      var plus = document.createElement('button');
+      plus.type = 'button';
+      plus.textContent = '+';
+      plus.setAttribute('aria-label', 'One more ' + it.name);
+      plus.addEventListener('click', function () { change(it, 1); });
+      ctl.appendChild(minus); ctl.appendChild(n); ctl.appendChild(plus);
+    };
+    rowPaint[it.id]();
+
+    row.addEventListener('click', function () { openSheet(it); });
+    return row;
+  }
+
+  // Keeps the chip for the section on screen lit as the menu scrolls.
+  var chipTick = false;
+  window.addEventListener('scroll', function () {
+    if (chipTick || chipEls.length < 2) return;
+    chipTick = true;
+    window.requestAnimationFrame(function () {
+      chipTick = false;
+      if (chipEls.length < 2 || el('v-menu').className.indexOf('on') === -1) return;
+      var line = el('menuChips').getBoundingClientRect().bottom + 28;
+      var active = 0;
+      secEls.forEach(function (h, i) { if (h.getBoundingClientRect().top <= line) active = i; });
+      // At the very bottom the last section may be too short to reach the line.
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) active = secEls.length - 1;
+      chipEls.forEach(function (c, i) {
+        var on = i === active;
+        if (on && c.className !== 'chip on') {
+          var bar = el('menuChips');
+          bar.scrollLeft = c.offsetLeft - 16;
+        }
+        c.className = 'chip' + (on ? ' on' : '');
+      });
+    });
+  }, { passive: true });
+
+  // The sticky chips sit right under the header, whatever its height is on
+  // this phone (notch, large text).
+  function measureHeader() {
+    var h = document.querySelector('header').offsetHeight;
+    if (h) document.documentElement.style.setProperty('--hdr-h', h + 'px');
+  }
+  window.addEventListener('resize', measureHeader);
+  measureHeader();
+
+  // --- one dish, opened -----------------------------------------------------
+  var sheetItem = null;
+  var sheetQty = 1;
+  var sheetPushed = false;     // whether opening the dish added a step to the back button
+  var sheetClosedAt = 0;       // when a dish was last closed from the page
+
+  function paintSheet() {
+    var had = qtyOf(sheetItem.id);
+    el('shN').textContent = sheetQty;
+    el('shMinus').disabled = sheetQty <= (had ? 0 : 1);
+    var btn = el('shAdd');
+    if (current.open === false) {
+      btn.textContent = 'Closed right now';
+      btn.disabled = true;
+      el('shQty').style.display = 'none';
+      return;
+    }
+    el('shQty').style.display = '';
+    btn.disabled = false;
+    btn.textContent = !had
+      ? 'Add ' + sheetQty + ' to order · ' + rand(sheetItem.price * sheetQty)
+      : sheetQty === 0
+        ? 'Remove from order'
+        : 'Update order · ' + rand(sheetItem.price * sheetQty);
+  }
+
+  function openSheet(it) {
+    if (!current) return;
+    // A tap in the instant after a dish closes is the tail of a double tap,
+    // and the back-button step of the dish just closed is still being undone.
+    if (Date.now() - sheetClosedAt < 300) return;
+    sheetItem = it;
+    sheetQty = Math.max(1, qtyOf(it.id));
+    el('shName').textContent = it.name;
+    el('shPrice').textContent = rand(it.price);
+    el('shDesc').textContent = it.description || '';
+    el('shDesc').style.display = it.description ? '' : 'none';
+    var pic = el('shPic');
+    pic.innerHTML = '';
+    pic.className = 'sheet-pic';
+    pic.style.aspectRatio = '';
+    if (it.imageUrl) {
+      pic.className = 'sheet-pic on';
+      var img = new Image();
+      img.alt = it.name;
+      img.decoding = 'async';
+      // Show the photo in its own shape, within reason: a tall cake is not
+      // squeezed into a wide box, nor a wide platter into a tall one.
+      img.addEventListener('load', function () {
+        if (img.parentNode !== pic) return;   // another dish has been opened since
+        if (img.naturalWidth && img.naturalHeight) {
+          pic.style.aspectRatio = String(Math.min(1.5, Math.max(0.8, img.naturalWidth / img.naturalHeight)));
+        }
+      });
+      img.addEventListener('error', function () { if (img.parentNode === pic) pic.className = 'sheet-pic'; });
+      pic.appendChild(img);
+      img.src = it.imageUrl;
+    }
+    paintSheet();
+    el('sheet').className = 'sheet-wrap on';
+    document.body.style.overflow = 'hidden';
+    el('sheet').querySelector('.sheet-scroll').scrollTop = 0;
+    // The phone's back button closes the dish, not the whole menu.
+    sheetPushed = false;
+    try { window.history.pushState({ sheet: true }, ''); sheetPushed = true; } catch (e) {}
+    el('sheetClose').focus();
+  }
+
+  function hideSheet() {
+    if (!sheetItem) return;
+    sheetItem = null;
+    el('sheet').className = 'sheet-wrap';
+    document.body.style.overflow = '';
+  }
+  // Closed from the page (the X, the dark area, or after adding). The step
+  // added to the back button is taken away again, exactly once.
+  function closeSheet() {
+    if (!sheetItem) return;
+    var undo = sheetPushed;
+    sheetPushed = false;
+    sheetClosedAt = Date.now();
+    hideSheet();
+    if (undo) window.history.back();
+  }
+  // Closed with the phone's back button: that step is already gone.
+  window.addEventListener('popstate', function (e) {
+    sheetPushed = false;
+    hideSheet();
+    // Arrived (by Forward, or back from another page) on the step a dish
+    // once added, with no dish open: there is nothing to show here, so carry
+    // on back to the menu itself.
+    if (e.state && e.state.sheet) window.history.back();
+  });
+  // A page reloaded while a dish was open starts on that same leftover step.
+  try {
+    if (window.history.state && window.history.state.sheet) window.history.replaceState(null, '');
+  } catch (e) {}
+  el('sheetBack').addEventListener('click', closeSheet);
+  el('sheetClose').addEventListener('click', closeSheet);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+  el('shMinus').addEventListener('click', function () {
+    if (sheetQty > (qtyOf(sheetItem.id) ? 0 : 1)) { sheetQty -= 1; paintSheet(); }
+  });
+  el('shPlus').addEventListener('click', function () {
+    if (sheetQty < 50) { sheetQty += 1; paintSheet(); }
+  });
+  el('shAdd').addEventListener('click', function () {
+    var delta = sheetQty - qtyOf(sheetItem.id);
+    if (delta !== 0 && !change(sheetItem, delta)) return;
+    closeSheet();
+  });
+
   // One restaurant per order: switching restaurants replaces the cart, with a
-  // warning first so nobody loses a basket by accident.
+  // warning first so nobody loses a basket by accident. Returns false if the
+  // customer chose to keep the basket they had.
   function change(item, delta) {
     if (cart.restaurantId && cart.restaurantId !== current.id && countItems() > 0) {
       if (!confirm('Your basket has food from ' + cart.restaurantName +
-        '. Start a new order from ' + current.name + '?')) return;
+        '. Start a new order from ' + current.name + '?')) return false;
       cart.lines = {};
     }
     cart.restaurantId = current.id;
@@ -560,8 +1043,9 @@
     else cart.lines[item.id] = line;
 
     saveCart();
-    renderMenu();
+    if (rowPaint[item.id]) rowPaint[item.id]();
     renderCartBar('menu');
+    return true;
   }
 
   function cartLines() {
@@ -585,14 +1069,21 @@
     var c = el('cartCountBadge');
     if (c) { c.textContent = n; c.className = 'cart-count' + (n ? ' show' : ''); }
   }
-  el('cartGo').addEventListener('click', function () { go('#checkout'); });
+  el('cartGo').addEventListener('click', function () {
+    // The basket bar sits exactly where a dish's "Add to order" button was. A
+    // double tap on that button must not carry on into checkout.
+    if (Date.now() - sheetClosedAt < 300) return;
+    go('#checkout');
+  });
 
   // --- checkout -----------------------------------------------------------
   function openCheckout() {
     if (countItems() === 0) { go(''); return; }
     if (!token) { pendingAfterAuth = '#checkout'; go('#signin'); return; }
+    var note = carryNote;
     show('checkout');
-    notice('');
+    carryNote = note;
+    notice(note);
     paintCheckout();
     setMsg('ckError', '');
     // The basket may be hours old. Check it against the kitchen's menu as it
@@ -656,7 +1147,7 @@
       cart.restaurantName = r.name;
       saveCart();
 
-      var said = [];
+      var said = carryNote ? [carryNote] : [];
       if (gone.length) said.push(gone.join(' and ') + (gone.length === 1 ? ' has' : ' have') + ' sold out and ' +
         (gone.length === 1 ? 'was' : 'were') + ' taken out of your basket.');
       if (repriced) said.push('Prices have changed since you added these. Please check the new total.');
@@ -875,7 +1366,9 @@
           '<div><div class="nm">' + esc(o.restaurantName) + '</div>' +
           '<div class="mt">' + rand(o.total) + ' · ' + new Date(o.createdAt).toLocaleDateString('en-ZA', {
             day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-          }) + '</div></div>' +
+          }) + (o.status === 'delivered' && !unpaid
+            ? (o.rating ? ' · You gave it ' + esc(o.rating) + ' ★' : ' · Tap to rate')
+            : '') + '</div></div>' +
           '<span class="pill" style="color:' + (unpaid ? 'var(--error)' : st[1]) +
           ';border-color:' + (unpaid ? 'var(--error)' : st[1]) + '">' +
           (unpaid ? 'Not paid' : st[0]) + '</span>';
@@ -906,6 +1399,8 @@
     el('trSteps').innerHTML = '<div class="spin">Loading…</div>';
     el('trDriver').innerHTML = '';
     el('trItems').innerHTML = '';
+    el('trRate').innerHTML = '';
+    el('trAgain').innerHTML = '';
     payPoll = 0;
     loadTracking(id, true);
   }
@@ -943,6 +1438,7 @@
         tot.innerHTML = '<span>Total</span><span class="v">' + rand(o.total) + '</span>';
         items.appendChild(tot);
       }
+      paintAgain(o);
 
       if (o.paymentStatus !== 'paid') return renderUnpaid(o, id);
       return api('/api/orders/' + id + '/tracking').then(function (t) {
@@ -1025,11 +1521,114 @@
     }
 
     paintMap(id, t, mins);
+    paintRating(o, t, id);
 
     if (status !== 'delivered' && status !== 'rejected') {
       // Poll faster once the food is moving, so the pin keeps up with the driver.
       trackTimer = setTimeout(function () { loadTracking(id, false); }, status === 'out_for_delivery' ? 5000 : 8000);
     }
+  }
+
+  // --- rating a delivered order ---------------------------------------------
+  // Five stars, one tap. These are the only thing a restaurant's rating is
+  // made of, so only someone whose order really arrived is asked.
+  function paintRating(o, t, id) {
+    var box = el('trRate');
+    if (t.status !== 'delivered') { box.innerHTML = ''; return; }
+    if (box.getAttribute('data-for') === id && box.innerHTML) return;   // already on screen
+    box.setAttribute('data-for', id);
+    var given = t.rating || 0;
+    box.innerHTML = '<div class="card rate-card"><div class="t"></div>' +
+      '<div class="stars" role="group" aria-label="Rate this order out of 5"></div>' +
+      '<div class="hint" id="trRateMsg"></div></div>';
+    box.querySelector('.t').textContent = 'How was your order from ' + o.restaurantName + '?';
+    var row = box.querySelector('.stars');
+    var buttons = [];
+    var paint = function (msg) {
+      buttons.forEach(function (b, i) {
+        b.className = i < given ? 'on' : '';
+        b.setAttribute('aria-pressed', i + 1 === given ? 'true' : 'false');
+      });
+      el('trRateMsg').textContent = msg || (given
+        ? 'Thanks. You gave this ' + given + (given === 1 ? ' star.' : ' stars.') + ' Tap a star to change it.'
+        : 'Tap a star. Your rating helps other customers choose.');
+    };
+    for (var i = 1; i <= 5; i += 1) {
+      (function (stars) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = '★';
+        b.setAttribute('aria-label', stars + (stars === 1 ? ' star' : ' stars'));
+        b.addEventListener('click', function () {
+          var before = given;
+          given = stars;
+          paint('Saving…');
+          buttons.forEach(function (x) { x.disabled = true; });
+          api('/api/orders/' + id + '/rating', { method: 'POST', body: { rating: stars } })
+            .then(function () { paint(); })
+            .catch(function (err) { given = before; paint(err.message); })
+            .then(function () { buttons.forEach(function (x) { x.disabled = false; }); });
+        });
+        buttons.push(b);
+        row.appendChild(b);
+      })(i);
+    }
+    paint();
+  }
+
+  // --- order again ----------------------------------------------------------
+  // Puts a past order back in the basket at today's prices, minus anything
+  // the kitchen no longer sells, and goes to checkout.
+  function paintAgain(o) {
+    var box = el('trAgain');
+    box.innerHTML = '';
+    if (o.paymentStatus !== 'paid' || (o.status !== 'delivered' && o.status !== 'rejected')) return;
+    var btn = document.createElement('button');
+    btn.className = 'ghost';
+    btn.style.margin = '0 0 14px';
+    btn.textContent = 'Order this again';
+    var msg = document.createElement('div');
+    msg.className = 'msg err';
+    msg.style.margin = '-6px 0 14px';
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      msg.style.display = 'none';
+      api('/api/restaurants/' + o.restaurantId).then(function (data) {
+        var r = data.restaurant;
+        var byId = {};
+        (r.menu || []).forEach(function (m) { byId[m.id] = m; });
+        var lines = {};
+        var missing = [];
+        o.items.forEach(function (i) {
+          var m = byId[i.menuItemId];
+          if (!m) { missing.push(i.name); return; }
+          lines[m.id] = { id: m.id, name: m.name, price: m.price, quantity: i.quantity };
+        });
+        if (!Object.keys(lines).length) throw new Error(r.name + ' no longer has these dishes on its menu.');
+        if (cart.restaurantId && cart.restaurantId !== r.id && countItems() > 0 &&
+          !confirm('Your basket has food from ' + cart.restaurantName + '. Start a new order from ' + r.name + '?')) {
+          btn.disabled = false;
+          return;
+        }
+        cart = { restaurantId: r.id, restaurantName: r.name, deliveryFee: r.deliveryFee, lines: lines };
+        saveCart();
+        carryNote = missing.length
+          ? missing.join(' and ') + (missing.length === 1 ? ' is' : ' are') + ' not on the menu any more, so ' +
+            (missing.length === 1 ? 'it was' : 'they were') + ' left out.'
+          : '';
+        var note = carryNote;
+        go('#checkout');
+        carryNote = note;
+      }).catch(function (err) {
+        btn.disabled = false;
+        msg.textContent = err.message === 'Restaurant not found'
+          ? o.restaurantName + ' is not on MidFood at the moment.'
+          : err.message;
+        msg.style.display = 'block';
+      });
+    });
+    box.appendChild(btn);
+    box.appendChild(msg);
   }
 
   // --- live map -----------------------------------------------------------

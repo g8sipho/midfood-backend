@@ -3,6 +3,12 @@ export type MenuItem = {
   name: string;
   description: string;
   price: number;
+  // The menu section the dish sits under, if the menu has sections.
+  category?: string | null;
+  // Paths on the API host (prefix with the API base URL), or null: the full
+  // photo, and a small square copy for lists.
+  imageUrl?: string | null;
+  thumbUrl?: string | null;
 };
 
 export type Restaurant = {
@@ -12,7 +18,11 @@ export type Restaurant = {
   cuisine: string;
   etaMinutes: number;
   deliveryFee: number;
-  rating: number;
+  // The average of what customers gave delivered orders, or null while the
+  // restaurant is too new to have a rating (show "New", never a made-up score).
+  rating: number | null;
+  ratingCount?: number;
+  imageUrl?: string | null;
   heroColor: string;
   menu?: MenuItem[];
 };

@@ -19,7 +19,7 @@ router.get('/restaurant', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
-              rating::float8 AS rating, hero_color AS "heroColor", username, open, approved,
+              hero_color AS "heroColor", username, open, approved,
               phone, address
        FROM restaurants WHERE id = $1`,
       [req.restaurantId]
@@ -36,10 +36,16 @@ router.get('/restaurant', async (req, res, next) => {
 router.get('/menu', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, description, price::float8 AS price, available
-       FROM menu_items WHERE restaurant_id = $1 ORDER BY name`,
+      `SELECT m.id, m.name, m.description, m.price::float8 AS price, m.available, m.category,
+              (SELECT i.id FROM images i WHERE i.menu_item_id = m.id) AS "imageId"
+       FROM menu_items m WHERE m.restaurant_id = $1 ORDER BY m.name`,
       [req.restaurantId]
     );
+    for (const m of rows) {
+      m.imageUrl = m.imageId ? `/api/images/${m.imageId}` : null;
+      m.thumbUrl = m.imageId ? `/api/images/${m.imageId}/thumb` : null;
+      delete m.imageId;
+    }
     res.json({ menu: rows });
   } catch (err) {
     next(err);

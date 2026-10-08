@@ -45,7 +45,7 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
       <View style={[styles.hero, { backgroundColor: restaurant.heroColor }]}>
         <Text style={styles.heroTitle}>{restaurant.name}</Text>
         <Text style={styles.heroSubtitle}>
-          {restaurant.cuisine} · ⭐ {restaurant.rating.toFixed(1)} · {restaurant.etaMinutes} min
+          {restaurant.cuisine} · {restaurant.rating == null ? 'New' : `⭐ ${restaurant.rating.toFixed(1)}`} · {restaurant.etaMinutes} min
         </Text>
       </View>
 

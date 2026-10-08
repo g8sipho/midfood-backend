@@ -15,7 +15,7 @@ const ORDER_COLUMNS = `id, user_id AS "userId", restaurant_id AS "restaurantId",
                        delivery_lat AS "deliveryLat", delivery_lng AS "deliveryLng", status,
                        payment_status AS "paymentStatus", payment_reference AS "paymentReference",
                        ready_at AS "readyAt", driver_id AS "driverId", notes,
-                       rejected_reason AS "rejectedReason", refunded_at AS "refundedAt",
+                       rejected_reason AS "rejectedReason", refunded_at AS "refundedAt", rating,
                        created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 // All order routes require a logged-in user.
@@ -277,6 +277,29 @@ router.post('/:id/payfast-checkout', async (req, res, next) => {
   }
 });
 
+// POST /api/orders/:id/rating { rating: 1..5 } - the customer's stars for a
+// delivered order. One rating per order, by the person who ordered it; it can
+// be changed, and the restaurant's rating is the average of all of them.
+router.post('/:id/rating', async (req, res, next) => {
+  try {
+    const stars = req.body && req.body.rating;
+    if (typeof stars !== 'number' || !Number.isInteger(stars) || stars < 1 || stars > 5) {
+      return res.status(400).json({ error: 'rating must be a whole number from 1 to 5' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE orders SET rating = $1, rated_at = now()
+       WHERE id = $2 AND user_id = $3 AND status = 'delivered' AND payment_status = 'paid'
+       RETURNING id, rating`,
+      [stars, req.params.id, req.userId]
+    );
+    if (!rows[0]) return res.status(400).json({ error: 'Only an order that has been delivered to you can be rated' });
+    res.json({ ok: true, rating: rows[0].rating });
+  } catch (err) {
+    if (err.code === '22P02') return res.status(404).json({ error: 'Order not found' });
+    next(err);
+  }
+});
+
 // GET /api/orders/:id/tracking - live status plus the driver's last known
 // position, so the customer can watch the driver approach.
 router.get('/:id/tracking', async (req, res, next) => {
@@ -285,7 +308,7 @@ router.get('/:id/tracking', async (req, res, next) => {
       `SELECT o.id, o.status, o.payment_status AS "paymentStatus", o.ready_at AS "readyAt",
               o.restaurant_name AS "restaurantName", o.delivery_address AS "deliveryAddress",
               o.delivery_lat AS "deliveryLat", o.delivery_lng AS "deliveryLng",
-              o.rejected_reason AS "rejectedReason", o.refunded_at AS "refundedAt",
+              o.rejected_reason AS "rejectedReason", o.refunded_at AS "refundedAt", o.rating,
               o.updated_at AS "updatedAt",
               d.name AS "driverName", d.phone AS "driverPhone",
               d.lat AS "driverLat", d.lng AS "driverLng", d.location_updated_at AS "driverSeenAt"

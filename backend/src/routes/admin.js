@@ -10,6 +10,7 @@ const { pool, uuid } = require('../db');
 const { requireAdmin } = require('../middleware/auth');
 const { notifyOrderStatus } = require('../notify');
 const money = require('../money');
+const images = require('./images');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -24,12 +25,20 @@ router.get('/restaurants', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
-              rating::float8 AS rating, hero_color AS "heroColor", username, approved, open,
+              hero_color AS "heroColor", username, approved, open,
               phone, address, free_until::text AS "freeUntil", commission_rate::float8 AS "commissionRate",
               (password_hash IS NOT NULL) AS "hasAccount",
-              (SELECT COUNT(*)::int FROM menu_items m WHERE m.restaurant_id = restaurants.id) AS "menuCount"
+              (SELECT COUNT(*)::int FROM menu_items m WHERE m.restaurant_id = restaurants.id) AS "menuCount",
+              (SELECT COUNT(*)::int FROM menu_items m JOIN images i ON i.menu_item_id = m.id
+                WHERE m.restaurant_id = restaurants.id) AS "photoCount",
+              (SELECT i.id FROM images i WHERE i.restaurant_id = restaurants.id) AS "imageId"
        FROM restaurants ORDER BY name`
     );
+    for (const r of rows) {
+      r.imageUrl = images.imageUrl(r.imageId);
+      r.thumbUrl = images.thumbUrl(r.imageId);
+      delete r.imageId;
+    }
     res.json({ restaurants: rows });
   } catch (err) {
     next(err);
@@ -177,10 +186,13 @@ router.patch('/restaurants/:id', async (req, res, next) => {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// One dish, cleaned up. Returns { name, description, price } or an error string.
+// One dish, cleaned up. Returns { name, description, price, category } or an
+// error string. `category` is the menu section it sits under, or null.
 function cleanDish(raw) {
   const name = String((raw && raw.name) || '').trim();
   const description = String((raw && raw.description) || '').trim();
+  const category = String((raw && raw.category) || '').trim().replace(/\s+/g, ' ') || null;
+  if (category && category.length > 40) return `The section name "${category.slice(0, 20)}…" is too long (40 characters at most)`;
   const price = Number(raw && raw.price);
   if (!name) return 'Every dish needs a name';
   if (name.length > 120) return `"${name.slice(0, 30)}…" is too long for a dish name (120 characters at most)`;
@@ -188,7 +200,7 @@ function cleanDish(raw) {
   if (raw.price === '' || raw.price === null || raw.price === undefined || !Number.isFinite(price) || price < 0 || price > 100000) {
     return `"${name}" needs a price in rand, e.g. 45 or 45.50`;
   }
-  return { name, description, price: Math.round(price * 100) / 100 };
+  return { name, description, price: Math.round(price * 100) / 100, category };
 }
 
 // GET /api/admin/restaurants/:id/menu - every dish, sold-out ones included
@@ -198,10 +210,17 @@ router.get('/restaurants/:id/menu', async (req, res, next) => {
     const r = await pool.query('SELECT id, name FROM restaurants WHERE id = $1', [req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
     const { rows } = await pool.query(
-      `SELECT id, name, description, price::float8 AS price, available
-       FROM menu_items WHERE restaurant_id = $1 ORDER BY name`,
+      `SELECT m.id, m.name, m.description, m.price::float8 AS price, m.available, m.category,
+              (SELECT i.id FROM images i WHERE i.menu_item_id = m.id) AS "imageId"
+       FROM menu_items m WHERE m.restaurant_id = $1
+       ORDER BY (m.category IS NULL), lower(m.category), m.name`,
       [req.params.id]
     );
+    for (const m of rows) {
+      m.imageUrl = images.imageUrl(m.imageId);
+      m.thumbUrl = images.thumbUrl(m.imageId);
+      delete m.imageId;
+    }
     res.json({ restaurant: r.rows[0], menu: rows });
   } catch (err) {
     next(err);
@@ -234,23 +253,47 @@ router.post('/restaurants/:id/menu', async (req, res, next) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Restaurant not found' });
     }
-    const existing = await client.query('SELECT lower(name) AS name FROM menu_items WHERE restaurant_id = $1', [req.params.id]);
-    const taken = new Set(existing.rows.map((x) => x.name));
+    const existing = await client.query(
+      'SELECT id, lower(name) AS name, category FROM menu_items WHERE restaurant_id = $1',
+      [req.params.id]
+    );
+    const taken = new Map(existing.rows.map((x) => [x.name, x]));
+    // One spelling per section: "kotas" joins the "Kotas" already there.
+    const spelling = new Map();
+    for (const x of existing.rows) if (x.category && !spelling.has(x.category.toLowerCase())) spelling.set(x.category.toLowerCase(), x.category);
     const added = [];
     const skipped = [];
+    const moved = [];
     for (const dish of dishes) {
+      if (dish.category) {
+        const sec = dish.category.toLowerCase();
+        if (!spelling.has(sec)) spelling.set(sec, dish.category);
+        dish.category = spelling.get(sec);
+      }
       const key = dish.name.toLowerCase();
-      if (taken.has(key)) { skipped.push(dish.name); continue; }
-      taken.add(key);
+      const there = taken.get(key);
+      if (there) {
+        skipped.push(dish.name);
+        // A dish already on the menu keeps its name, price and photo. The one
+        // thing a second paste can do to it is file it under a section, which
+        // is how a menu loaded as a plain list gets its sections afterwards.
+        if (there.id && dish.category && dish.category !== there.category) {
+          await client.query('UPDATE menu_items SET category = $1 WHERE id = $2', [dish.category, there.id]);
+          there.category = dish.category;
+          moved.push(dish.name);
+        }
+        continue;
+      }
+      taken.set(key, {});
       const id = uuid();
       await client.query(
-        'INSERT INTO menu_items (id, restaurant_id, name, description, price) VALUES ($1, $2, $3, $4, $5)',
-        [id, req.params.id, dish.name, dish.description, dish.price]
+        'INSERT INTO menu_items (id, restaurant_id, name, description, price, category) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, req.params.id, dish.name, dish.description, dish.price, dish.category]
       );
-      added.push({ id, ...dish, available: true });
+      added.push({ id, ...dish, available: true, imageUrl: null, thumbUrl: null });
     }
     await client.query('COMMIT');
-    res.status(201).json({ added, skipped });
+    res.status(201).json({ added, skipped, moved });
   } catch (err) {
     await client.query('ROLLBACK');
     next(err);
@@ -259,13 +302,13 @@ router.post('/restaurants/:id/menu', async (req, res, next) => {
   }
 });
 
-// PATCH /api/admin/menu/:itemId { name?, description?, price?, available? }
+// PATCH /api/admin/menu/:itemId { name?, description?, price?, category?, available? }
 router.patch('/menu/:itemId', async (req, res, next) => {
   try {
     if (!UUID.test(req.params.itemId)) return res.status(404).json({ error: 'Dish not found' });
     const body = req.body || {};
     const cur = await pool.query(
-      'SELECT name, description, price::float8 AS price, available FROM menu_items WHERE id = $1',
+      'SELECT name, description, price::float8 AS price, category, available FROM menu_items WHERE id = $1',
       [req.params.itemId]
     );
     if (!cur.rows[0]) return res.status(404).json({ error: 'Dish not found' });
@@ -273,18 +316,123 @@ router.patch('/menu/:itemId', async (req, res, next) => {
       name: body.name !== undefined ? body.name : cur.rows[0].name,
       description: body.description !== undefined ? body.description : cur.rows[0].description,
       price: body.price !== undefined ? body.price : cur.rows[0].price,
+      category: body.category !== undefined ? body.category : cur.rows[0].category,
     });
     if (typeof merged === 'string') return res.status(400).json({ error: merged });
     if (body.available !== undefined && typeof body.available !== 'boolean') {
       return res.status(400).json({ error: 'available must be true or false' });
     }
     const available = body.available !== undefined ? body.available : cur.rows[0].available;
+    if (merged.category) {
+      // Join the section as another dish already spells it ("kotas" -> "Kotas").
+      const same = await pool.query(
+        `SELECT category FROM menu_items
+         WHERE restaurant_id = (SELECT restaurant_id FROM menu_items WHERE id = $1)
+           AND id <> $1 AND lower(category) = lower($2) LIMIT 1`,
+        [req.params.itemId, merged.category]
+      );
+      if (same.rows[0]) merged.category = same.rows[0].category;
+    }
     const { rows } = await pool.query(
-      `UPDATE menu_items SET name = $1, description = $2, price = $3, available = $4 WHERE id = $5
-       RETURNING id, name, description, price::float8 AS price, available`,
-      [merged.name, merged.description, merged.price, available, req.params.itemId]
+      `UPDATE menu_items SET name = $1, description = $2, price = $3, available = $4, category = $5 WHERE id = $6
+       RETURNING id, name, description, price::float8 AS price, available, category,
+                 (SELECT i.id FROM images i WHERE i.menu_item_id = menu_items.id) AS "imageId"`,
+      [merged.name, merged.description, merged.price, available, merged.category, req.params.itemId]
     );
-    res.json({ item: rows[0] });
+    const item = rows[0];
+    item.imageUrl = images.imageUrl(item.imageId);
+    item.thumbUrl = images.thumbUrl(item.imageId);
+    delete item.imageId;
+    res.json({ item });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/menu/:itemId/image - the dish's photo. The body is the
+// picture itself (JPEG, PNG or WebP), already shrunk by the admin page.
+router.put('/menu/:itemId/image', images.rawImage, async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.itemId)) return res.status(404).json({ error: 'Dish not found' });
+    const upload = images.checkUpload(req);
+    if (upload.error) return res.status(400).json({ error: upload.error });
+    const dish = await pool.query('SELECT id FROM menu_items WHERE id = $1', [req.params.itemId]);
+    if (!dish.rows[0]) return res.status(404).json({ error: 'Dish not found' });
+    const id = await images.replaceImage('menu_item_id', req.params.itemId, upload.type, req.body);
+    res.json({ imageUrl: images.imageUrl(id), thumbUrl: images.thumbUrl(id) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/menu/:itemId/image/thumb - the small square copy of the
+// photo the dish already has, for menu lists. Sent by the admin page straight
+// after the photo itself.
+router.put('/menu/:itemId/image/thumb', images.rawImage, async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.itemId)) return res.status(404).json({ error: 'Dish not found' });
+    const upload = images.checkUpload(req);
+    if (upload.error) return res.status(400).json({ error: upload.error });
+    if (req.body.length > images.MAX_THUMB_BYTES) {
+      return res.status(413).json({ error: 'The small copy of a photo must be under 120 KB' });
+    }
+    const id = await images.setThumb('menu_item_id', req.params.itemId, upload.type, req.body);
+    if (!id) return res.status(404).json({ error: 'This dish has no photo yet' });
+    res.json({ imageUrl: images.imageUrl(id), thumbUrl: images.thumbUrl(id) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/menu/:itemId/image', async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.itemId)) return res.status(404).json({ error: 'Dish not found' });
+    await pool.query('DELETE FROM images WHERE menu_item_id = $1', [req.params.itemId]);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/restaurants/:id/image - the restaurant's cover photo, shown
+// on its card and at the top of its menu.
+router.put('/restaurants/:id/image', images.rawImage, async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Restaurant not found' });
+    const upload = images.checkUpload(req);
+    if (upload.error) return res.status(400).json({ error: upload.error });
+    const r = await pool.query('SELECT id FROM restaurants WHERE id = $1', [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
+    const id = await images.replaceImage('restaurant_id', req.params.id, upload.type, req.body);
+    res.json({ imageUrl: images.imageUrl(id), thumbUrl: images.thumbUrl(id) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/restaurants/:id/image/thumb - a card-sized copy of the cover
+// photo, for the list of restaurants on the home page.
+router.put('/restaurants/:id/image/thumb', images.rawImage, async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Restaurant not found' });
+    const upload = images.checkUpload(req);
+    if (upload.error) return res.status(400).json({ error: upload.error });
+    if (req.body.length > images.MAX_THUMB_BYTES) {
+      return res.status(413).json({ error: 'The small copy of a photo must be under 120 KB' });
+    }
+    const id = await images.setThumb('restaurant_id', req.params.id, upload.type, req.body);
+    if (!id) return res.status(404).json({ error: 'This restaurant has no cover photo yet' });
+    res.json({ imageUrl: images.imageUrl(id), thumbUrl: images.thumbUrl(id) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/restaurants/:id/image', async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Restaurant not found' });
+    await pool.query('DELETE FROM images WHERE restaurant_id = $1', [req.params.id]);
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

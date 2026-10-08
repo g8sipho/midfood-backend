@@ -1024,6 +1024,336 @@ describe("loading a restaurant's menu from the admin page", () => {
   });
 });
 
+describe('photos of dishes and restaurants', () => {
+  // The server never decodes a picture; it checks what kind of file the first
+  // bytes say it is. These are the smallest files that pass as each kind.
+  const jpeg = (size = 2000, fill = 7) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(size - 4, fill)]);
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(200, 1)]);
+  const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4, 9), Buffer.from('WEBP'), Buffer.alloc(200, 2)]);
+  const NOBODY = '00000000-0000-4000-8000-000000000000';
+
+  let resto, cake, platter;
+  before(async () => {
+    resto = await h.restaurant({ name: 'Photo Kitchen', menu: [['Spiderman Cake', 650], ['Meat Platter', 700]] });
+    [cake, platter] = resto.items;
+  });
+
+  const put = (path, data, type = 'image/jpeg', opts = ADMIN) => api('PUT', path, { ...opts, raw: { type, data } });
+  const publicMenu = async () => (await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.menu;
+
+  it('only the owner can add or remove a photo', async () => {
+    for (const path of [`/api/admin/menu/${cake.id}/image`, `/api/admin/menu/${cake.id}/image/thumb`, `/api/admin/restaurants/${resto.id}/image`, `/api/admin/restaurants/${resto.id}/image/thumb`]) {
+      assert.equal((await put(path, jpeg(), 'image/jpeg', {})).status, 401, path);
+      assert.equal((await put(path, jpeg(), 'image/jpeg', { token: resto.token })).status, 401, path);
+      assert.equal((await put(path, jpeg(), 'image/jpeg', { admin: 'wrong-key' })).status, 401, path);
+    }
+    assert.equal((await api('DELETE', `/api/admin/menu/${cake.id}/image`)).status, 401);
+    assert.equal((await api('DELETE', `/api/admin/restaurants/${resto.id}/image`, { token: resto.token })).status, 401);
+    assert.equal((await publicMenu()).find((d) => d.id === cake.id).imageUrl, null);
+  });
+
+  it('a dish photo shows on the menu, and anyone can load it', async () => {
+    const photo = jpeg(3000);
+    const up = await put(`/api/admin/menu/${cake.id}/image`, photo);
+    assert.equal(up.status, 200);
+    assert.match(up.data.imageUrl, /^\/api\/images\/[0-9a-f-]{36}$/);
+    assert.equal(up.data.thumbUrl, `${up.data.imageUrl}/thumb`);
+
+    const onMenu = (await publicMenu()).find((d) => d.id === cake.id);
+    assert.equal(onMenu.imageUrl, up.data.imageUrl);
+    assert.equal(onMenu.thumbUrl, up.data.thumbUrl);
+    assert.equal((await publicMenu()).find((d) => d.id === platter.id).imageUrl, null);
+
+    const got = await api('GET', up.data.imageUrl);
+    assert.equal(got.status, 200);
+    assert.equal(got.headers.get('content-type'), 'image/jpeg');
+    assert.match(got.headers.get('cache-control'), /immutable/);
+    assert.ok(got.data.equals(photo), 'the picture comes back exactly as it was sent');
+
+    // The owner's list and the restaurant's own portal show it too.
+    const admin = (await api('GET', `/api/admin/restaurants/${resto.id}/menu`, ADMIN)).data.menu;
+    assert.equal(admin.find((d) => d.id === cake.id).imageUrl, up.data.imageUrl);
+    const portal = (await api('GET', '/api/portal/menu', { token: resto.token })).data.menu;
+    assert.equal(portal.find((d) => d.id === cake.id).thumbUrl, up.data.thumbUrl);
+    const list = (await api('GET', '/api/admin/restaurants', ADMIN)).data.restaurants.find((r) => r.id === resto.id);
+    assert.equal(list.photoCount, 1);
+    assert.equal(list.menuCount, 2);
+  });
+
+  it('the small copy for menu lists is served once it is sent, and the full photo until then', async () => {
+    const { thumbUrl } = (await publicMenu()).find((d) => d.id === cake.id);
+    const before = await api('GET', thumbUrl);
+    assert.equal(before.status, 200);
+    assert.equal(before.data.length, 3000, 'no small copy yet: the full photo stands in');
+    assert.doesNotMatch(before.headers.get('cache-control'), /immutable/, 'and browsers are told not to keep the stand-in');
+
+    const small = jpeg(500, 3);
+    const up = await put(`/api/admin/menu/${cake.id}/image/thumb`, small);
+    assert.equal(up.status, 200);
+    assert.equal(up.data.thumbUrl, thumbUrl, 'adding the small copy does not move the photo');
+    const after = await api('GET', thumbUrl);
+    assert.ok(after.data.equals(small));
+    assert.match(after.headers.get('cache-control'), /immutable/);
+    assert.equal((await api('GET', thumbUrl.replace('/thumb', ''))).data.length, 3000, 'the full photo is untouched');
+
+    assert.equal((await put(`/api/admin/menu/${platter.id}/image/thumb`, small)).status, 404, 'no photo to add a small copy to');
+    assert.equal((await put(`/api/admin/menu/${cake.id}/image/thumb`, jpeg(121 * 1024))).status, 413);
+    assert.ok((await api('GET', thumbUrl)).data.equals(small), 'a refused small copy leaves the one already there');
+  });
+
+  it('PNG and WebP pictures are accepted, and each kind is served as what it is', async () => {
+    for (const [data, type] of [[png, 'image/png'], [webp, 'image/webp']]) {
+      const up = await put(`/api/admin/menu/${platter.id}/image`, data, type);
+      assert.equal(up.status, 200, type);
+      assert.equal((await api('GET', up.data.imageUrl)).headers.get('content-type'), type);
+    }
+    // What the file is decides, not what the sender calls it.
+    const mislabelled = await put(`/api/admin/menu/${platter.id}/image`, png, 'image/jpeg');
+    assert.equal((await api('GET', mislabelled.data.imageUrl)).headers.get('content-type'), 'image/png');
+  });
+
+  it('anything that is not a picture is refused', async () => {
+    const path = `/api/admin/menu/${platter.id}/image`;
+    const before = (await publicMenu()).find((d) => d.id === platter.id).imageUrl;
+    assert.equal((await put(path, Buffer.from('<script>alert(1)</script> this is not a photo'))).status, 400);
+    assert.equal((await put(path, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'), 'image/svg+xml')).status, 400);
+    assert.equal((await api('PUT', path, { ...ADMIN, body: { image: 'abc' } })).status, 400);
+    assert.equal((await api('PUT', path, ADMIN)).status, 400);
+    assert.equal((await put(path, jpeg(700 * 1024))).status, 413, 'a photo that was not made menu-sized first');
+    assert.equal((await put(`/api/admin/menu/${NOBODY}/image`, jpeg())).status, 404);
+    assert.equal((await put('/api/admin/menu/not-an-id/image', jpeg())).status, 404);
+    assert.equal((await put(`/api/admin/restaurants/${NOBODY}/image`, jpeg())).status, 404);
+    assert.equal((await publicMenu()).find((d) => d.id === platter.id).imageUrl, before, 'the photo it had is still there');
+    assert.equal((await api('GET', '/api/images/not-an-id')).status, 404);
+    assert.equal((await api('GET', `/api/images/${NOBODY}`)).status, 404);
+    assert.equal((await api('GET', `/api/images/${NOBODY}/thumb`)).status, 404);
+  });
+
+  it('a new photo replaces the old one at a new address, so nobody is shown a stale picture', async () => {
+    const old = (await publicMenu()).find((d) => d.id === cake.id).imageUrl;
+    const up = await put(`/api/admin/menu/${cake.id}/image`, jpeg(1500, 5));
+    assert.notEqual(up.data.imageUrl, old);
+    assert.equal((await api('GET', old)).status, 404);
+    assert.equal((await api('GET', up.data.imageUrl)).data.length, 1500);
+    // The old small copy went with the old photo.
+    assert.equal((await api('GET', up.data.thumbUrl)).data.length, 1500);
+  });
+
+  it('a photo can be taken off, and goes when its dish goes', async () => {
+    const dish = async (id) => (await publicMenu()).find((d) => d.id === id);
+    const cakeUrl = (await dish(cake.id)).imageUrl;
+    assert.equal((await api('DELETE', `/api/admin/menu/${cake.id}/image`, ADMIN)).status, 204);
+    assert.equal((await dish(cake.id)).imageUrl, null);
+    assert.equal((await dish(cake.id)).thumbUrl, null);
+    assert.equal((await api('GET', cakeUrl)).status, 404);
+    assert.equal((await api('DELETE', `/api/admin/menu/${cake.id}/image`, ADMIN)).status, 204, 'removing nothing is not an error');
+
+    const platterUrl = (await dish(platter.id)).imageUrl;
+    assert.equal((await api('DELETE', `/api/admin/menu/${platter.id}`, ADMIN)).status, 204);
+    assert.equal((await api('GET', platterUrl)).status, 404);
+  });
+
+  it('a restaurant has a cover photo for its card and the top of its menu', async () => {
+    const card = async () => (await api('GET', '/api/restaurants')).data.restaurants.find((r) => r.id === resto.id);
+    assert.equal((await card()).imageUrl, null);
+    const up = await put(`/api/admin/restaurants/${resto.id}/image`, jpeg(4000));
+    assert.equal(up.status, 200);
+    assert.equal((await card()).imageUrl, up.data.imageUrl);
+    assert.equal((await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.imageUrl, up.data.imageUrl);
+    assert.equal((await api('GET', '/api/admin/restaurants', ADMIN)).data.restaurants.find((r) => r.id === resto.id).imageUrl, up.data.imageUrl);
+    assert.equal((await api('GET', up.data.imageUrl)).data.length, 4000);
+    // A card-sized copy for the home page list, the same way as for a dish.
+    assert.equal((await card()).thumbUrl, `${up.data.imageUrl}/thumb`);
+    assert.equal((await put(`/api/admin/restaurants/${resto.id}/image/thumb`, jpeg(900, 2))).status, 200);
+    assert.equal((await api('GET', (await card()).thumbUrl)).data.length, 900);
+    // It is the restaurant's picture, not a dish's.
+    assert.equal((await publicMenu()).find((d) => d.id === cake.id).imageUrl, null);
+    assert.equal((await api('DELETE', `/api/admin/restaurants/${resto.id}/image`, ADMIN)).status, 204);
+    assert.equal((await card()).imageUrl, null);
+    assert.equal((await card()).thumbUrl, null);
+    assert.equal((await put(`/api/admin/restaurants/${resto.id}/image/thumb`, jpeg(900))).status, 404, 'no cover photo to add a small copy to');
+  });
+
+  it('two photos sent for one dish at the same moment leave exactly one, and no error', async () => {
+    const results = await Promise.all([1, 2, 3, 4].map((n) => put(`/api/admin/menu/${cake.id}/image`, jpeg(1000 + n, n))));
+    assert.deepEqual(results.map((r) => r.status), [200, 200, 200, 200]);
+    const { rows } = await h.db().query('SELECT COUNT(*)::int AS n FROM images WHERE menu_item_id = $1', [cake.id]);
+    assert.equal(rows[0].n, 1);
+    const shown = (await publicMenu()).find((d) => d.id === cake.id).imageUrl;
+    assert.equal((await api('GET', shown)).status, 200);
+  });
+});
+
+describe('menu sections and search', () => {
+  let resto, other, hidden;
+  const add = (id, items) => api('POST', `/api/admin/restaurants/${id}/menu`, { ...ADMIN, body: { items } });
+  // Other blocks in this file have restaurants of their own; these tests are
+  // about the three made here.
+  const MINE = ['Section Bakery', 'Corner Grill', 'Suspended Bakery'];
+  const names = (r) => r.data.restaurants.map((x) => x.name).filter((n) => MINE.includes(n));
+  const search = (q) => api('GET', `/api/restaurants?q=${encodeURIComponent(q)}`);
+
+  before(async () => {
+    resto = await h.restaurant({ name: 'Section Bakery', menu: [] });
+    other = await h.restaurant({ name: 'Corner Grill', menu: [] });
+    hidden = await h.restaurant({ name: 'Suspended Bakery', menu: [] });
+    await add(other.id, [{ name: 'Rump steak', price: 180, description: 'With pap and chakalaka' }, { name: '100% beef burger', price: 75 }]);
+    await add(hidden.id, [{ name: 'Lemon cake', price: 300 }]);
+    await api('POST', `/api/admin/restaurants/${hidden.id}/suspend`, ADMIN);
+  });
+
+  it('dishes are filed under sections, and the menu arrives in section order', async () => {
+    const r = await add(resto.id, [
+      { name: 'Garlic roll', price: 15 },
+      { name: 'Spiderman Cake', price: 650, category: ' Cakes ' },
+      { name: 'Meat Platter', price: 700, category: 'Platters' },
+      { name: 'Frozen Cake', price: 650, category: 'Cakes' },
+    ]);
+    assert.equal(r.status, 201);
+    const menu = (await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.menu;
+    assert.deepEqual(menu.map((d) => [d.category, d.name]), [
+      ['Cakes', 'Frozen Cake'], ['Cakes', 'Spiderman Cake'], ['Platters', 'Meat Platter'], [null, 'Garlic roll'],
+    ]);
+    assert.equal((await add(resto.id, [{ name: 'Tart', price: 20, category: 'x'.repeat(41) }])).status, 400);
+  });
+
+  it('a dish can be moved to another section or taken out of its section', async () => {
+    const menu = (await api('GET', `/api/admin/restaurants/${resto.id}/menu`, ADMIN)).data.menu;
+    const roll = menu.find((d) => d.name === 'Garlic roll');
+    const patch = (body) => api('PATCH', `/api/admin/menu/${roll.id}`, { ...ADMIN, body });
+    assert.equal((await patch({ category: 'Sides' })).data.item.category, 'Sides');
+    assert.equal((await patch({ price: 18 })).data.item.category, 'Sides', 'changing the price leaves the section alone');
+    assert.equal((await patch({ category: '' })).data.item.category, null);
+    assert.equal((await patch({ category: 'y'.repeat(41) })).status, 400);
+    // One spelling per section: a dish joins "Cakes" however it is typed.
+    assert.equal((await patch({ category: 'cakes' })).data.item.category, 'Cakes');
+    assert.equal((await patch({ category: 'SIDES' })).data.item.category, 'SIDES', 'a new section is spelt as typed');
+    assert.equal((await patch({ category: 'Sides' })).data.item.category, 'Sides', 'and its only dish can respell it');
+    await patch({ category: '' });
+  });
+
+  it('pasting a menu again with section headings files the dishes already there, and changes nothing else', async () => {
+    const plain = await h.restaurant({ name: 'Plain List Kitchen', menu: [] });
+    await add(plain.id, [{ name: 'Wors roll', price: 35, description: 'With chakalaka' }, { name: 'Pap', price: 15 }]);
+    const again = await add(plain.id, [
+      { name: 'wors roll', price: 99, category: 'Braai' },
+      { name: 'Pap', price: 15, category: 'Sides' },
+      { name: 'Chop', price: 60, category: 'braai' },
+    ]);
+    assert.equal(again.status, 201);
+    assert.deepEqual(again.data.added.map((d) => [d.name, d.category]), [['Chop', 'Braai']]);
+    assert.deepEqual(again.data.skipped, ['wors roll', 'Pap']);
+    assert.deepEqual(again.data.moved, ['wors roll', 'Pap']);
+    const menu = (await api('GET', `/api/admin/restaurants/${plain.id}/menu`, ADMIN)).data.menu;
+    assert.deepEqual(menu.map((d) => [d.category, d.name, d.price, d.description]), [
+      ['Braai', 'Chop', 60, ''], ['Braai', 'Wors roll', 35, 'With chakalaka'], ['Sides', 'Pap', 15, ''],
+    ]);
+    // A third paste has nothing left to do.
+    const third = await add(plain.id, [{ name: 'Pap', price: 15, category: 'Sides' }, { name: 'Chop', price: 60 }]);
+    assert.deepEqual([third.data.added.length, third.data.moved], [0, []]);
+  });
+
+  it('search finds restaurants by name, by kind of food and by what is on the menu', async () => {
+    assert.deepEqual(names(await search('section')), ['Section Bakery']);
+    assert.deepEqual(names(await search('TEST FOOD')), ['Corner Grill', 'Section Bakery']);
+
+    const cake = await search('cake');
+    assert.deepEqual(names(cake), ['Section Bakery'], 'a suspended restaurant is never found');
+    const bakery = cake.data.restaurants.find((x) => x.name === 'Section Bakery');
+    assert.deepEqual(bakery.matches, ['Frozen Cake', 'Spiderman Cake']);
+
+    // By section name, and by a word in a dish's description.
+    assert.deepEqual((await search('platters')).data.restaurants.find((x) => x.name === 'Section Bakery').matches, ['Meat Platter']);
+    assert.deepEqual(names(await search('chakalaka')), ['Corner Grill']);
+    assert.deepEqual(names(await search('  steak  ')), ['Corner Grill']);
+    assert.deepEqual(names(await search('sushi')), []);
+    // A found restaurant is the same card as on the home page.
+    assert.equal(bakery.rating, null);
+    assert.equal(bakery.deliveryFee, 30);
+  });
+
+  it('sold-out dishes are not found, and the customer\'s words are taken literally', async () => {
+    const menu = (await api('GET', `/api/admin/restaurants/${other.id}/menu`, ADMIN)).data.menu;
+    const steak = menu.find((d) => d.name === 'Rump steak');
+    await api('PATCH', `/api/admin/menu/${steak.id}`, { ...ADMIN, body: { available: false } });
+    assert.deepEqual(names(await search('steak')), []);
+    await api('PATCH', `/api/admin/menu/${steak.id}`, { ...ADMIN, body: { available: true } });
+
+    assert.deepEqual(names(await search('100%')), ['Corner Grill']);
+    assert.deepEqual(names(await search('%')), ['Corner Grill'], 'a percent sign matches a percent sign, not everything');
+    assert.equal((await search('_')).data.restaurants.length, 0, 'an underscore matches an underscore, not any letter');
+    assert.equal((await search("'; DROP TABLE restaurants; --")).data.restaurants.length, 0);
+    assert.deepEqual(names(await search('')), ['Corner Grill', 'Section Bakery'], 'an empty search is the whole list');
+  });
+});
+
+describe('star ratings', () => {
+  let resto, drv, custs, orders;
+  const card = async () => (await api('GET', '/api/restaurants')).data.restaurants.find((r) => r.id === resto.id);
+  const rate = (order, cust, rating) => api('POST', `/api/orders/${order.id}/rating`, { token: cust.token, body: { rating } });
+
+  before(async () => {
+    resto = await h.restaurant({ name: 'Rated Kitchen' });
+    drv = await h.driver();
+    custs = [await h.customer(), await h.customer(), await h.customer()];
+    orders = [];
+    for (const c of custs) orders.push(await h.deliver(c, resto, drv, [[resto.items[0], 1]]));
+  });
+
+  it('a restaurant nobody has rated says so, instead of showing a made-up score', async () => {
+    const r = await card();
+    assert.equal(r.rating, null);
+    assert.equal(r.ratingCount, 0);
+    assert.equal((await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.rating, null);
+  });
+
+  it('only the customer whose order was delivered can rate it', async () => {
+    assert.equal((await api('POST', `/api/orders/${orders[0].id}/rating`, { body: { rating: 5 } })).status, 401);
+    assert.equal((await rate(orders[0], custs[1], 5)).status, 400, "someone else's order");
+    assert.equal((await api('POST', `/api/orders/${orders[0].id}/rating`, { token: resto.token, body: { rating: 5 } })).status, 403, 'a restaurant cannot rate itself');
+
+    const waiting = (await h.placeOrder(custs[0], resto, [[resto.items[0], 1]])).data.order;
+    assert.equal((await rate(waiting, custs[0], 5)).status, 400, 'not paid for');
+    await h.pay(waiting);
+    assert.equal((await rate(waiting, custs[0], 5)).status, 400, 'paid but not delivered');
+    assert.equal((await rate({ id: 'not-an-id' }, custs[0], 5)).status, 404);
+
+    for (const bad of [0, 6, 4.5, -1, '5 stars', '5', true, [4], null, undefined]) {
+      assert.equal((await rate(orders[0], custs[0], bad)).status, 400, String(bad));
+    }
+  });
+
+  it('a rating is saved on the order, and the stars only appear once three customers have rated', async () => {
+    assert.equal((await rate(orders[0], custs[0], 5)).status, 200);
+    const mine = (await api('GET', `/api/orders/${orders[0].id}`, { token: custs[0].token })).data.order;
+    assert.equal(mine.rating, 5);
+    assert.equal((await api('GET', `/api/orders/${orders[0].id}/tracking`, { token: custs[0].token })).data.tracking.rating, 5);
+    assert.equal((await api('GET', '/api/orders', { token: custs[0].token })).data.orders.find((o) => o.id === orders[0].id).rating, 5);
+
+    await rate(orders[1], custs[1], 4);
+    assert.equal((await card()).rating, null, 'two ratings are too few to call');
+
+    await rate(orders[2], custs[2], 4);
+    const r = await card();
+    assert.equal(r.rating, 4.3);
+    assert.equal(r.ratingCount, 3);
+    assert.equal((await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.rating, 4.3);
+  });
+
+  it('a customer can change their mind, and it is still one rating', async () => {
+    assert.equal((await rate(orders[2], custs[2], 1)).data.rating, 1);
+    const r = await card();
+    assert.equal(r.rating, 3.3);
+    assert.equal(r.ratingCount, 3);
+  });
+
+  it('one restaurant\'s ratings never count towards another\'s', async () => {
+    const quiet = await h.restaurant({ name: 'Unrated Kitchen' });
+    const list = (await api('GET', '/api/restaurants')).data.restaurants;
+    assert.equal(list.find((x) => x.id === quiet.id).rating, null);
+  });
+});
+
 describe("the admin page's pasted price list reader", () => {
   // The reader lives in the admin page itself (no build step), so it is lifted
   // out of the page's script and run here exactly as the browser runs it.
@@ -1031,7 +1361,7 @@ describe("the admin page's pasted price list reader", () => {
   const path = require('path');
   const page = fs.readFileSync(path.join(__dirname, '..', 'public', 'portal', 'admin.html'), 'utf8');
   const start = page.indexOf('function parseDishes(text) {');
-  const end = page.indexOf("// A restaurant's whole menu, opened under its row");
+  const end = page.indexOf('// --- photos ---');
   // eslint-disable-next-line no-new-func
   const parseDishes = new Function(`${page.slice(start, end)}; return parseDishes;`)();
   const read = (text) => parseDishes(text).dishes.map((d) => [d.name, d.description, d.price]);
@@ -1061,6 +1391,17 @@ describe("the admin page's pasted price list reader", () => {
     assert.deepEqual(read('Full House Kota - polony, russian, egg, cheese, chips - 45\n\n  \nFamily platter – wings, ribs – R320.50'), [
       ['Full House Kota', 'polony, russian, egg, cheese, chips', 45], ['Family platter', 'wings, ribs', 320.5],
     ]);
+  });
+
+  it('a line ending in a colon puts the dishes under it in that section', () => {
+    const got = parseDishes('Garlic roll 15\nKotas:\nFull House Kota - polony, egg - 45\n\nPlatters & Cakes :\nFruit Platter R600').dishes;
+    assert.deepEqual(got.map((d) => [d.name, d.category, d.price]), [
+      ['Garlic roll', undefined, 15], ['Full House Kota', 'Kotas', 45], ['Fruit Platter', 'Platters & Cakes', 600],
+    ]);
+    assert.equal(got[1].description, 'polony, egg');
+    // A price after a colon is still a price, not a heading.
+    assert.deepEqual(read('Kota: 45'), [['Kota', '', 45]]);
+    assert.match(parseDishes('Kotas:').error, /at least one dish/);
   });
 
   it('names the line it cannot read instead of guessing', () => {

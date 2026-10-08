@@ -108,4 +108,4 @@ function validateWithPayFast(rawBody) {
   });
 }
 
-module.exports = { buildPaymentUrl, isSignatureValid, validateWithPayFast, IS_SANDBOX };
+module.exports = { buildPaymentUrl, buildSignature, isSignatureValid, validateWithPayFast, IS_SANDBOX };

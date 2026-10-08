@@ -39,7 +39,18 @@ router.post('/payfast/notify', urlencodedCapturingRaw, async (req, res) => {
       return;
     }
 
+    // A notification meant for a different PayFast account is not ours to act on.
+    const ourMerchantId = process.env.PAYFAST_MERCHANT_ID;
+    if (body.merchant_id && ourMerchantId && String(body.merchant_id) !== String(ourMerchantId)) {
+      console.error('PayFast ITN: wrong merchant_id for order', body.m_payment_id);
+      return;
+    }
+
     const orderId = body.m_payment_id;
+    if (!/^[0-9a-f-]{36}$/i.test(String(orderId || ''))) {
+      console.error('PayFast ITN: not a MidFood order id:', orderId);
+      return;
+    }
     const { rows } = await pool.query('SELECT id, total::float8 AS total FROM orders WHERE id = $1', [orderId]);
     const order = rows[0];
     if (!order) {
@@ -47,23 +58,34 @@ router.post('/payfast/notify', urlencodedCapturingRaw, async (req, res) => {
       return;
     }
 
+    // Once an order is paid it stays paid: a late or repeated notification
+    // must never un-pay an order the kitchen may already be cooking. Hence
+    // "AND payment_status <> 'paid'" on both failure paths below.
     const amountPaid = Number(body.amount_gross);
     if (!Number.isFinite(amountPaid) || Math.abs(amountPaid - order.total) > 0.05) {
       console.error('PayFast ITN: amount mismatch for order', orderId, '- got', amountPaid, 'expected', order.total);
-      await pool.query('UPDATE orders SET payment_status = $1, payment_reference = $2 WHERE id = $3', [
-        'failed',
-        body.pf_payment_id || null,
-        orderId,
-      ]);
+      await pool.query(
+        `UPDATE orders SET payment_status = 'failed', payment_reference = $1
+         WHERE id = $2 AND payment_status <> 'paid'`,
+        [body.pf_payment_id || null, orderId]
+      );
       return;
     }
 
     const newPaymentStatus = body.payment_status === 'COMPLETE' ? 'paid' : 'failed';
-    await pool.query('UPDATE orders SET payment_status = $1, payment_reference = $2 WHERE id = $3', [
-      newPaymentStatus,
-      body.pf_payment_id || null,
-      orderId,
-    ]);
+    if (newPaymentStatus === 'paid') {
+      await pool.query('UPDATE orders SET payment_status = $1, payment_reference = $2 WHERE id = $3', [
+        'paid',
+        body.pf_payment_id || null,
+        orderId,
+      ]);
+    } else {
+      await pool.query(
+        `UPDATE orders SET payment_status = 'failed', payment_reference = $1
+         WHERE id = $2 AND payment_status <> 'paid'`,
+        [body.pf_payment_id || null, orderId]
+      );
+    }
 
     // Freeze how this order's money splits, now that it is actually paid for.
     // Doing it here rather than at payout time means a later rate change never

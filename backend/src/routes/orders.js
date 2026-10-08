@@ -11,10 +11,11 @@ const STATUS_FLOW = ['placed', 'confirmed', 'preparing', 'out_for_delivery', 'de
 
 const ORDER_COLUMNS = `id, user_id AS "userId", restaurant_id AS "restaurantId", restaurant_name AS "restaurantName",
                        subtotal::float8 AS subtotal, delivery_fee::float8 AS "deliveryFee", total::float8 AS total,
-                       delivery_address AS "deliveryAddress", status,
+                       delivery_address AS "deliveryAddress",
+                       delivery_lat AS "deliveryLat", delivery_lng AS "deliveryLng", status,
                        payment_status AS "paymentStatus", payment_reference AS "paymentReference",
                        ready_at AS "readyAt", driver_id AS "driverId", notes,
-                       rejected_reason AS "rejectedReason",
+                       rejected_reason AS "rejectedReason", refunded_at AS "refundedAt",
                        created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 // All order routes require a logged-in user.
@@ -40,8 +41,34 @@ function paymentUrlsFor(req, orderId) {
   };
 }
 
+// Middelburg town centre. A delivery pin further than this from it is not a
+// real delivery: the customer's phone has reported nonsense (a VPN, a stale
+// fix), and sending a driver to it would be worse than having no pin at all.
+const TOWN = { lat: -25.7751, lng: 29.4648 };
+const MAX_PIN_KM = 60;
+
+function kmBetween(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+// The customer's optional GPS pin. Returns { lat, lng } or null. A pin is
+// only ever a help to the driver, so a bad one is dropped, never an error.
+function cleanPin(lat, lng) {
+  if (lat === undefined || lat === null || lat === '' || lng === undefined || lng === null || lng === '') return null;
+  const pin = { lat: Number(lat), lng: Number(lng) };
+  if (!Number.isFinite(pin.lat) || !Number.isFinite(pin.lng)) return null;
+  if (Math.abs(pin.lat) > 90 || Math.abs(pin.lng) > 180) return null;
+  if (kmBetween(TOWN, pin) > MAX_PIN_KM) return null;
+  return pin;
+}
+
 // POST /api/orders - place a new order.
-// Body: { restaurantId, items: [{ menuItemId, quantity }], deliveryAddress }
+// Body: { restaurantId, items: [{ menuItemId, quantity }], deliveryAddress,
+//         customerPhone?, notes?, deliveryLat?, deliveryLng? }
 // Prices are always looked up server-side from the restaurant's menu, never
 // trusted from the client, so a tampered request can't change what's charged.
 // The insert runs inside a transaction so an order is never left half-written
@@ -52,7 +79,8 @@ function paymentUrlsFor(req, orderId) {
 // includes a `paymentUrl` to redirect them to next. See src/payments/payfast.js
 // and src/routes/payments.js for how payment is actually confirmed.
 router.post('/', async (req, res, next) => {
-  const { restaurantId, items, deliveryAddress, customerPhone, notes } = req.body || {};
+  const { restaurantId, items, deliveryAddress, customerPhone, notes, deliveryLat, deliveryLng } = req.body || {};
+  const pin = cleanPin(deliveryLat, deliveryLng);
 
   if (!restaurantId || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'restaurantId and a non-empty items array are required' });
@@ -84,13 +112,21 @@ router.post('/', async (req, res, next) => {
 
     for (const requested of items) {
       const menuResult = await client.query(
-        'SELECT id, name, price::float8 AS price FROM menu_items WHERE id = $1 AND restaurant_id = $2',
+        'SELECT id, name, price::float8 AS price, available FROM menu_items WHERE id = $1 AND restaurant_id = $2',
         [requested.menuItemId, restaurantId]
       );
       const menuItem = menuResult.rows[0];
       if (!menuItem) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `Menu item ${requested.menuItemId} not found for this restaurant` });
+      }
+      // The kitchen may have marked it sold out since this customer opened the
+      // menu. Better to say so now than to take money for food that is gone.
+      if (!menuItem.available) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `Sorry, ${menuItem.name} has just sold out. Please remove it and try again.`,
+        });
       }
       const quantity = Number(requested.quantity) > 0 ? Math.floor(Number(requested.quantity)) : 1;
       subtotal += menuItem.price * quantity;
@@ -104,10 +140,11 @@ router.post('/', async (req, res, next) => {
     const trimmedAddress = String(deliveryAddress).trim();
 
     await client.query(
-      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, payment_status, customer_phone, notes, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $10, $11, $11)`,
+      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, payment_status, customer_phone, notes, created_at, updated_at, delivery_lat, delivery_lng)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $10, $11, $11, $12, $13)`,
       [orderId, req.userId, restaurant.id, restaurant.name, subtotal, deliveryFee, total, trimmedAddress,
-       customerPhone ? String(customerPhone).trim() : null, notes ? String(notes).trim() : null, now]
+       customerPhone ? String(customerPhone).trim() : null, notes ? String(notes).trim() : null, now,
+       pin ? pin.lat : null, pin ? pin.lng : null]
     );
 
     for (const item of orderItems) {
@@ -143,6 +180,8 @@ router.post('/', async (req, res, next) => {
         deliveryFee,
         total,
         deliveryAddress: trimmedAddress,
+        deliveryLat: pin ? pin.lat : null,
+        deliveryLng: pin ? pin.lng : null,
         status: 'placed',
         paymentStatus: 'pending',
         paymentReference: null,
@@ -230,7 +269,9 @@ router.get('/:id/tracking', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT o.id, o.status, o.payment_status AS "paymentStatus", o.ready_at AS "readyAt",
               o.restaurant_name AS "restaurantName", o.delivery_address AS "deliveryAddress",
-              o.rejected_reason AS "rejectedReason", o.updated_at AS "updatedAt",
+              o.delivery_lat AS "deliveryLat", o.delivery_lng AS "deliveryLng",
+              o.rejected_reason AS "rejectedReason", o.refunded_at AS "refundedAt",
+              o.updated_at AS "updatedAt",
               d.name AS "driverName", d.phone AS "driverPhone",
               d.lat AS "driverLat", d.lng AS "driverLng", d.location_updated_at AS "driverSeenAt"
        FROM orders o LEFT JOIN drivers d ON d.id = o.driver_id

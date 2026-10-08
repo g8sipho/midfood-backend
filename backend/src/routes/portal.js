@@ -5,6 +5,7 @@ const express = require('express');
 const { pool, uuid } = require('../db');
 const { requireRestaurantAuth } = require('../middleware/auth');
 const { notifyOrderStatus } = require('../notify');
+const money = require('../money');
 
 const router = express.Router();
 router.use(requireRestaurantAuth);
@@ -151,7 +152,8 @@ router.get('/orders', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT ${ORDER_COLS} ${ORDER_FROM}
-       WHERE o.restaurant_id = $1 AND o.payment_status = 'paid' AND o.status <> 'delivered'
+       WHERE o.restaurant_id = $1 AND o.payment_status = 'paid'
+         AND o.status NOT IN ('delivered', 'rejected')
        ORDER BY o.created_at`,
       [req.restaurantId]
     );
@@ -211,7 +213,7 @@ router.post('/orders/:id/reject', async (req, res, next) => {
   try {
     const reason = (req.body && req.body.reason) || 'The restaurant could not take this order';
     const { rowCount } = await pool.query(
-      `UPDATE orders SET status = 'rejected', rejected_reason = $1, updated_at = now()
+      `UPDATE orders SET status = 'rejected', rejected_reason = $1, cancelled_by = 'restaurant', updated_at = now()
        WHERE id = $2 AND restaurant_id = $3 AND status = 'placed'`,
       [reason, req.params.id, req.restaurantId]
     );
@@ -280,13 +282,14 @@ router.get('/earnings', async (req, res, next) => {
     );
 
     const terms = await pool.query(
-      `SELECT free_until AS "freeUntil", commission_rate::float8 AS "ownRate",
-              (SELECT value FROM settings WHERE key = 'commission_rate')::float8 AS "defaultRate"
+      `SELECT free_until::text AS "freeUntil", commission_rate::float8 AS "ownRate"
        FROM restaurants WHERE id = $1`,
       [req.restaurantId]
     );
     const t = terms.rows[0] || {};
-    const inFreePeriod = !!(t.freeUntil && new Date(t.freeUntil) >= new Date());
+    const settings = await money.getSettings();
+    const inFreePeriod = money.inFreePeriod(t.freeUntil);
+    const usualRate = t.ownRate != null ? t.ownRate : settings.commissionRate;
 
     res.json({
       pending: pending.rows[0],
@@ -294,9 +297,36 @@ router.get('/earnings', async (req, res, next) => {
       terms: {
         freeUntil: t.freeUntil,
         inFreePeriod,
-        rate: inFreePeriod ? 0 : (t.ownRate != null ? t.ownRate : t.defaultRate),
+        rate: inFreePeriod ? 0 : usualRate,
+        // What applies once the free period is over, so nobody is surprised.
+        rateAfterFree: usualRate,
+        payoutDay: settings.payoutDay,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/portal/statement?payout=<id> - every order behind one payment, or
+// (with no payout id) behind what is still due. This is the weekly statement:
+// the kitchen can check each order and what was deducted, line by line.
+router.get('/statement', async (req, res, next) => {
+  try {
+    const payoutId = req.query.payout ? String(req.query.payout) : null;
+    if (payoutId && !/^[0-9a-f-]{36}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
+    const { rows } = await pool.query(
+      `SELECT o.id, o.updated_at AS "deliveredAt", u.name AS "customerName",
+              o.subtotal::float8 AS gross, o.commission::float8 AS deduction,
+              o.commission_rate::float8 AS rate, o.restaurant_payout::float8 AS amount
+       FROM orders o JOIN users u ON u.id = o.user_id
+       WHERE o.restaurant_id = $1 AND o.payment_status = 'paid' AND o.status = 'delivered'
+         AND o.restaurant_payout IS NOT NULL
+         AND ${payoutId ? 'o.restaurant_payout_id = $2' : 'o.restaurant_payout_id IS NULL'}
+       ORDER BY o.updated_at`,
+      payoutId ? [req.restaurantId, payoutId] : [req.restaurantId]
+    );
+    res.json({ orders: rows });
   } catch (err) {
     next(err);
   }

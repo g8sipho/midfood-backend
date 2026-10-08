@@ -158,6 +158,13 @@
   .leg .txt { color: var(--text-secondary); }
   .leg .txt strong { color: var(--text-primary); font-weight: 600; display: block; }
   .items { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; }
+  .order .fee small { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-tertiary); text-align: right; }
+  .pinned { display: inline-block; font-size: 11px; font-weight: 800; color: var(--success); border: 1px solid var(--success); border-radius: 999px; padding: 1px 8px; margin-top: 5px; }
+  .paynote { font-size: 13px; color: var(--text-secondary); margin: 0 0 4px; line-height: 1.5; }
+  .stmt-btn { display: block; background: none; border: none; padding: 0; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; }
+  .stmt { display: none; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; font-size: 12px; }
+  .stmt div { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; color: var(--text-secondary); }
+  .stmt div span:last-child { font-weight: 700; color: var(--text-primary); white-space: nowrap; }
   .note { font-size: 12px; color: var(--warning); margin-top: 6px; font-weight: 600; }
   .order-actions { display: flex; gap: 8px; margin-top: 14px; }
   .order-actions button {
@@ -267,6 +274,7 @@
         <div><div class="v" id="earnAll">R0</div><div class="k">All time</div></div>
       </div>
       <h3 class="section">Owed to you</h3>
+      <p class="paynote" id="payNote"></p>
       <div class="order" id="owedBox"><div class="empty">Loading…</div></div>
 
       <h3 class="section">Payments received</h3>
@@ -428,18 +436,29 @@
     return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(text || '');
   }
 
+  // Turn-by-turn to the pin the customer dropped at checkout. Far more
+  // reliable than a typed address where streets are unnamed or unnumbered.
+  function pinLink(lat, lng) {
+    return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(lat + ',' + lng);
+  }
+
+  // What this driver is paid for the delivery, after MidFood's slice.
+  const earns = (o) => (o.driverPayout != null ? o.driverPayout : o.deliveryFee);
+
   function orderCard(o, mine) {
     const div = document.createElement('div');
     div.className = 'order' + (mine ? ' mine' : '');
     const items = (o.items || []).map((i) => i.quantity + '× ' + i.name).join(', ');
     const picked = o.status === 'out_for_delivery';
+    const hasPin = o.deliveryLat != null && o.deliveryLng != null;
     div.innerHTML =
       '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
-      '<div class="fee">' + rand(o.deliveryFee) + '</div></div>' +
+      '<div class="fee">' + rand(earns(o)) + '<small>you earn</small></div></div>' +
       '<div class="leg"><div class="pin">▲</div><div class="txt"><strong>Collect</strong>' +
       esc(o.restaurantAddress || o.restaurantName) + '</div></div>' +
       '<div class="leg"><div class="pin">▼</div><div class="txt"><strong>Deliver to ' +
-      esc(o.customerName) + '</strong>' + esc(o.deliveryAddress) + '</div></div>' +
+      esc(o.customerName) + '</strong>' + esc(o.deliveryAddress) +
+      (hasPin ? '<br><span class="pinned">Customer pinned their location</span>' : '') + '</div></div>' +
       '<div class="items">' + esc(items) + ' · order total ' + rand(o.total) + '</div>' +
       (o.notes ? '<div class="note">Note: ' + esc(o.notes) + '</div>' : '') +
       '<div class="order-actions"></div>';
@@ -454,12 +473,13 @@
     };
 
     if (!mine) {
-      add('go', 'Accept · ' + rand(o.deliveryFee), () => act('/api/driver/orders/' + o.id + '/accept'));
+      add('go', 'Accept · ' + rand(earns(o)), () => act('/api/driver/orders/' + o.id + '/accept'));
       return div;
     }
 
     const target = picked ? o.deliveryAddress : o.restaurantAddress || o.restaurantName;
-    add('map', picked ? 'Directions' : 'To restaurant', () => window.open(mapsLink(target), '_blank'));
+    const link = picked && hasPin ? pinLink(o.deliveryLat, o.deliveryLng) : mapsLink(target);
+    add('map', picked ? 'Directions' : 'To restaurant', () => window.open(link, '_blank'));
     const phone = picked ? o.customerPhone : o.restaurantPhone;
     if (phone) add('call', 'Call', () => (window.location.href = 'tel:' + phone));
     if (picked) {
@@ -520,6 +540,35 @@
     }
   }
 
+  // "See every delivery" under a payment (or under what is still owed): the
+  // driver's own line-by-line statement.
+  function statement(box, path) {
+    const btn = document.createElement('button');
+    btn.className = 'stmt-btn';
+    btn.textContent = 'See every delivery';
+    const list = document.createElement('div');
+    list.className = 'stmt';
+    btn.addEventListener('click', async () => {
+      if (list.style.display === 'block') { list.style.display = 'none'; btn.textContent = 'See every delivery'; return; }
+      try {
+        const data = await api(path);
+        list.innerHTML = '';
+        data.orders.forEach((o) => {
+          const row = document.createElement('div');
+          row.innerHTML = '<span>' +
+            new Date(o.deliveredAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + ' · ' +
+            esc(o.restaurantName) + (o.deduction ? ' · ' + rand(o.gross) + ' less ' + rand(o.deduction) : '') +
+            '</span><span>' + rand(o.amount) + '</span>';
+          list.appendChild(row);
+        });
+        list.style.display = 'block';
+        btn.textContent = 'Hide';
+      } catch (err) { /* leave it closed; the totals above are still right */ }
+    });
+    box.appendChild(btn);
+    box.appendChild(list);
+  }
+
   async function loadEarnings() {
     try {
       const [data, money] = await Promise.all([
@@ -530,6 +579,10 @@
       el('earnAll').textContent = rand(data.earnings);
 
       // What MidFood still owes, and what it has already paid.
+      const cut = Math.round((money.deliveryCutRate || 0) * 100);
+      el('payNote').textContent = 'Paid by EFT every ' + (money.payoutDay || 'Tuesday') + ' for the week before.' +
+        (cut ? ' MidFood keeps ' + cut + '% of each delivery fee; every amount here is what you earn.' : '');
+
       const owedBox = el('owedBox');
       owedBox.innerHTML =
         '<div class="top"><div class="resto">Waiting to be paid</div>' +
@@ -537,6 +590,7 @@
         '<div class="items">' + money.pending.orderCount +
         (money.pending.orderCount === 1 ? ' delivery' : ' deliveries') +
         ' since your last payment</div>';
+      if (money.pending.orderCount) statement(owedBox, '/api/driver/statement');
 
       const payBox = el('payList');
       payBox.innerHTML = '';
@@ -553,6 +607,7 @@
             '<div class="items">' + p.orderCount +
             (p.orderCount === 1 ? ' delivery' : ' deliveries') +
             (p.reference ? ' · ref ' + esc(p.reference) : '') + '</div>';
+          statement(d, '/api/driver/statement?payout=' + encodeURIComponent(p.id));
           payBox.appendChild(d);
         });
       }
@@ -568,7 +623,7 @@
         d.className = 'order';
         d.innerHTML =
           '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
-          '<div class="fee">' + rand(o.deliveryFee) + '</div></div>' +
+          '<div class="fee">' + rand(earns(o)) + '</div></div>' +
           '<div class="items">' + esc(o.deliveryAddress) + '</div>';
         box.appendChild(d);
       });

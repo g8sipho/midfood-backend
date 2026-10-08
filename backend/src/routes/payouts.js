@@ -238,7 +238,7 @@ router.get('/settings', async (req, res, next) => {
   }
 });
 
-// PUT /api/payouts/settings { commissionRate, deliveryCutRate, freeMonths }
+// PUT /api/payouts/settings { commissionRate, deliveryCutRate, freeMonths, payoutDay }
 // Rates are fractions: 0.15 is 15%. Only affects orders placed from now on.
 router.put('/settings', async (req, res, next) => {
   try {
@@ -265,6 +265,12 @@ router.put('/settings', async (req, res, next) => {
         return res.status(400).json({ error: 'freeMonths must be a whole number from 0 to 24' });
       }
       updates.push(['free_months', String(m)]);
+    }
+    if (body.payoutDay !== undefined) {
+      if (!money.PAYOUT_DAYS.includes(body.payoutDay)) {
+        return res.status(400).json({ error: 'payoutDay must be a day of the week, e.g. Tuesday' });
+      }
+      updates.push(['payout_day', body.payoutDay]);
     }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
 

@@ -43,21 +43,24 @@ app.use(
 );
 
 // Basic security headers. No CDNs or third-party scripts are used, so the
-// pages can be locked to same-origin assets.
+// pages can be locked to same-origin assets. The one outside source is the
+// map on the order-tracking page: its code is served from here
+// (public/vendor/leaflet), but the map pictures themselves come from
+// OpenStreetMap's tile server, so that host is allowed for images only.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; " +
+    "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; style-src 'self' 'unsafe-inline'; " +
       "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'"
   );
   next();
 });
 
 app.use(express.json({ limit: '100kb' }));
-app.use(morgan('dev'));
+if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 // Restaurant portal (menu management) and the admin page used to create
 // restaurant accounts -- static HTML/JS, served straight from this same
@@ -159,13 +162,22 @@ app.use((err, req, res, next) => {
 // Run migrations + seed data before accepting traffic, so a fresh Postgres
 // (a brand-new Render/Railway/Fly database, or a first `docker compose up`
 // locally) is ready on the very first request instead of erroring.
-db.init()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`MidFood backend listening on http://localhost:${PORT}`);
-    });
-  })
+const ready = db
+  .init()
+  .then(
+    () =>
+      new Promise((resolve) => {
+        const server = app.listen(PORT, () => {
+          console.log(`MidFood backend listening on http://localhost:${PORT}`);
+          resolve(server);
+        });
+      })
+  )
   .catch((err) => {
     console.error('Failed to initialize the database:', err);
     process.exit(1);
   });
+
+// `ready` resolves with the listening server. The test suite (see test/)
+// waits on it, and closes the server when it is done.
+module.exports = { app, ready };

@@ -1,16 +1,23 @@
 // Driver app API. Drivers see orders the kitchen has marked ready, claim one,
 // confirm pick-up, stream their location, and mark it delivered.
+//
+// `deliveryFee` is what the customer paid; `driverPayout` is what the driver
+// actually earns once MidFood's slice is off. The app shows drivers the second
+// figure, so the amount on the Accept button is the amount they get paid.
 const express = require('express');
 const { pool } = require('../db');
 const { requireDriverAuth } = require('../middleware/auth');
 const { notifyOrderStatus } = require('../notify');
+const money = require('../money');
 
 const router = express.Router();
 router.use(requireDriverAuth);
 
 const COLS = `o.id, o.restaurant_name AS "restaurantName", r.address AS "restaurantAddress", r.phone AS "restaurantPhone",
   o.delivery_address AS "deliveryAddress", o.customer_phone AS "customerPhone", u.name AS "customerName",
-  o.total::float8 AS total, o.delivery_fee::float8 AS "deliveryFee", o.status, o.notes,
+  o.delivery_lat AS "deliveryLat", o.delivery_lng AS "deliveryLng",
+  o.total::float8 AS total, o.delivery_fee::float8 AS "deliveryFee",
+  COALESCE(o.driver_payout, o.delivery_fee)::float8 AS "driverPayout", o.status, o.notes,
   o.ready_at AS "readyAt", o.created_at AS "createdAt"`;
 const FROM = `FROM orders o JOIN restaurants r ON r.id = o.restaurant_id JOIN users u ON u.id = o.user_id`;
 
@@ -47,7 +54,8 @@ router.get('/orders/available', async (req, res, next) => {
 router.get('/orders/mine', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT ${COLS} ${FROM} WHERE o.driver_id = $1 AND o.status <> 'delivered' ORDER BY o.created_at`,
+      `SELECT ${COLS} ${FROM}
+       WHERE o.driver_id = $1 AND o.status NOT IN ('delivered', 'rejected') ORDER BY o.created_at`,
       [req.driverId]
     );
     res.json({ orders: await withItems(rows) });
@@ -62,8 +70,8 @@ router.get('/orders/history', async (req, res, next) => {
       [req.driverId]
     );
     const totals = await pool.query(
-      `SELECT COALESCE(SUM(delivery_fee), 0)::float8 AS earnings,
-              COALESCE(SUM(delivery_fee) FILTER (WHERE
+      `SELECT COALESCE(SUM(COALESCE(driver_payout, delivery_fee)), 0)::float8 AS earnings,
+              COALESCE(SUM(COALESCE(driver_payout, delivery_fee)) FILTER (WHERE
                 (updated_at AT TIME ZONE 'Africa/Johannesburg')::date
                 = (now() AT TIME ZONE 'Africa/Johannesburg')::date), 0)::float8 AS "earningsToday"
        FROM orders WHERE driver_id = $1 AND status = 'delivered'`,
@@ -134,7 +142,35 @@ router.get('/earnings', async (req, res, next) => {
        FROM payouts WHERE driver_id = $1 ORDER BY paid_at DESC LIMIT 26`,
       [req.driverId]
     );
-    res.json({ pending: pending.rows[0], payouts: paid.rows });
+    const settings = await money.getSettings();
+    res.json({
+      pending: pending.rows[0],
+      payouts: paid.rows,
+      payoutDay: settings.payoutDay,
+      deliveryCutRate: settings.deliveryCutRate,
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/driver/statement?payout=<id> - every delivery behind one payment,
+// or (with no payout id) behind what is still owed. A driver can check their
+// own money line by line without asking MidFood.
+router.get('/statement', async (req, res, next) => {
+  try {
+    const payoutId = req.query.payout ? String(req.query.payout) : null;
+    if (payoutId && !/^[0-9a-f-]{36}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
+    const { rows } = await pool.query(
+      `SELECT o.id, o.updated_at AS "deliveredAt", o.restaurant_name AS "restaurantName",
+              o.delivery_fee::float8 AS gross, o.delivery_cut::float8 AS deduction,
+              o.driver_payout::float8 AS amount
+       FROM orders o
+       WHERE o.driver_id = $1 AND o.payment_status = 'paid' AND o.status = 'delivered'
+         AND o.driver_payout IS NOT NULL
+         AND ${payoutId ? 'o.driver_payout_id = $2' : 'o.driver_payout_id IS NULL'}
+       ORDER BY o.updated_at`,
+      payoutId ? [req.driverId, payoutId] : [req.driverId]
+    );
+    res.json({ orders: rows });
   } catch (err) { next(err); }
 });
 

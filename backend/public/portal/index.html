@@ -189,6 +189,13 @@
   .payout-row:last-child { border-bottom: none; }
   .payout-row .amt { font-weight: 800; color: var(--success); white-space: nowrap; }
   .payout-row .mt { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .stmt-btn { display: block; background: none; border: none; padding: 0; margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; }
+  .stmt-table { display: none; width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+  .stmt-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-tertiary); padding: 5px 6px 5px 0; border-bottom: 1px solid var(--border); }
+  .stmt-table td { padding: 6px 6px 6px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+  .stmt-table .r { text-align: right; padding-right: 0; white-space: nowrap; }
+  .stmt-table td.r:last-child { font-weight: 700; color: var(--text-primary); }
+  .stmt-wrap { overflow-x: auto; }
   .stats { display: flex; gap: 12px; margin-bottom: 4px; }
   .stats > div { flex: 1; background: var(--bg-surface); border: 1px solid var(--border);
     border-radius: 14px; padding: 14px; text-align: center; }
@@ -705,6 +712,43 @@
     }
   });
 
+  // The statement behind a payment (or behind what is still due): every
+  // order, what was deducted, and what was paid, so it can be checked.
+  function statement(box, path) {
+    const btn = document.createElement('button');
+    btn.className = 'stmt-btn';
+    btn.textContent = 'See every order';
+    const wrap = document.createElement('div');
+    wrap.className = 'stmt-wrap';
+    const table = document.createElement('table');
+    table.className = 'stmt-table';
+    wrap.appendChild(table);
+    btn.addEventListener('click', async () => {
+      if (table.style.display === 'table') { table.style.display = 'none'; btn.textContent = 'See every order'; return; }
+      try {
+        const data = await apiFetch(path);
+        table.innerHTML = '<thead><tr><th>Delivered</th><th>Customer</th><th class="r">Food</th>' +
+          '<th class="r">Commission</th><th class="r">You get</th></tr></thead>';
+        const body = document.createElement('tbody');
+        data.orders.forEach((o) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' +
+            new Date(o.deliveredAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + '</td>' +
+            '<td>' + escapeHtml(o.customerName) + '</td>' +
+            '<td class="r">' + rand(o.gross) + '</td>' +
+            '<td class="r">' + (o.deduction ? '−' + rand(o.deduction) : 'Free') + '</td>' +
+            '<td class="r">' + rand(o.amount) + '</td>';
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        table.style.display = 'table';
+        btn.textContent = 'Hide';
+      } catch (err) { /* leave it closed; the totals are still right */ }
+    });
+    box.appendChild(btn);
+    box.appendChild(wrap);
+  }
+
   async function loadMoney() {
     try {
       const d = await apiFetch('/api/portal/earnings');
@@ -716,17 +760,20 @@
         const until = new Date(d.terms.freeUntil).toLocaleDateString('en-ZA', {
           day: 'numeric', month: 'long', year: 'numeric',
         });
+        const after = ((d.terms.rateAfterFree || 0) * 100).toFixed(1).replace(/\.0$/, '');
         el('mTerms').textContent = 'You are in your free period until ' + until +
-          '. MidFood takes nothing until then.';
+          '. MidFood takes nothing until then. After that it is ' + after + '% of the food total.';
       } else {
-        el('mTerms').textContent = 'MidFood takes ' + pct + '% of the food total. The delivery fee is paid by the customer and goes to the driver.';
+        el('mTerms').textContent = 'MidFood takes ' + pct + '% of the food total. The delivery fee is paid by the customer on top and never comes out of your money.';
       }
+      el('mTerms').textContent += ' You are paid by EFT every ' + (d.terms.payoutDay || 'Tuesday') + ' for the week before.';
 
       el('mBreakdown').innerHTML = d.pending.orderCount
         ? 'Food sold: <strong>' + rand(d.pending.gross) + '</strong><br>' +
           'MidFood commission: <strong>−' + rand(d.pending.commission) + '</strong><br>' +
           'Due to you: <strong style="color:var(--accent)">' + rand(d.pending.amount) + '</strong>'
         : 'Nothing outstanding — every delivered order has been paid out.';
+      if (d.pending.orderCount) statement(el('mBreakdown'), '/api/portal/statement');
 
       const box = el('mPayouts');
       box.innerHTML = '';
@@ -744,6 +791,7 @@
           rand(p.gross) + ' less ' + rand(p.commission) + ' commission' +
           (p.reference ? ' · ref ' + escapeHtml(p.reference) : '') + '</div></div>' +
           '<div class="amt">' + rand(p.amount) + '</div>';
+        statement(div.firstChild, '/api/portal/statement?payout=' + encodeURIComponent(p.id));
         box.appendChild(div);
       });
     } catch (err) {

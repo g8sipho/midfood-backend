@@ -152,6 +152,35 @@
   .rate-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
   .rate-form > div { flex: 1; min-width: 130px; }
   .rate-form label { margin-top: 0; }
+  select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px; font-family: inherit; background: var(--bg-app); color: var(--text-primary);
+  }
+  .table-scroll { overflow-x: auto; }
+  .terms { font-size: 12px; color: var(--text-secondary); }
+  .terms strong { color: var(--text-primary); font-weight: 700; }
+  .edit-row td { background: var(--bg-app); padding: 14px 12px 16px; }
+  .edit-row .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .edit-row label { margin-top: 0; }
+  .edit-row .tip { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  .edit-row .acts { display: flex; gap: 8px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+  .btn { border: none; border-radius: 9px; padding: 9px 15px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn.go { background: var(--accent); color: #fff; }
+  .btn.ok { background: var(--success); color: #fff; }
+  .btn.plain { background: none; border: 1px solid var(--border); color: var(--text-primary); }
+  .btn.danger { background: none; border: 1px solid var(--error); color: var(--error); }
+  .attn { border-bottom: 1px solid var(--border); padding: 14px 0; }
+  .attn:last-child { border-bottom: none; }
+  .attn .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .attn .nm { font-weight: 700; font-size: 15px; }
+  .attn .amt { font-weight: 800; font-size: 16px; white-space: nowrap; }
+  .attn .dt { font-size: 13px; color: var(--text-secondary); margin-top: 3px; line-height: 1.5; }
+  .attn .acts { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .attn .acts input { flex: 1; min-width: 180px; }
+  .attn .late { color: var(--error); font-weight: 700; }
+  .refunds { border-color: var(--error); border-width: 2px; }
+  .refunds h2 { color: var(--error); }
+  .inline-err { font-size: 13px; color: var(--error); }
 </style>
 </head>
 <body>
@@ -159,7 +188,7 @@
 <header>
   <div>
     <div class="brand">Mid<span>Food</span> Admin</div>
-    <div class="subtitle">Create and manage restaurant accounts</div>
+    <div class="subtitle">Approvals, live orders, refunds and payouts</div>
   </div>
   <button id="lockBtn">Lock</button>
 </header>
@@ -218,6 +247,13 @@
             <label for="fFree">Free months for new restaurants</label>
             <input id="fFree" type="number" min="0" max="24" step="1" required />
           </div>
+          <div>
+            <label for="fPayDay">Payout day</label>
+            <select id="fPayDay">
+              <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option>
+              <option>Friday</option><option>Saturday</option><option>Sunday</option>
+            </select>
+          </div>
           <div style="flex: 0 0 auto;">
             <button class="primary" type="submit" style="margin-top:0;">Save</button>
           </div>
@@ -228,10 +264,12 @@
 
       <div class="card">
         <h2>Payout history</h2>
+        <div class="table-scroll">
         <table>
           <thead><tr><th>Paid</th><th>Who</th><th>Orders</th><th class="num">Amount</th><th>Reference</th></tr></thead>
           <tbody id="payHistory"></tbody>
         </table>
+        </div>
       </div>
     </div>
 
@@ -243,6 +281,18 @@
       <div><div class="v" id="sDrivers">0</div><div class="k">Drivers online</div></div>
     </div>
 
+    <div class="card refunds" id="refundCard" style="display:none;">
+      <h2>Refunds you owe</h2>
+      <p class="hint">These customers paid, and the order was then declined or cancelled. Refund each one in your PayFast dashboard (Transactions → find the payment → Refund), then record it here.</p>
+      <div id="refundList"></div>
+    </div>
+
+    <div class="card" id="liveCard" style="display:none;">
+      <h2>Orders in progress</h2>
+      <p class="hint">Every paid order that has not been delivered yet. If a kitchen is not answering, phone them; if the order cannot be done, cancel it and refund the customer.</p>
+      <div id="liveList"></div>
+    </div>
+
     <div class="card pending" id="pendingCard" style="display:none;">
       <h2>Waiting for your approval</h2>
       <p class="hint">These signed up themselves. Nothing goes live until you approve it.</p>
@@ -252,10 +302,12 @@
     <div class="card">
       <h2>Drivers</h2>
       <p class="hint">Drivers sign up at <strong>/driver</strong>. Approve them here, or add one yourself.</p>
+      <div class="table-scroll">
       <table>
         <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Deliveries</th><th></th></tr></thead>
         <tbody id="driverTableBody"></tbody>
       </table>
+      </div>
       <form id="addDriverForm">
         <div class="row">
           <div><label for="dName">Name</label><input id="dName" required /></div>
@@ -313,14 +365,16 @@
     </div>
 
     <div class="card" id="existingRestaurants">
-      <h2>Existing restaurants</h2>
-      <p class="hint">Restaurants without a portal login yet (like the four original ones) can be given one here.</p>
+      <h2>Restaurants</h2>
+      <p class="hint">Use <strong>Edit terms</strong> to change a restaurant's delivery fee, free period or commission. Changes apply to orders placed from then on.</p>
+      <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>Name</th><th>Username</th><th>Live</th><th>Portal login</th><th></th></tr>
+          <tr><th>Name</th><th>Live</th><th>Delivery fee</th><th>Terms</th><th>Login</th><th></th></tr>
         </thead>
         <tbody id="restaurantTableBody"></tbody>
       </table>
+      </div>
     </div>
     </div>
   </div>
@@ -389,17 +443,87 @@
     return d.innerHTML;
   }
 
-  function renderRestaurants(restaurants) {
+  let defaultRate = 0.15;      // platform commission, for showing a restaurant's terms
+  let editingRestaurant = null; // id of the restaurant whose terms form is open
+
+  const pct = (rate) => (rate * 100).toFixed(1).replace(/\.0$/, '') + '%';
+  const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(new Date());
+  const niceDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // One line saying what a restaurant pays, and until when it pays nothing.
+  function termsLine(r) {
+    const rate = r.commissionRate != null ? r.commissionRate : defaultRate;
+    const own = r.commissionRate != null ? ' (special rate)' : '';
+    if (r.freeUntil && r.freeUntil >= todayISO()) {
+      return `<strong>Free until ${niceDate(r.freeUntil)}</strong><br>then ${pct(rate)}${own}`;
+    }
+    return `<strong>${pct(rate)}</strong>${own}` + (r.freeUntil ? '<br>free period ended' : '<br>no free period');
+  }
+
+  // The form that opens under a restaurant's row. Built in the page rather
+  // than with browser pop-ups, so every field is visible before saving.
+  function termsForm(r) {
+    const tr = document.createElement('tr');
+    tr.className = 'edit-row';
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.innerHTML = `
+      <div class="grid">
+        <div><label>Delivery fee (R)</label><input data-f="fee" type="number" min="0" max="500" step="1" value="${r.deliveryFee}" />
+          <div class="tip">What the customer pays for delivery from this restaurant.</div></div>
+        <div><label>Delivery time (minutes)</label><input data-f="eta" type="number" min="5" max="180" step="5" value="${r.etaMinutes}" />
+          <div class="tip">Shown to customers on the menu.</div></div>
+        <div><label>Free until</label><input data-f="free" type="date" value="${r.freeUntil || ''}" />
+          <div class="tip">No commission up to and including this date. Leave empty for none.</div></div>
+        <div><label>Special commission %</label><input data-f="rate" type="number" min="0" max="100" step="0.5" value="${r.commissionRate != null ? +(r.commissionRate * 100).toFixed(2) : ''}" placeholder="${pct(defaultRate)} (standard)" />
+          <div class="tip">Leave empty to use your standard rate.</div></div>
+      </div>
+      <div class="acts">
+        <button class="btn go" data-a="save">Save terms</button>
+        <button class="btn plain" data-a="cancel">Cancel</button>
+        <span class="inline-err" data-a="err"></span>
+      </div>`;
+    const f = (name) => td.querySelector(`[data-f="${name}"]`);
+    td.querySelector('[data-a="cancel"]').addEventListener('click', () => { editingRestaurant = null; loadAll(); });
+    // (editingRestaurant is cleared before each reload below, so the redraw goes ahead.)
+    td.querySelector('[data-a="save"]').addEventListener('click', async () => {
+      const err = td.querySelector('[data-a="err"]');
+      err.textContent = '';
+      try {
+        await adminFetch(`/api/admin/restaurants/${r.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            deliveryFee: f('fee').value === '' ? null : Number(f('fee').value),
+            etaMinutes: Number(f('eta').value),
+            freeUntil: f('free').value || null,
+            commissionRate: f('rate').value === '' ? null : Number(f('rate').value) / 100,
+          }),
+        });
+        editingRestaurant = null;
+        await loadAll();
+      } catch (e) { err.textContent = e.message; }
+    });
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function renderRestaurants(restaurants, force) {
     const body = el('restaurantTableBody');
+    // The page refreshes itself every few seconds. Never redraw underneath
+    // someone who has a terms form open and may be halfway through typing.
+    if (!force && editingRestaurant && body.querySelector('.edit-row')) return;
     body.innerHTML = '';
     restaurants.forEach((r) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${escapeHtml(r.name)}</td>
-        <td>${r.username ? escapeHtml(r.username) : '—'}</td>
+        <td><strong>${escapeHtml(r.name)}</strong><div class="terms">${r.username ? 'login ' + escapeHtml(r.username) : ''}</div></td>
         <td><span class="pill ${r.approved ? 'yes' : 'no'}">${r.approved ? (r.open === false ? 'Closed' : 'Live') : 'Suspended'}</span></td>
+        <td>${rand(r.deliveryFee)}</td>
+        <td class="terms">${termsLine(r)}</td>
         <td><span class="pill ${r.hasAccount ? 'yes' : 'no'}">${r.hasAccount ? 'Active' : 'No login yet'}</span></td>
         <td>
+          <button class="link-btn" data-action="terms">Edit terms</button>
+          &nbsp;·&nbsp;
           <button class="link-btn" data-action="toggle">${r.approved ? 'Suspend' : 'Approve'}</button>
           &nbsp;·&nbsp;
           <button class="link-btn" data-action="set-account">${r.hasAccount ? 'Reset login' : 'Create login'}</button>
@@ -417,7 +541,112 @@
       });
       tr.querySelector('[data-action="set-account"]').addEventListener('click', () => setAccount(r));
       tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteRestaurant(r));
+      tr.querySelector('[data-action="terms"]').addEventListener('click', () => {
+        editingRestaurant = editingRestaurant === r.id ? null : r.id;
+        renderRestaurants(restaurants, true);
+      });
       body.appendChild(tr);
+      if (editingRestaurant === r.id) body.appendChild(termsForm(r));
+    });
+  }
+
+  // --- Refunds and orders in progress ----------------------------------------
+
+  const when = (iso) => new Date(iso).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  // True while someone is partway through something in this list (typing a
+  // reference, or deciding whether to cancel), so the auto-refresh leaves it be.
+  function busyIn(box) {
+    if (box.dataset.busy) return true;
+    return Array.from(box.querySelectorAll('input')).some((i) => i.value !== '' || i === document.activeElement);
+  }
+
+  function renderRefunds(list) {
+    const box = el('refundList');
+    el('refundCard').style.display = list.length ? 'block' : 'none';
+    if (busyIn(box)) return;
+    box.innerHTML = '';
+    list.forEach((o) => {
+      const div = document.createElement('div');
+      div.className = 'attn';
+      div.innerHTML =
+        '<div class="top"><div class="nm">' + escapeHtml(o.customerName) + ' · ' + escapeHtml(o.restaurantName) + '</div>' +
+        '<div class="amt" style="color:var(--error)">' + rand(o.total) + '</div></div>' +
+        '<div class="dt">' + (o.cancelledBy === 'admin' ? 'Cancelled by you' : 'Declined by the restaurant') + ' on ' + when(o.updatedAt) +
+        (o.rejectedReason ? ' — “' + escapeHtml(o.rejectedReason) + '”' : '') + '<br>' +
+        'PayFast payment ID: <strong>' + escapeHtml(o.paymentReference || 'not recorded') + '</strong>' +
+        ' · ' + escapeHtml(o.customerEmail || '') + (o.customerPhone ? ' · ' + escapeHtml(o.customerPhone) : '') + '</div>' +
+        '<div class="acts"><input placeholder="PayFast refund reference (optional)" aria-label="Refund reference" />' +
+        '<button class="btn ok">I have refunded ' + rand(o.total) + '</button><span class="inline-err"></span></div>';
+      div.querySelector('button').addEventListener('click', async () => {
+        const err = div.querySelector('.inline-err');
+        err.textContent = '';
+        try {
+          await adminFetch('/api/admin/orders/' + o.id + '/refunded', {
+            method: 'POST',
+            body: JSON.stringify({ reference: div.querySelector('input').value.trim() || null }),
+          });
+          div.querySelector('input').value = '';
+          div.querySelector('input').blur();
+          await loadAll();
+        } catch (e) { err.textContent = e.message; }
+      });
+      box.appendChild(div);
+    });
+  }
+
+  const STATUS_WORDS = {
+    placed: 'Waiting for the kitchen to accept',
+    confirmed: 'Accepted by the kitchen',
+    preparing: 'Being prepared',
+    out_for_delivery: 'Out for delivery',
+  };
+
+  function renderLive(list) {
+    const box = el('liveList');
+    el('liveCard').style.display = list.length ? 'block' : 'none';
+    if (busyIn(box)) return;
+    box.innerHTML = '';
+    list.forEach((o) => {
+      const div = document.createElement('div');
+      div.className = 'attn';
+      let state = STATUS_WORDS[o.status] || o.status;
+      if (o.readyAt && o.status !== 'out_for_delivery') state = o.driverName ? 'Ready — driver on the way to collect' : 'Ready — waiting for a driver';
+      div.innerHTML =
+        '<div class="top"><div class="nm">' + escapeHtml(o.restaurantName) + ' → ' + escapeHtml(o.customerName) + '</div>' +
+        '<div class="amt">' + rand(o.total) + '</div></div>' +
+        '<div class="dt">' + (o.stuck ? '<span class="late">Not accepted after ' + o.waitingMinutes + ' minutes — phone the restaurant. </span>' : '') +
+        escapeHtml(state) + ' · placed ' + when(o.createdAt) +
+        (o.driverName ? ' · driver ' + escapeHtml(o.driverName) : '') +
+        (o.customerPhone ? ' · customer ' + escapeHtml(o.customerPhone) : '') + '</div>' +
+        '<div class="acts"></div>';
+      const acts = div.querySelector('.acts');
+      if (o.status !== 'out_for_delivery') {
+        const start = document.createElement('button');
+        start.className = 'btn danger';
+        start.textContent = 'Cancel order';
+        start.addEventListener('click', () => {
+          // Two deliberate steps instead of a pop-up: say why, then confirm.
+          acts.innerHTML = '<input placeholder="Reason the customer will see" aria-label="Reason" />' +
+            '<button class="btn danger" data-a="yes">Cancel it and owe a refund of ' + rand(o.total) + '</button>' +
+            '<button class="btn plain" data-a="no">Keep order</button><span class="inline-err"></span>';
+          box.dataset.busy = '1';
+          acts.querySelector('input').focus();
+          const done = () => { delete box.dataset.busy; acts.innerHTML = ''; return loadAll(); };
+          acts.querySelector('[data-a="no"]').addEventListener('click', done);
+          acts.querySelector('[data-a="yes"]').addEventListener('click', async () => {
+            try {
+              await adminFetch('/api/admin/orders/' + o.id + '/cancel', {
+                method: 'POST',
+                body: JSON.stringify({ reason: acts.querySelector('input').value.trim() }),
+              });
+              await done();
+            } catch (e) { acts.querySelector('.inline-err').textContent = e.message; }
+          });
+        });
+        acts.appendChild(start);
+      }
+      box.appendChild(div);
     });
   }
 
@@ -552,11 +781,15 @@
   });
 
   async function loadAll() {
-    const [rest, drv, ord] = await Promise.all([
+    const [rest, drv, ord, set] = await Promise.all([
       adminFetch('/api/admin/restaurants'),
       adminFetch('/api/admin/drivers'),
       adminFetch('/api/admin/orders'),
+      adminFetch('/api/payouts/settings'),
     ]);
+    defaultRate = set.settings.commissionRate;
+    renderRefunds(ord.refundsDue || []);
+    renderLive(ord.live || []);
     renderRestaurants(rest.restaurants);
     renderDrivers(drv.drivers);
     renderPending(rest.restaurants, drv.drivers);
@@ -732,9 +965,14 @@
     badge.textContent = pending ? ' (' + pending + ')' : '';
     badge.style.display = pending ? 'inline' : 'none';
 
-    el('fCommission').value = (settings.settings.commissionRate * 100).toFixed(1).replace(/\.0$/, '');
-    el('fDelivery').value = Math.round(settings.settings.deliveryCutRate * 100);
-    el('fFree').value = settings.settings.freeMonths;
+    // Fill the rates form from the server, but never while it is being edited:
+    // this page refreshes itself and would otherwise wipe a half-typed figure.
+    if (!ratesDirty && !el('ratesForm').contains(document.activeElement)) {
+      el('fCommission').value = (settings.settings.commissionRate * 100).toFixed(1).replace(/\.0$/, '');
+      el('fDelivery').value = Math.round(settings.settings.deliveryCutRate * 100);
+      el('fFree').value = settings.settings.freeMonths;
+      el('fPayDay').value = settings.settings.payoutDay;
+    }
 
     const hb = el('payHistory');
     hb.innerHTML = '';
@@ -755,6 +993,9 @@
     }
   }
 
+  let ratesDirty = false;
+  el('ratesForm').addEventListener('input', () => { ratesDirty = true; });
+
   el('ratesForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     showMsg('ratesError', '');
@@ -766,8 +1007,11 @@
           commissionRate: Number(el('fCommission').value) / 100,
           deliveryCutRate: Number(el('fDelivery').value) / 100,
           freeMonths: Number(el('fFree').value),
+          payoutDay: el('fPayDay').value,
         }),
       });
+      ratesDirty = false;
+      el('ratesForm').querySelectorAll('input, select').forEach((n) => n.blur());
       showMsg('ratesOk', 'Saved. Orders from now on use the new rates.');
       await loadPayouts();
     } catch (err) {

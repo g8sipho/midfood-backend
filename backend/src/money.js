@@ -12,6 +12,19 @@ function money(n) {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
+// A percentage of an amount, to the cent. Worked in whole cents and whole
+// hundredths-of-a-percent, because floating point gets exact halves wrong:
+// 15% of R33.30 is R4.995, which should round to R5.00, but 33.3 * 0.15 in
+// floating point is 4.99499..., which rounds to R4.99.
+function share(amount, rate) {
+  const cents = Math.round(Number(amount) * 100);
+  const tenThousandths = Math.round(Number(rate) * 10000);
+  return Math.round((cents * tenThousandths) / 10000) / 100;
+}
+
+// The days a weekly payout can fall on.
+const PAYOUT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 async function getSettings() {
   const { rows } = await pool.query('SELECT key, value FROM settings');
   const s = {};
@@ -20,14 +33,35 @@ async function getSettings() {
     commissionRate: Number(s.commission_rate ?? 0.15),
     deliveryCutRate: Number(s.delivery_cut_rate ?? 0),
     freeMonths: Number(s.free_months ?? 3),
+    payoutDay: PAYOUT_DAYS.includes(s.payout_day) ? s.payout_day : 'Tuesday',
   };
+}
+
+// Today's date in Middelburg, as YYYY-MM-DD. The server runs on UTC, and a
+// free period that "ends on the 8th" has to mean the 8th here, not in London.
+function saDate(when = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(when);
+}
+
+// free_until as YYYY-MM-DD, whether Postgres handed back a Date or a string.
+function dateString(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.slice(0, 10);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${value.getFullYear()}-${p(value.getMonth() + 1)}-${p(value.getDate())}`;
+}
+
+// A restaurant is free up to and including its free_until date.
+function inFreePeriod(freeUntil, when = new Date()) {
+  const until = dateString(freeUntil);
+  return !!until && until >= saDate(when);
 }
 
 // The rate that applies to one restaurant right now: its own rate if it has
 // one, otherwise the platform default — and zero while it is still inside its
 // free period.
 function rateFor(restaurant, settings, when = new Date()) {
-  if (restaurant.freeUntil && new Date(restaurant.freeUntil) >= when) return 0;
+  if (inFreePeriod(restaurant.freeUntil, when)) return 0;
   if (restaurant.commissionRate != null) return Number(restaurant.commissionRate);
   return settings.commissionRate;
 }
@@ -50,9 +84,9 @@ async function recordSplit(orderId, client = pool) {
   const settings = await getSettings();
   const rate = rateFor(o, settings);
 
-  const commission = money(o.subtotal * rate);
+  const commission = share(o.subtotal, rate);
   const restaurantPayout = money(o.subtotal - commission);
-  const deliveryCut = money(o.deliveryFee * settings.deliveryCutRate);
+  const deliveryCut = share(o.deliveryFee, settings.deliveryCutRate);
   const driverPayout = money(o.deliveryFee - deliveryCut);
 
   await client.query(
@@ -103,4 +137,7 @@ async function driverOwing(driverId) {
   return rows[0];
 }
 
-module.exports = { money, getSettings, rateFor, recordSplit, restaurantOwing, driverOwing };
+module.exports = {
+  money, share, getSettings, rateFor, recordSplit, restaurantOwing, driverOwing,
+  inFreePeriod, dateString, saDate, PAYOUT_DAYS,
+};

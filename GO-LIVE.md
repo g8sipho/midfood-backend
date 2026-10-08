@@ -1,114 +1,109 @@
-# MidFood — going live
+# MidFood — running it day to day
 
-Everything is built and tested. This is what's left to switch it on.
+MidFood is built, live on midfood.co.za, and tested. This page is the routine:
+what to do each day, each Tuesday, and when something goes wrong. Everything
+here happens on the admin page: **midfood.co.za/portal/admin.html**.
+
+Your admin key is in Render → midfood-backend → **Environment** → `ADMIN_KEY`.
+Keep it private. It is the only thing protecting the admin page.
 
 ---
 
-## 1. Put the new code on GitHub
+## Every day
 
-Your live backend redeploys automatically whenever `g8sipho/midfood-backend`
-changes, so this is the step that makes everything else happen.
+Open the admin page and look at the top of **Operations**.
 
-Connect GitHub to Claude (**Settings → Connectors → GitHub**) and I'll push it
-for you. Or do it yourself with the bundle I sent:
+| If you see | It means | Do this |
+|---|---|---|
+| **Refunds you owe** (red card) | A customer paid and the order was then declined or cancelled, or they paid twice | Refund it in PayFast, then record it here. See below. |
+| **Orders in progress**, with a red "Not accepted … minutes after payment" | A kitchen has been sitting on a paid order for 10 minutes | Phone the restaurant. If they cannot do it, press **Cancel order**. |
+| **Waiting for your approval** | A restaurant or driver has signed themselves up | Phone them, then **Approve**. Nothing is visible to customers until you do. |
 
-```bash
-cd path/to/your/midfood-backend
-git pull /path/to/midfood-update.bundle HEAD
-git push origin main
-```
+The page refreshes itself every 15 seconds. Leave it open on a screen.
 
-Render picks it up within a few minutes and runs the new database migration by
-itself. Check https://midfood-backend.onrender.com/health afterwards.
+## Refunding a customer
 
-## 2. Point midfood.co.za at it
+MidFood never refunds a card on its own. You do it, so nothing leaves your
+account without you seeing it.
 
-In Render → **midfood-backend** → **Settings → Custom Domains**, add
-`midfood.co.za` and `www.midfood.co.za`. Render shows you the DNS records to
-create at whoever hosts your domain. Once they resolve, Render issues the HTTPS
-certificate on its own.
+1. On the admin page, under **Refunds you owe**, note the **PayFast payment ID**.
+2. In your PayFast dashboard: **Transactions** → find that payment → **Refund**.
+3. Back on the admin page, type the refund reference if you have one and press
+   **I have refunded R…**, then **Yes, record it**.
 
-Then these all live on your own domain:
+The customer's order page then tells them the refund is on its way. Recording
+it cannot be undone, which is why it asks twice.
 
-| Address | Who uses it |
+## Every Tuesday: paying restaurants and drivers
+
+Payouts cover the week before (Monday to Sunday). On the admin page, open
+**Payouts**.
+
+1. Each restaurant and driver you owe is listed with the amount. Press
+   **See every order** to check it.
+2. Add their bank details the first time (**Add bank details**).
+3. Pay them by EFT from your bank.
+4. Press **Mark R… as paid** and enter your EFT reference.
+
+Those orders are then settled and can never be paid a second time. The
+restaurant and the driver each see the payment, and can open the statement
+behind it (every order, what was deducted, what they got) in their own app.
+
+**The numbers:**
+
+- A restaurant pays **nothing for its first 3 months**, then **15% of the
+  food total**. Never anything on the delivery fee.
+- The customer pays the delivery fee on top. **MidFood keeps 20% of it**; the
+  driver gets the rest. Drivers are shown what they will earn before they
+  accept a delivery.
+- PayFast takes its own card fee (about 3.2% + R2 per payment) out of what
+  lands in your account. That is your cost, not the restaurant's.
+
+Change any of these under **Payouts → Your rates**. A change only affects
+orders placed afterwards; nothing already paid is ever recalculated.
+
+## A restaurant's own terms
+
+Under **Operations → Restaurants**, press **Edit terms** on a restaurant to
+change its delivery fee, delivery time, free period or a special commission
+rate. "Free until" includes that date.
+
+## Adding restaurants and drivers
+
+- Send restaurants to **midfood.co.za/portal** and drivers to
+  **midfood.co.za/driver** to apply. They appear under *Waiting for your
+  approval*.
+- Or add them yourself on the admin page.
+- **Suspend** takes one offline at once. Their login stops working the moment
+  you press it.
+
+## PayFast
+
+Payments run on the four `PAYFAST_…` values in Render → Environment:
+
+| Value | What it is |
 |---|---|
-| `midfood.co.za` | Customers — the public site |
-| `midfood.co.za/portal/` | Restaurants — order board and menu |
-| `midfood.co.za/driver/` | Drivers — deliveries and earnings |
-| `midfood.co.za/portal/admin.html` | You — approvals and live stats |
+| `PAYFAST_MODE` | `live` for real money, `sandbox` for test cards |
+| `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY` | From your PayFast dashboard → Settings |
+| `PAYFAST_PASSPHRASE` | The security passphrase you set in PayFast. It must match **exactly**, or every payment fails. |
 
-Your admin key is in Render → **Environment** → `ADMIN_KEY`. Keep it private:
-it's the only thing protecting the admin page.
+Nothing needs setting inside PayFast for notifications: MidFood tells PayFast
+where to report each payment.
 
-## 3. Switch PayFast to live
+## If something looks wrong
 
-Right now payments run in PayFast's sandbox — the flow works end to end but no
-real money moves.
+- **Site down?** Check https://midfood.co.za/health, then Render →
+  midfood-backend → Logs.
+- **A customer paid but the order says "waiting for payment".** PayFast's
+  confirmation has not arrived. It is retried automatically; give it a few
+  minutes. If the customer pays again in the meantime, the second payment shows
+  up under **Refunds you owe** as "Paid twice".
+- **A change to the code.** Push to `main` on GitHub and Render redeploys in
+  about two minutes. Run `npm test` in `backend/` first.
 
-When your PayFast merchant account is approved, in Render → **Environment**
-replace `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY` and `PAYFAST_PASSPHRASE`
-with your real values and set `PAYFAST_MODE` to `live`. Nothing else changes.
+## Still to come
 
-In your PayFast dashboard, set the ITN (notify) URL to:
-`https://midfood.co.za/api/payments/payfast/notify`
-
-## 4. Build the customer app
-
-The app is configured for the stores (`za.co.midfood.app`, MidFood branding,
-notification permissions). To build it:
-
-```bash
-cd mobile
-npm install
-npx eas login          # free Expo account
-npx eas build:configure # once, links the project and enables push
-npm run build:apk      # test APK you can install on your own phone
-npm run build:android  # Play Store bundle
-npm run build:ios      # App Store build (needs an Apple Developer account)
-```
-
-Before the Play Store will accept it you need a privacy policy URL, a store
-listing with screenshots, and a Google Play developer account (about $25 once).
-Apple's is about $99 a year.
-
-**You don't have to wait for the stores.** The restaurant portal and driver app
-are web pages — they work the moment step 1 and 2 are done. Restaurants and
-drivers add them to their home screen and they behave like apps.
-
-## 5. First restaurants and drivers
-
-1. Open the admin page and delete the four demo restaurants (Braai House,
-   Mama Thandi's, Sushi Yama, Pizza Nonna).
-2. Send restaurants to `midfood.co.za/portal/` to apply, or add them yourself
-   on the admin page. Approve them, then give them their login.
-3. Send drivers to `midfood.co.za/driver/` to apply. Approve them the same way.
-4. Nothing you haven't approved is visible to customers.
-
----
-
-## How the money and the orders flow
-
-1. Customer orders and pays by card. Until PayFast confirms payment, the
-   restaurant never sees the order — so an abandoned checkout costs nobody
-   anything.
-2. The kitchen's board chimes. They accept, start preparing, then mark it ready.
-3. Ready orders appear to every online driver with the delivery fee shown. The
-   first to accept gets it; the rest see it disappear.
-4. The driver collects, taps picked up, and the customer starts seeing their
-   location. The customer gets a push notification at each step.
-5. The driver taps delivered. It lands in the restaurant's day total and the
-   driver's earnings.
-
-Money currently lands in the PayFast account you configure, in full. Paying
-restaurants and drivers out is manual for now — the admin page gives you the
-figures you need. Automatic splits are the natural next build.
-
-## What I'd build next
-
-- **Payouts** — weekly statements per restaurant and driver, so you're not
-  working it out by hand.
-- **Your commission** — take a percentage per order automatically instead of
-  reconciling afterwards.
-- **A live map** — the customer sees a moving pin rather than a map link.
-- **Scheduled orders** and **promo codes** — both are straightforward now that
-  the order flow is real.
+- **The phone app** in the app stores. See `mobile/README-BUILD.md`. The
+  website at midfood.co.za/order does the same job today and installs to a
+  home screen.
+- **Scheduled orders** and **promo codes**.

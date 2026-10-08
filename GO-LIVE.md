@@ -74,6 +74,23 @@ Under **Operations → Restaurants**, press **Edit terms** on a restaurant to
 change its delivery fee, delivery time, free period or a special commission
 rate. "Free until" includes that date.
 
+## Loading a restaurant's menu for them
+
+Most kitchens will not type their own menu in. Under **Operations →
+Restaurants**, press **Menu** on a restaurant.
+
+- **One dish:** fill in the name, an optional description and the price, then
+  **Add dish**.
+- **A whole price list:** open **Add several at once** and type or paste one
+  dish per line with the price last, for example `Full House Kota - polony,
+  russian, egg, cheese, chips - 45`. If any line cannot be read, nothing is
+  added and the line is named, so a half-loaded menu never goes live. Dishes
+  already on the menu are left alone, so pasting the same list twice is safe.
+- **Edit**, **Mark sold out** and **Remove** sit next to each dish.
+
+A restaurant shown as **no menu yet** is visible to customers with nothing to
+order. The restaurant can still change the same menu from its own portal.
+
 ## Adding restaurants and drivers
 
 - Send restaurants to **midfood.co.za/portal** and drivers to
@@ -104,6 +121,13 @@ place one small real order and refund it to prove both directions.
 
 Nothing needs setting inside PayFast for notifications: MidFood tells PayFast
 where to report each payment.
+
+## Email and phone
+
+Mail to **hello@midfood.co.za** and **privacy@midfood.co.za** is forwarded to
+g8vipexclusive@gmail.com. There are no separate inboxes to check. To change
+where it goes: Axxess → midfood.co.za hosting → Control Panel Login → Forwarders.
+The number customers, restaurants and drivers are given is **072 643 7784**.
 
 ## If something looks wrong
 

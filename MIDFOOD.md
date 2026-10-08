@@ -42,8 +42,9 @@ All served by the one backend, so there is nothing extra to host.
 
 The admin page has two tabs. **Operations:** refunds owed, orders in progress
 (with a flag on any kitchen that has not accepted within 10 minutes of
-payment, and a cancel button), approvals, drivers, restaurants and their
-terms. **Payouts:** who is owed, statements, rates and payout day, history.
+payment, and a cancel button), approvals, drivers, restaurants with their
+terms and their **menus** (Sipho can load or fix any restaurant's menu, one
+dish at a time or by pasting a price list, without the restaurant's password). **Payouts:** who is owed, statements, rates and payout day, history.
 
 There is also a React Native / Expo customer app in `mobile/`, configured for
 the stores as `za.co.midfood.app`. **Not submitted, never yet run on a phone,
@@ -121,8 +122,10 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - `test/money.test.js` — rounding, free period, which rate applies (9 checks).
 - `test/api.test.js` — the whole platform against a real database: logins and
   roles, ordering, payment notifications, kitchen to door, the money split,
-  payouts and double-payout prevention, refunds, cancellations (65 checks).
-- All 74 passing as of 8 Oct 2026. The screens were also driven in a real
+  payouts and double-payout prevention, refunds, cancellations (77 checks).
+- `test/api.test.js` also covers the admin menu loader and the pasted
+  price-list reader.
+- All 86 passing as of 8 Oct 2026. The screens were also driven in a real
   browser (64 checks) before release; that script is not in the repo.
 
 ## Deliberate decisions
@@ -161,7 +164,18 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   driver pay, and the fixes from an independent pre-release review.
 - Flyer finished.
 - **Chef Lue** (restaurant, 1953 South 32, Rockdale · 071 528 6926 · login
-  `cheflue1`) is approved and visible to customers.
+  `cheflue1`) is approved and visible to customers. Its menu was loaded on
+  8 Oct from its WhatsApp Business catalogue ("Chef Lue Cake"): 3 platters
+  (R600–R850) and 10 themed cakes (R600–R700), 13 dishes. Two pairs of cakes
+  share a name in the catalogue, so the second of each is "(design 2)". The
+  catalogue has no kotas, chips or meals, although the listing says it sells
+  them, and cakes are normally made to order while the site promises about 55
+  minutes. Both need a word with Chef Lue.
+- **Support number 072 643 7784** is on every page.
+- **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
+  `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
+  → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet
+  proven with a test email.
 - The demo restaurants are gone, except **Sushi Yama**, which is attached to
   an old unpaid test order and so is suspended rather than deleted.
 
@@ -221,10 +235,10 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
    $25 once), an Apple Developer account (about $99 a year), and screenshots
    with real restaurants in them. See `mobile/README-BUILD.md`. Bring the app
    level with the website first (pin, live map), and run it on a real phone.
-3. **Check the mailboxes exist:** `hello@midfood.co.za` (on the flyer) and
-   `privacy@midfood.co.za` (on the site) need to be real inboxes at Axxess.
-4. **A customer support number** on the site. Customers are currently told to
-   "contact MidFood" about a refund without being told how.
+3. **Send a test email** to hello@midfood.co.za and check it reaches the
+   Gmail inbox (look in spam too: forwarded mail sometimes lands there).
+4. **Chef Lue's real everyday menu** (kotas, chips, meals) and lead time for
+   cakes. Load it from Operations → Restaurants → Menu.
 5. **Scheduled orders** and **promo codes**.
 6. If orders grow, move the map from OpenStreetMap's free public tiles (fine
    for a small service, no guarantee) to a paid tile provider.
@@ -240,3 +254,9 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - Claude's container cannot reach Expo's build service or the Android SDK, so
   app builds have to run elsewhere.
 - Use only g8vipexclusive@gmail.com for his business accounts and email.
+- His WhatsApp Business runs in his own Chrome (web.whatsapp.com); it does not
+  open in the Claude browser pane. Claude reads there when asked and never
+  sends a message without being told to.
+- A prospect list of about 20 Middelburg restaurants, takeaways and bakeries
+  was put together on 8 Oct (in that chat, with a map); Jefferson's fast food,
+  King Kota's and Papa's Shisanyama in Mhluzi were the suggested first calls.

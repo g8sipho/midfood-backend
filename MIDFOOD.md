@@ -22,7 +22,7 @@ refunds, the Tuesday payout run.
 | Live site | **https://midfood.co.za** |
 | Domain + hosting | Axxess (ccp.axxess.co.za) · cPanel `cphost29.vpslocal.co.za` |
 | DNS | Axxess client area → the midfood.co.za hosting service → DNS Zones |
-| Local copies | `Documents › G8 STUFF › MidFood` |
+| Local copies | `C:\Users\G8VIP\OneDrive\Documents\G8 MidFood` — this file, `GO-LIVE.md`, and dated code snapshots (`midfood-complete-2026-10-08.zip` is the go-live build; the undated zip is from before it) |
 | Payments | PayFast. Mode and merchant details are four `PAYFAST_…` values in Render → Environment |
 | Restaurant flyer | A Claude artifact, "MidFood — Restaurant Flyer" (A4 front/back + WhatsApp square). Finished: 072 643 7784, Tuesday payouts. |
 

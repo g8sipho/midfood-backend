@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool, uuid } = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
+const money = require('../money');
 
 const router = express.Router();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
@@ -16,6 +17,9 @@ router.post('/register', async (req, res, next) => {
     }
     if (String(password).length < 6) {
       return res.status(400).json({ error: 'password must be at least 6 characters' });
+    }
+    if (!money.isPhone(phone)) {
+      return res.status(400).json({ error: 'Please enter a valid phone number, e.g. 082 123 4567' });
     }
     const u = String(username).trim().toLowerCase();
     if (!/^[a-z0-9._-]{3,30}$/.test(u)) {

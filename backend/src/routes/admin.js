@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const { pool, uuid } = require('../db');
 const { requireAdmin } = require('../middleware/auth');
 const { notifyOrderStatus } = require('../notify');
+const money = require('../money');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -58,8 +59,7 @@ router.post('/restaurants', async (req, res, next) => {
     // New restaurants start at a neutral rating; there's no review system yet.
     await pool.query(
       `INSERT INTO restaurants (id, name, cuisine, eta_minutes, delivery_fee, rating, hero_color, username, password_hash, free_until)
-       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8,
-               (now() + ((SELECT value FROM settings WHERE key = 'free_months')::int || ' months')::interval)::date)`,
+       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8, ${money.FREE_UNTIL_SQL})`,
       [id, name, cuisine, etaMinutes, deliveryFee, heroColor, normalizedUsername, passwordHash]
     );
     res.status(201).json({ restaurant: { id, name, username: normalizedUsername } });
@@ -133,7 +133,12 @@ router.patch('/restaurants/:id', async (req, res, next) => {
     }
     if (body.freeUntil !== undefined) {
       const until = body.freeUntil === null || body.freeUntil === '' ? null : String(body.freeUntil);
-      if (until !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(until) || Number.isNaN(Date.parse(until)))) {
+      // A real calendar date: "2027-02-30" looks right and is not.
+      const real = (d) => {
+        const t = new Date(`${d}T00:00:00Z`);
+        return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+      };
+      if (until !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(until) || !real(until))) {
         return res.status(400).json({ error: 'freeUntil must be a date like 2027-01-31, or empty' });
       }
       set('free_until', until);
@@ -231,6 +236,9 @@ router.post('/drivers', async (req, res, next) => {
     if (!name || !username || !password) {
       return res.status(400).json({ error: 'name, username and password are required' });
     }
+    if (phone && !money.isPhone(phone)) {
+      return res.status(400).json({ error: 'Please enter a valid phone number, e.g. 082 123 4567' });
+    }
     if (String(password).length < 6) {
       return res.status(400).json({ error: 'password must be at least 6 characters' });
     }
@@ -282,7 +290,7 @@ const ADMIN_ORDER_COLS = `o.id, o.restaurant_name AS "restaurantName", u.name AS
   o.cancelled_by AS "cancelledBy", o.refunded_at AS "refundedAt",
   o.refund_reference AS "refundReference",
   o.ready_at AS "readyAt", d.name AS "driverName",
-  o.created_at AS "createdAt", o.updated_at AS "updatedAt"`;
+  o.created_at AS "createdAt", o.paid_at AS "paidAt", o.updated_at AS "updatedAt"`;
 const ADMIN_ORDER_FROM = `FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN drivers d ON d.id = o.driver_id`;
 
 // A kitchen that has not answered a paid order in this long needs a phone call.
@@ -302,11 +310,23 @@ router.get('/orders', async (req, res, next) => {
        ORDER BY o.updated_at`
     );
 
+    // The same customer charged twice for one order: the second payment is
+    // owed straight back, whatever happened to the order itself.
+    const extras = await pool.query(
+      `SELECT x.pf_payment_id AS "paymentReference", x.amount::float8 AS total, x.received_at AS "updatedAt",
+              o.id AS "orderId", o.restaurant_name AS "restaurantName", u.name AS "customerName",
+              u.email AS "customerEmail", o.customer_phone AS "customerPhone"
+       FROM extra_payments x JOIN orders o ON o.id = x.order_id JOIN users u ON u.id = o.user_id
+       WHERE x.refunded_at IS NULL ORDER BY x.received_at`
+    );
+    for (const x of extras.rows) x.kind = 'duplicate';
+    for (const o of refunds.rows) o.kind = 'order';
+
     // Paid orders in flight. `waitingMinutes` is how long the customer has
-    // been waiting on a kitchen that has not accepted yet.
+    // been waiting since they paid, which is when the kitchen first saw it.
     const live = await pool.query(
       `SELECT ${ADMIN_ORDER_COLS},
-              FLOOR(EXTRACT(EPOCH FROM (now() - o.created_at)) / 60)::int AS "waitingMinutes"
+              FLOOR(EXTRACT(EPOCH FROM (now() - COALESCE(o.paid_at, o.created_at))) / 60)::int AS "waitingMinutes"
        ${ADMIN_ORDER_FROM}
        WHERE o.payment_status = 'paid' AND o.status NOT IN ('delivered', 'rejected')
        ORDER BY o.created_at`
@@ -329,7 +349,9 @@ router.get('/orders', async (req, res, next) => {
            AND refunded_at IS NULL), 0)::float8 AS "refundsDue"
        FROM orders`
     );
-    res.json({ orders: rows, live: live.rows, refundsDue: refunds.rows, stats: stats.rows[0] });
+    const s = stats.rows[0];
+    s.refundsDue = money.money(s.refundsDue + extras.rows.reduce((sum, x) => sum + x.total, 0));
+    res.json({ orders: rows, live: live.rows, refundsDue: refunds.rows.concat(extras.rows), stats: s });
   } catch (err) {
     next(err);
   }
@@ -374,6 +396,24 @@ router.post('/orders/:id/refunded', async (req, res, next) => {
     if (!rows[0]) {
       return res.status(400).json({ error: 'There is no refund outstanding on this order' });
     }
+    res.json({ ok: true, refundedAt: rows[0].refundedAt });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/extra-payments/:pfPaymentId/refunded { reference } - record
+// that a double payment has been sent back. Once, like an order refund.
+router.post('/extra-payments/:pfPaymentId/refunded', async (req, res, next) => {
+  try {
+    const reference = String((req.body && req.body.reference) || '').trim() || null;
+    const { rows } = await pool.query(
+      `UPDATE extra_payments SET refunded_at = now(), refund_reference = $1
+       WHERE pf_payment_id = $2 AND refunded_at IS NULL
+       RETURNING pf_payment_id, refunded_at AS "refundedAt"`,
+      [reference, req.params.pfPaymentId]
+    );
+    if (!rows[0]) return res.status(400).json({ error: 'There is no refund outstanding on this payment' });
     res.json({ ok: true, refundedAt: rows[0].refundedAt });
   } catch (err) {
     next(err);

@@ -62,8 +62,13 @@ describe('who can get in', () => {
     const all = await api('GET', '/api/admin/restaurants', ADMIN);
     const mine = all.data.restaurants.find((r) => r.username === username);
     assert.equal(mine.approved, false);
-    // It gets the launch offer automatically: free for the configured months.
-    assert.ok(mine.freeUntil > saDate(85) && mine.freeUntil < saDate(95), `free until ${mine.freeUntil}`);
+    // It gets the launch offer automatically: three calendar months, counting
+    // today as day one, so it ends the day before the same date three months on.
+    const [y, m, d] = saDate(0).split('-').map(Number);
+    const end = new Date(Date.UTC(y, m - 1 + 3, d));
+    if (end.getUTCDate() !== d) end.setUTCDate(0); // e.g. 30 Nov + 3 months -> end of Feb
+    end.setUTCDate(end.getUTCDate() - 1);
+    assert.equal(mine.freeUntil, end.toISOString().slice(0, 10));
 
     await api('POST', `/api/admin/restaurants/${mine.id}/approve`, ADMIN);
     assert.equal((await api('POST', '/api/restaurant-auth/login', { body: { username, password: 'secret123' } })).status, 200);
@@ -83,6 +88,43 @@ describe('who can get in', () => {
     const mine = all.data.drivers.find((d) => d.username === username);
     await api('POST', `/api/admin/drivers/${mine.id}/approve`, ADMIN);
     assert.equal((await api('POST', '/api/driver-auth/login', { body: { username, password: 'secret123' } })).status, 200);
+  });
+
+  it('suspending a driver or restaurant cuts off a login they already have', async () => {
+    const drv = await h.driver('Soon Suspended');
+    const resto = await h.restaurant({ name: 'Soon Suspended Kitchen' });
+    assert.equal((await api('GET', '/api/driver/orders/available', { token: drv.token })).status, 200);
+    assert.equal((await api('GET', '/api/portal/orders', { token: resto.token })).status, 200);
+
+    await api('POST', `/api/admin/drivers/${drv.id}/suspend`, ADMIN);
+    await api('POST', `/api/admin/restaurants/${resto.id}/suspend`, ADMIN);
+    for (const path of ['/api/driver/orders/available', '/api/driver/orders/mine', '/api/driver/earnings']) {
+      assert.equal((await api('GET', path, { token: drv.token })).status, 403, path);
+    }
+    assert.equal((await api('POST', '/api/driver/location', { token: drv.token, body: { lat: -25.7, lng: 29.4 } })).status, 403);
+    assert.equal((await api('GET', '/api/portal/orders', { token: resto.token })).status, 403);
+    assert.equal((await api('GET', '/api/portal/earnings', { token: resto.token })).status, 403);
+
+    // Approving again restores access with the same login.
+    await api('POST', `/api/admin/drivers/${drv.id}/approve`, ADMIN);
+    assert.equal((await api('GET', '/api/driver/orders/available', { token: drv.token })).status, 200);
+  });
+
+  it('a phone number has to be a phone number', async () => {
+    // These are shown to other people as tap-to-call links.
+    const evil = '082" onmouseover="alert(1)';
+    const d = await api('POST', '/api/driver-auth/register', { body: { name: 'X', phone: evil, username: h.unique('x'), password: 'secret123' } });
+    assert.equal(d.status, 400);
+    const r = await api('POST', '/api/restaurant-auth/register', {
+      body: { name: 'X', cuisine: 'X', phone: evil, address: '1 Rd', username: h.unique('x'), password: 'secret123' },
+    });
+    assert.equal(r.status, 400);
+    const a = await api('POST', '/api/admin/drivers', { ...ADMIN, body: { name: 'X', phone: evil, username: h.unique('x'), password: 'secret123' } });
+    assert.equal(a.status, 400);
+    for (const fine of ['082 615 2028', '0826152028', '+27 82 615 2028', '(013) 243-1234']) {
+      const ok = await api('POST', '/api/driver-auth/register', { body: { name: 'Fine', phone: fine, username: h.unique('ok'), password: 'secret123' } });
+      assert.equal(ok.status, 201, fine);
+    }
   });
 
   it('ten wrong passwords lock that one account, and nobody else', async () => {
@@ -148,8 +190,29 @@ describe('placing an order', () => {
     const r = await h.placeOrder(cust, resto, [[resto.items[0], 1], [chips, 1]]);
     assert.equal(r.status, 409);
     assert.match(r.data.error, /Chips has just sold out/);
+    assert.equal(r.data.soldOutItemId, chips.id, 'so the page can take it out of the basket');
     await api('PATCH', `/api/portal/menu/${chips.id}/availability`, { token: resto.token, body: { available: true } });
     assert.equal((await h.placeOrder(cust, resto, [[chips, 1]])).status, 201);
+  });
+
+  it('never charges a total the customer was not shown', async () => {
+    // The page showed R75 (R45 + R30). Meanwhile the kitchen put the kota up.
+    const kota = resto.items[0];
+    await api('PUT', `/api/portal/menu/${kota.id}`, { token: resto.token, body: { name: 'Kota', description: 'Tasty', price: 50 } });
+    const stale = await h.placeOrder(cust, resto, [[kota, 1]], { expectedTotal: 75 });
+    assert.equal(stale.status, 409);
+    assert.equal(stale.data.priceChanged, true);
+    assert.equal(stale.data.total, 80);
+    // Same if the owner changes the delivery fee.
+    await api('PATCH', `/api/admin/restaurants/${resto.id}`, { ...ADMIN, body: { deliveryFee: 35 } });
+    assert.equal((await h.placeOrder(cust, resto, [[kota, 1]], { expectedTotal: 80 })).status, 409);
+    // Once the page shows the right total, the order goes through at it.
+    const ok = await h.placeOrder(cust, resto, [[kota, 1]], { expectedTotal: 85 });
+    assert.equal(ok.status, 201);
+    assert.equal(ok.data.order.total, 85);
+    // Put things back for the tests that follow.
+    await api('PUT', `/api/portal/menu/${kota.id}`, { token: resto.token, body: { name: 'Kota', description: 'Tasty', price: 45 } });
+    await api('PATCH', `/api/admin/restaurants/${resto.id}`, { ...ADMIN, body: { deliveryFee: 30 } });
   });
 
   it('keeps a delivery pin in Middelburg and drops one that is nonsense', async () => {
@@ -245,6 +308,60 @@ describe('payment', () => {
     assert.equal(await h.paymentStatus(order.id), 'paid');
   });
 
+  it('a customer who pays twice is owed the second payment back', async () => {
+    const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order; // R75
+    const first = await h.pay(order);
+    await h.notify(order, { pf_payment_id: '5550001' });
+    await h.notify(order, { pf_payment_id: '5550001' }); // PayFast repeating itself
+    await h.sleep(200);
+
+    const { rows } = await h.db().query('SELECT payment_reference FROM orders WHERE id = $1', [order.id]);
+    assert.equal(rows[0].payment_reference, first, 'the order keeps the payment that actually bought it');
+
+    const a = (await api('GET', '/api/admin/orders', ADMIN)).data;
+    const due = a.refundsDue.filter((x) => x.orderId === order.id);
+    assert.equal(due.length, 1, 'recorded once, however often PayFast repeats it');
+    assert.equal(due[0].kind, 'duplicate');
+    assert.equal(due[0].total, 75);
+    assert.equal(due[0].paymentReference, '5550001');
+    assert.ok(a.stats.refundsDue >= 75);
+
+    assert.equal((await api('POST', '/api/admin/extra-payments/5550001/refunded', { body: {} })).status, 401);
+    assert.equal((await api('POST', '/api/admin/extra-payments/5550001/refunded', { ...ADMIN, body: { reference: 'R-1' } })).status, 200);
+    assert.equal((await api('POST', '/api/admin/extra-payments/5550001/refunded', { ...ADMIN, body: {} })).status, 400);
+    const after = (await api('GET', '/api/admin/orders', ADMIN)).data;
+    assert.ok(!after.refundsDue.some((x) => x.orderId === order.id));
+    // The order itself is untouched: still paid, still on the kitchen's board.
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+  });
+
+  it('a payment is not lost when PayFast is briefly unreachable', async () => {
+    const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
+    let asked = 0;
+    const restore = h.payfastAnswers(async () => { asked += 1; return asked < 3 ? null : true; });
+    try {
+      await h.pay(order);
+    } finally {
+      restore();
+    }
+    assert.equal(asked, 3, 'asked again until PayFast answered');
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+  });
+
+  it('a notification PayFast itself disowns never pays an order', async () => {
+    const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
+    let asked = 0;
+    const restore = h.payfastAnswers(async () => { asked += 1; return false; });
+    try {
+      await h.notify(order);
+      await h.sleep(200);
+    } finally {
+      restore();
+    }
+    assert.equal(asked, 1, 'a clear "no" is not retried');
+    assert.equal(await h.paymentStatus(order.id), 'pending');
+  });
+
   it('PayFast is told to report back to this server', async () => {
     const r = await h.placeOrder(cust, resto, [[resto.items[0], 1]]);
     const url = new URL(r.data.paymentUrl);
@@ -307,9 +424,17 @@ describe('kitchen to door', () => {
     assert.ok(offer);
     assert.equal(offer.deliveryFee, 30); // what the customer paid
     assert.equal(offer.driverPayout, 24); // what the driver keeps after MidFood's 20%
-    assert.equal(offer.deliveryLat, -25.7801);
     assert.equal(offer.notes, 'no chilli');
     assert.deepEqual(offer.items, [{ name: 'Kota', quantity: 2 }]);
+  });
+
+  it("an open offer does not give away the customer's number or exact pin", async () => {
+    const offer = (await available(rival)).find((o) => o.id === order.id);
+    assert.equal(offer.hasPin, true, 'drivers are told a pin exists');
+    assert.equal(offer.deliveryLat, null);
+    assert.equal(offer.deliveryLng, null);
+    assert.equal(offer.customerPhone, null);
+    assert.ok(offer.deliveryAddress, 'the address is still shown, to judge the trip');
   });
 
   it('the first driver to accept gets it; the second is told it has gone', async () => {
@@ -319,6 +444,11 @@ describe('kitchen to door', () => {
     assert.ok(!(await available(rival)).some((o) => o.id === order.id));
     // And the losing driver cannot pick it up or deliver it.
     assert.equal((await api('POST', `/api/driver/orders/${order.id}/pickup`, { token: rival.token })).status, 400);
+    // The driver who has the job gets what they need to find and call the customer.
+    const mine = (await api('GET', '/api/driver/orders/mine', { token: drv.token })).data.orders.find((o) => o.id === order.id);
+    assert.equal(mine.deliveryLat, -25.7801);
+    assert.equal(mine.deliveryLng, 29.4702);
+    assert.equal(mine.customerPhone, '0821234567');
   });
 
   it('the customer watches the driver come to their pin', async () => {
@@ -345,6 +475,15 @@ describe('kitchen to door', () => {
     assert.equal(hist.earnings, 24);
     assert.equal(hist.earningsToday, 24);
     assert.equal(hist.orders[0].driverPayout, 24);
+    assert.equal(hist.orders[0].deliveryLat, null, 'the pin is not kept in the driver\'s history');
+    assert.equal(hist.orders[0].customerPhone, null);
+
+    // Once the food has arrived, the customer no longer sees where the driver is.
+    const t = await tracking();
+    assert.equal(t.driverName, 'Lucky');
+    assert.equal(t.driverLat, null);
+    assert.equal(t.driverLng, null);
+    assert.equal(t.driverPhone, null);
 
     const day = (await api('GET', '/api/portal/orders/history', { token: resto.token })).data;
     assert.equal(day.todayCount, 1);
@@ -426,18 +565,30 @@ describe('how the money splits', () => {
     const resto = await h.restaurant({ deliveryFee: 30, menu: [['Kota', 100]] });
     await setTerms(resto, { freeUntil: null });
     const before = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
-    await h.pay(before);
+    const pfPaymentId = await h.pay(before);
 
     await h.settings({ commissionRate: 0.25, deliveryCutRate: 0.5 });
     const afterChange = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
     await h.pay(afterChange);
-    // A repeated PayFast notification must not recalculate the first order.
-    await h.notify(before);
+    // PayFast repeating its notification must not recalculate the first order.
+    await h.notify(before, { pf_payment_id: pfPaymentId });
     await h.sleep(150);
 
     assert.deepEqual(await split(before.id), { commission: 15, rate: 0.15, restaurantPayout: 85, deliveryCut: 6, driverPayout: 24 });
     assert.deepEqual(await split(afterChange.id), { commission: 25, rate: 0.25, restaurantPayout: 75, deliveryCut: 15, driverPayout: 15 });
     await h.settings({ commissionRate: 0.15, deliveryCutRate: 0.2 });
+  });
+
+  it('with the free months set to zero, a new restaurant pays from its first order', async () => {
+    await h.settings({ freeMonths: 0 });
+    const resto = await h.restaurant({ menu: [['Kota', 100]] });
+    const row = (await api('GET', '/api/admin/restaurants', ADMIN)).data.restaurants.find((r) => r.id === resto.id);
+    assert.equal(row.freeUntil, null);
+    assert.equal((await api('GET', '/api/portal/earnings', { token: resto.token })).data.terms.inFreePeriod, false);
+    const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
+    await h.pay(order);
+    assert.equal((await split(order.id)).commission, 15);
+    await h.settings({ freeMonths: 3 });
   });
 
   it('an unpaid order has no split at all', async () => {
@@ -479,7 +630,7 @@ describe('how the money splits', () => {
     assert.equal(cleared.data.restaurant.freeUntil, null);
 
     for (const bad of [{ deliveryFee: -5 }, { deliveryFee: 5000 }, { deliveryFee: 'lots' }, { deliveryFee: null }, { etaMinutes: 0 },
-      { freeUntil: 'next month' }, { freeUntil: '2027-13-45' }, { commissionRate: 15 }, {}]) {
+      { freeUntil: 'next month' }, { freeUntil: '2027-13-45' }, { freeUntil: '2027-02-30' }, { commissionRate: 15 }, {}]) {
       assert.equal((await setTerms(resto, bad)).status, 400, JSON.stringify(bad));
     }
     assert.equal((await api('PATCH', `/api/admin/restaurants/${resto.id}`, { body: { deliveryFee: 1 } })).status, 401);
@@ -560,6 +711,8 @@ describe('payouts', () => {
     assert.equal((await api('GET', '/api/portal/statement', { token: other.token })).data.orders.length, 0);
     assert.equal((await api('GET', '/api/portal/statement', { token: drv.token })).status, 403);
     assert.equal((await api('GET', '/api/portal/statement?payout=not-an-id', { token: resto.token })).status, 400);
+    assert.equal((await api('GET', `/api/portal/statement?payout=${'-'.repeat(36)}`, { token: resto.token })).status, 400);
+    assert.equal((await api('GET', `/api/driver/statement?payout=${'-'.repeat(36)}`, { token: drv.token })).status, 400);
   });
 
   it('recording a payout settles those orders, and a second press pays nothing', async () => {
@@ -710,13 +863,25 @@ describe('refunds and cancelled orders', () => {
 
   it('a kitchen that has not answered for ten minutes is flagged', async () => {
     const order = await paidOrder();
-    await h.db().query("UPDATE orders SET created_at = now() - interval '12 minutes' WHERE id = $1", [order.id]);
+    await h.db().query("UPDATE orders SET paid_at = now() - interval '12 minutes' WHERE id = $1", [order.id]);
     const live = (await adminOrders()).live.find((o) => o.id === order.id);
     assert.equal(live.stuck, true);
     assert.equal(live.waitingMinutes, 12);
     // Once the kitchen accepts, it is no longer stuck.
     await api('POST', `/api/portal/orders/${order.id}/accept`, { token: resto.token });
     assert.equal((await adminOrders()).live.find((o) => o.id === order.id).stuck, false);
+    await api('POST', `/api/admin/orders/${order.id}/cancel`, { ...ADMIN, body: {} });
+  });
+
+  it('the wait is counted from payment, not from when the order was started', async () => {
+    // A customer who came back 45 minutes later and tapped "Pay now": the
+    // kitchen has only just seen it, so it must not be flagged as ignored.
+    const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
+    await h.db().query("UPDATE orders SET created_at = now() - interval '45 minutes' WHERE id = $1", [order.id]);
+    await h.pay(order);
+    const live = (await adminOrders()).live.find((o) => o.id === order.id);
+    assert.equal(live.stuck, false);
+    assert.equal(live.waitingMinutes, 0);
     await api('POST', `/api/admin/orders/${order.id}/cancel`, { ...ADMIN, body: {} });
   });
 

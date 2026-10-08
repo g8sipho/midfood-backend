@@ -193,7 +193,10 @@
   .mk-driver { background: var(--accent); }
   .mk-home { background: var(--ink); }
   .mk-stale { opacity: 0.55; }
-  #trMap:not(.zooming) .mk-driver { transition: transform 0.9s linear; }
+  /* Leaflet moves the marker's outer wrapper, so that is what has to glide. */
+  #trMap:not(.zooming) .mk-wrap-driver { transition: transform 0.9s linear; }
+  .line .rm { background: none; border: none; padding: 0 0 0 10px; font-size: 12px; font-weight: 700; color: var(--error); cursor: pointer; }
+  .notice { background: rgba(201,168,45,0.12); border: 1px solid var(--warning); border-radius: 11px; padding: 11px 13px; font-size: 13px; margin-bottom: 14px; display: none; }
 
   .order-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
   .order-row:last-child { border-bottom: none; }
@@ -242,6 +245,7 @@
     <h1 class="page">Checkout</h1>
     <p class="page-sub" id="checkoutFrom"></p>
 
+    <div class="notice" id="ckNotice" role="status"></div>
     <div class="card">
       <h2 class="sec" style="margin-top:0;">Your order</h2>
       <div id="cartLines"></div>
@@ -352,11 +356,17 @@
   var trackTimer = null;
   var payPoll = 0;
   var pin = null;              // { lat, lng } the customer chose to share at checkout
+  var trackingId = null;       // the order whose tracking page is on screen, if any
   var mapState = null;         // the live map on the tracking page, while one is open
   var leafletLoading = null;
 
   var el = function (id) { return document.getElementById(id); };
-  var esc = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+  // Safe for text AND for attribute values: quotes are escaped too, so nothing
+  // a restaurant, driver or customer typed can break out of an href="...".
+  var ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); };
+  // A phone number reduced to what a tel: link may contain.
+  var tel = function (s) { return String(s == null ? '' : s).replace(/[^0-9+]/g, ''); };
   var rand = function (n) { return 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, ''); };
   function setMsg(id, text, kind) {
     var n = el(id);
@@ -388,7 +398,9 @@
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (!res.ok) {
           if (res.status === 401) signOut(true);
-          throw new Error(data.error || 'Something went wrong. Please try again.');
+          var problem = new Error(data.error || 'Something went wrong. Please try again.');
+          problem.data = data;
+          throw problem;
         }
         return data;
       });
@@ -404,7 +416,7 @@
     el('backBtn').style.display = view === 'home' ? 'none' : 'block';
     window.scrollTo(0, 0);
     if (view !== 'track' && trackTimer) { clearTimeout(trackTimer); trackTimer = null; }
-    if (view !== 'track') closeMap();
+    if (view !== 'track') { trackingId = null; closeMap(); }
     renderCartBar(view);
   }
 
@@ -570,6 +582,26 @@
     if (countItems() === 0) { go(''); return; }
     if (!token) { pendingAfterAuth = '#checkout'; go('#signin'); return; }
     show('checkout');
+    notice('');
+    paintCheckout();
+    setMsg('ckError', '');
+    // The basket may be hours old. Check it against the kitchen's menu as it
+    // is right now, so the total on this page is the total that gets charged.
+    refreshBasket();
+    // Reuse the last address and number, so a repeat order is a few taps.
+    el('ckAddress').value = el('ckAddress').value || localStorage.getItem('midfood_addr') || '';
+    el('ckPhone').value = el('ckPhone').value || localStorage.getItem('midfood_phone') || '';
+    paintPin();
+  }
+
+  function notice(text) {
+    el('ckNotice').textContent = text || '';
+    el('ckNotice').style.display = text ? 'block' : 'none';
+  }
+
+  function cents(n) { return Math.round(Number(n) * 100) / 100; }
+
+  function paintCheckout() {
     el('checkoutFrom').textContent = 'From ' + cart.restaurantName;
     var box = el('cartLines');
     box.innerHTML = '';
@@ -577,16 +609,63 @@
       var d = document.createElement('div');
       d.className = 'line';
       d.innerHTML = '<span class="l">' + esc(l.quantity + '× ' + l.name) + '</span><span>' +
-        rand(l.price * l.quantity) + '</span>';
+        rand(l.price * l.quantity) + '<button type="button" class="rm">Remove</button></span>';
+      d.querySelector('.rm').setAttribute('aria-label', 'Remove ' + l.name);
+      d.querySelector('.rm').addEventListener('click', function () {
+        delete cart.lines[l.id];
+        saveCart();
+        if (countItems() === 0) { go('#r/' + cart.restaurantId); return; }
+        paintCheckout();
+      });
       box.appendChild(d);
     });
     el('ckFee').textContent = rand(cart.deliveryFee);
     el('ckTotal').textContent = rand(subtotal() + cart.deliveryFee);
-    setMsg('ckError', '');
-    // Reuse the last address and number, so a repeat order is a few taps.
-    el('ckAddress').value = el('ckAddress').value || localStorage.getItem('midfood_addr') || '';
-    el('ckPhone').value = el('ckPhone').value || localStorage.getItem('midfood_phone') || '';
-    paintPin();
+  }
+
+  // Brings the basket in line with the kitchen's current menu: today's prices
+  // and delivery fee, and nothing that has sold out. Says what it changed.
+  function refreshBasket() {
+    var id = cart.restaurantId;
+    return api('/api/restaurants/' + id).then(function (data) {
+      if (cart.restaurantId !== id) return;
+      var r = data.restaurant;
+      var byId = {};
+      (r.menu || []).forEach(function (m) { byId[m.id] = m; });
+      var gone = [];
+      var repriced = false;
+      cartLines().forEach(function (l) {
+        var now = byId[l.id];
+        if (!now) { gone.push(l.name); delete cart.lines[l.id]; return; }
+        if (cents(now.price) !== cents(l.price)) repriced = true;
+        l.price = now.price;
+        l.name = now.name;
+      });
+      if (cents(r.deliveryFee) !== cents(cart.deliveryFee)) repriced = true;
+      cart.deliveryFee = r.deliveryFee;
+      cart.restaurantName = r.name;
+      saveCart();
+
+      var said = [];
+      if (gone.length) said.push(gone.join(' and ') + (gone.length === 1 ? ' has' : ' have') + ' sold out and ' +
+        (gone.length === 1 ? 'was' : 'were') + ' taken out of your basket.');
+      if (repriced) said.push('Prices have changed since you added these. Please check the new total.');
+      if (r.open === false) said.push(r.name + ' is closed right now, so it cannot take this order yet.');
+      if (countItems() === 0) {
+        go('#r/' + id);
+        return;
+      }
+      notice(said.join(' '));
+      paintCheckout();
+    }).catch(function (err) {
+      // The restaurant has gone (suspended or removed): this basket cannot be ordered.
+      if (err && err.message === 'Restaurant not found') {
+        cart = { restaurantId: null, restaurantName: '', deliveryFee: 0, lines: {} };
+        saveCart();
+        go('');
+      }
+      // Any other failure (no signal): leave the basket; the server still checks everything.
+    });
   }
 
   // The delivery pin is optional and only taken when the customer taps the
@@ -617,6 +696,13 @@
     el('ckPinLabel').textContent = 'Finding you…';
     navigator.geolocation.getCurrentPosition(
       function (pos) {
+        // A rough fix (Wi-Fi or cell tower) can be a kilometre out, and a
+        // driver sent to the wrong street is worse than one reading an
+        // address. Only a pin good to within about 100 m is kept.
+        if (pos.coords.accuracy != null && pos.coords.accuracy > 100) {
+          pin = null;
+          return paintPin('Your phone could not find you precisely enough (turn on GPS and try outside). Your driver will use the address you typed.');
+        }
         pin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         paintPin();
       },
@@ -649,6 +735,9 @@
         notes: el('ckNotes').value.trim() || undefined,
         deliveryLat: pin ? pin.lat : undefined,
         deliveryLng: pin ? pin.lng : undefined,
+        // What this page is showing. The server refuses the order if it would
+        // charge anything else.
+        expectedTotal: cents(subtotal() + cart.deliveryFee),
       },
     }).then(function (data) {
       pin = null;
@@ -663,9 +752,18 @@
       if (data.paymentUrl) window.location.href = data.paymentUrl;
       else go('#order/' + data.order.id);
     }).catch(function (err) {
-      setMsg('ckError', err.message);
       btn.disabled = false;
       btn.textContent = 'Place order';
+      // Sold out or repriced while they were typing: fix the basket, show the
+      // new total, and let them decide.
+      if (err.data && (err.data.soldOutItemId || err.data.priceChanged)) {
+        refreshBasket().then(function () {
+          if (!el('ckNotice').textContent) notice(err.message);
+          window.scrollTo(0, 0);
+        });
+        return;
+      }
+      setMsg('ckError', err.message);
     });
   });
 
@@ -792,6 +890,8 @@
     if (!token) { pendingAfterAuth = '#order/' + id; go('#signin'); return; }
     show('track');
     closeMap();
+    if (trackTimer) { clearTimeout(trackTimer); trackTimer = null; }
+    trackingId = id;
     el('trBanner').innerHTML = '';
     el('trSteps').innerHTML = '<div class="spin">Loading…</div>';
     el('trDriver').innerHTML = '';
@@ -801,7 +901,12 @@
   }
 
   function loadTracking(id, withOrder) {
+    // An answer can arrive after the customer has moved on to another order
+    // or another page. It must never be painted over what they are looking
+    // at now, nor keep polling in the background.
+    var current = function () { return trackingId === id; };
     api('/api/orders/' + id).then(function (data) {
+      if (!current()) return;
       var o = data.order;
       el('trName').textContent = o.restaurantName;
       el('trAddr').textContent = 'Delivering to ' + o.deliveryAddress;
@@ -830,9 +935,11 @@
       }
 
       if (o.paymentStatus !== 'paid') return renderUnpaid(o, id);
-      return api('/api/orders/' + id + '/tracking').then(function (t) { renderTracking(o, t.tracking, id); });
+      return api('/api/orders/' + id + '/tracking').then(function (t) {
+        if (current()) renderTracking(o, t.tracking, id);
+      });
     }).catch(function (err) {
-      el('trSteps').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+      if (current()) el('trSteps').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
     });
   }
 
@@ -899,7 +1006,7 @@
       var html = '<div class="driver-card"><div class="k">' +
         (status === 'out_for_delivery' ? 'Your driver is on the way' : 'Your driver') + '</div>' +
         '<div class="n">' + esc(t.driverName) + '</div>';
-      if (t.driverPhone) html += '<a href="tel:' + esc(t.driverPhone) + '">Call ' + esc(t.driverPhone) + '</a>';
+      if (t.driverPhone && tel(t.driverPhone)) html += '<a href="tel:' + tel(t.driverPhone) + '">Call ' + esc(t.driverPhone) + '</a>';
       if (t.driverLat != null && t.driverLng != null) {
         html += '<a href="https://www.google.com/maps/search/?api=1&query=' +
           encodeURIComponent(t.driverLat + ',' + t.driverLng) + '" target="_blank" rel="noopener">Open in Google Maps</a>';
@@ -948,7 +1055,7 @@
   function mark(kind, stale) {
     var size = kind === 'driver' ? 40 : 34;
     return window.L.divIcon({
-      className: '',
+      className: 'mk-wrap mk-wrap-' + kind,
       html: '<div class="mk mk-' + kind + (stale ? ' mk-stale' : '') + '" style="width:' + size + 'px;height:' + size + 'px;">' + MARKS[kind] + '</div>',
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
@@ -986,7 +1093,7 @@
 
     loadLeaflet().then(function () {
       // The customer may have left this order's page while the map loaded.
-      if ((window.location.hash || '') !== '#order/' + id) return;
+      if (trackingId !== id) return;
       var L = window.L;
       var fresh = false;
       if (!mapState || mapState.id !== id) {

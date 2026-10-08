@@ -10,11 +10,11 @@
 // is set, then MD5 the result. The same recipe is used both when building
 // the outgoing payment URL and when verifying an incoming ITN.
 //
-// Ships configured with PayFast's shared *sandbox* test credentials (see
-// render.yaml) so payments work immediately in test mode. To go live, swap
-// PAYFAST_MERCHANT_ID / PAYFAST_MERCHANT_KEY / PAYFAST_PASSPHRASE in Render's
-// Environment tab for your real merchant account's values, and set
-// PAYFAST_MODE to "live".
+// Which PayFast this talks to is decided by four environment variables set in
+// Render's Environment tab: PAYFAST_MODE ("live" or "sandbox") and the
+// merchant account's PAYFAST_MERCHANT_ID / PAYFAST_MERCHANT_KEY /
+// PAYFAST_PASSPHRASE. The passphrase must be exactly the one saved in the
+// PayFast dashboard, or every payment is refused with a signature error.
 const crypto = require('crypto');
 const https = require('https');
 
@@ -84,6 +84,8 @@ function isSignatureValid(body) {
 // Confirms with PayFast's own servers that an ITN really came from them --
 // protects against a spoofed POST to /notify. Sends the exact raw bytes we
 // received (not a re-serialized copy) since re-encoding could subtly differ.
+// Resolves true (PayFast confirms it), false (PayFast says it is not theirs),
+// or null (PayFast could not be reached, so nothing is known yet).
 function validateWithPayFast(rawBody) {
   return new Promise((resolve) => {
     const req = https.request(
@@ -99,10 +101,14 @@ function validateWithPayFast(rawBody) {
       (res) => {
         let data = '';
         res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => resolve(data.trim() === 'VALID'));
+        res.on('end', () => {
+          if (res.statusCode >= 500) return resolve(null);
+          resolve(data.trim() === 'VALID');
+        });
       }
     );
-    req.on('error', () => resolve(false));
+    req.setTimeout(10000, () => req.destroy(new Error('timeout')));
+    req.on('error', () => resolve(null));
     req.write(rawBody);
     req.end();
   });

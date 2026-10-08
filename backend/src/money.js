@@ -22,6 +22,23 @@ function share(amount, rate) {
   return Math.round((cents * tenThousandths) / 10000) / 100;
 }
 
+// free_until for a restaurant joining today. The free period includes its
+// last day, so "3 months free" starting on 8 October runs to 7 January, and
+// zero free months means no free period at all (NULL), not a free day.
+const FREE_UNTIL_SQL = `(
+  SELECT CASE WHEN value::int > 0
+    THEN ((now() AT TIME ZONE 'Africa/Johannesburg')::date + (value::int || ' months')::interval - interval '1 day')::date
+    ELSE NULL END
+  FROM settings WHERE key = 'free_months')`;
+
+// A phone number as people here write it: digits, with optional spaces,
+// dashes, brackets or a leading +. Anything else is not a phone number, and
+// since these are shown to other people as tap-to-call links, it matters.
+function isPhone(value) {
+  const s = String(value == null ? '' : value).trim();
+  return /^[+(]?[0-9][0-9 ()-]{5,18}[0-9]$/.test(s);
+}
+
 // The days a weekly payout can fall on.
 const PAYOUT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -139,5 +156,5 @@ async function driverOwing(driverId) {
 
 module.exports = {
   money, share, getSettings, rateFor, recordSplit, restaurantOwing, driverOwing,
-  inFreePeriod, dateString, saDate, PAYOUT_DAYS,
+  inFreePeriod, dateString, saDate, PAYOUT_DAYS, FREE_UNTIL_SQL, isPhone,
 };

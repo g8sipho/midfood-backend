@@ -21,6 +21,20 @@ const COLS = `o.id, o.restaurant_name AS "restaurantName", r.address AS "restaur
   o.ready_at AS "readyAt", o.created_at AS "createdAt"`;
 const FROM = `FROM orders o JOIN restaurants r ON r.id = o.restaurant_id JOIN users u ON u.id = o.user_id`;
 
+// What a driver may see of a job they have not been given (an open offer) or
+// no longer have (history): enough to decide and to recognise it, but not the
+// customer's phone number or exact GPS pin. Those go only to the driver who is
+// actually delivering the order.
+function withoutCustomerDetails(orders) {
+  for (const o of orders) {
+    o.hasPin = o.deliveryLat != null && o.deliveryLng != null;
+    o.deliveryLat = null;
+    o.deliveryLng = null;
+    o.customerPhone = null;
+  }
+  return orders;
+}
+
 async function withItems(orders) {
   for (const o of orders) {
     const { rows } = await pool.query('SELECT name, quantity FROM order_items WHERE order_id = $1', [o.id]);
@@ -46,7 +60,7 @@ router.get('/orders/available', async (req, res, next) => {
        WHERE o.payment_status = 'paid' AND o.ready_at IS NOT NULL AND o.driver_id IS NULL
          AND o.status IN ('confirmed','preparing') ORDER BY o.ready_at`
     );
-    res.json({ orders: await withItems(rows) });
+    res.json({ orders: await withItems(withoutCustomerDetails(rows)) });
   } catch (err) { next(err); }
 });
 
@@ -77,7 +91,11 @@ router.get('/orders/history', async (req, res, next) => {
        FROM orders WHERE driver_id = $1 AND status = 'delivered'`,
       [req.driverId]
     );
-    res.json({ orders: rows, earnings: totals.rows[0].earnings, earningsToday: totals.rows[0].earningsToday });
+    res.json({
+      orders: withoutCustomerDetails(rows),
+      earnings: totals.rows[0].earnings,
+      earningsToday: totals.rows[0].earningsToday,
+    });
   } catch (err) { next(err); }
 });
 
@@ -158,7 +176,7 @@ router.get('/earnings', async (req, res, next) => {
 router.get('/statement', async (req, res, next) => {
   try {
     const payoutId = req.query.payout ? String(req.query.payout) : null;
-    if (payoutId && !/^[0-9a-f-]{36}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
+    if (payoutId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
     const { rows } = await pool.query(
       `SELECT o.id, o.updated_at AS "deliveredAt", o.restaurant_name AS "restaurantName",
               o.delivery_fee::float8 AS gross, o.delivery_cut::float8 AS deduction,

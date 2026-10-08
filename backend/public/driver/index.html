@@ -300,7 +300,9 @@
     n.className = 'msg ' + (kind || 'error');
     n.style.display = text ? 'block' : 'none';
   };
-  const esc = (s) => { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  // Safe for text and for attribute values alike (quotes are escaped too).
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ESC[c]);
   const rand = (n) => 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, '');
 
   function showView(v) {
@@ -450,7 +452,10 @@
     div.className = 'order' + (mine ? ' mine' : '');
     const items = (o.items || []).map((i) => i.quantity + '× ' + i.name).join(', ');
     const picked = o.status === 'out_for_delivery';
-    const hasPin = o.deliveryLat != null && o.deliveryLng != null;
+    // An open offer only says that a pin exists; the pin itself arrives once
+    // this driver has the job.
+    const gotPin = o.deliveryLat != null && o.deliveryLng != null;
+    const hasPin = gotPin || !!o.hasPin;
     div.innerHTML =
       '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
       '<div class="fee">' + rand(earns(o)) + '<small>you earn</small></div></div>' +
@@ -478,7 +483,7 @@
     }
 
     const target = picked ? o.deliveryAddress : o.restaurantAddress || o.restaurantName;
-    const link = picked && hasPin ? pinLink(o.deliveryLat, o.deliveryLng) : mapsLink(target);
+    const link = picked && gotPin ? pinLink(o.deliveryLat, o.deliveryLng) : mapsLink(target);
     add('map', picked ? 'Directions' : 'To restaurant', () => window.open(link, '_blank'));
     const phone = picked ? o.customerPhone : o.restaurantPhone;
     if (phone) add('call', 'Call', () => (window.location.href = 'tel:' + phone));

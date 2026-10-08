@@ -279,6 +279,7 @@
       <div><div class="v" id="sToday">0</div><div class="k">Delivered today</div></div>
       <div><div class="v" id="sGmv">R0</div><div class="k">Total paid orders</div></div>
       <div><div class="v" id="sDrivers">0</div><div class="k">Drivers online</div></div>
+      <div id="sRefundsBox" style="display:none;border-color:var(--error);"><div class="v" id="sRefunds" style="color:var(--error);">R0</div><div class="k">Refunds you owe</div></div>
     </div>
 
     <div class="card refunds" id="refundCard" style="display:none;">
@@ -437,10 +438,10 @@
     }
   });
 
+  // Safe for text and for attribute values alike (quotes are escaped too).
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ESC[c]);
   }
 
   let defaultRate = 0.15;      // platform commission, for showing a restaurant's terms
@@ -490,15 +491,20 @@
       const err = td.querySelector('[data-a="err"]');
       err.textContent = '';
       try {
-        await adminFetch(`/api/admin/restaurants/${r.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            deliveryFee: f('fee').value === '' ? null : Number(f('fee').value),
-            etaMinutes: Number(f('eta').value),
-            freeUntil: f('free').value || null,
-            commissionRate: f('rate').value === '' ? null : Number(f('rate').value) / 100,
-          }),
-        });
+        // Send only what was actually changed, so an old value in one box
+        // can never block saving another.
+        const now = {
+          deliveryFee: f('fee').value === '' ? null : Number(f('fee').value),
+          etaMinutes: Number(f('eta').value),
+          freeUntil: f('free').value || null,
+          commissionRate: f('rate').value === '' ? null : Math.round(Number(f('rate').value) * 100) / 10000,
+        };
+        const was = { deliveryFee: r.deliveryFee, etaMinutes: r.etaMinutes, freeUntil: r.freeUntil || null, commissionRate: r.commissionRate };
+        const changed = {};
+        Object.keys(now).forEach((k) => { if (now[k] !== was[k]) changed[k] = now[k]; });
+        if (Object.keys(changed).length) {
+          await adminFetch(`/api/admin/restaurants/${r.id}`, { method: 'PATCH', body: JSON.stringify(changed) });
+        }
         editingRestaurant = null;
         await loadAll();
       } catch (e) { err.textContent = e.message; }
@@ -554,45 +560,84 @@
 
   const when = (iso) => new Date(iso).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-  // True while someone is partway through something in this list (typing a
-  // reference, or deciding whether to cancel), so the auto-refresh leaves it be.
-  function busyIn(box) {
-    if (box.dataset.busy) return true;
-    return Array.from(box.querySelectorAll('input')).some((i) => i.value !== '' || i === document.activeElement);
+  // Redraws a list from fresh data without disturbing a row someone is using.
+  // Rows are matched by id: a row that is `inUse` (half-typed reference, open
+  // cancel prompt) is kept exactly as it is; every other row is rebuilt; rows
+  // for things that no longer exist are dropped. So new refunds and newly
+  // stuck orders always appear, whatever else is open on the page.
+  function syncList(box, items, idOf, build, inUse) {
+    const old = new Map();
+    Array.from(box.children).forEach((n) => { if (n.dataset.id) old.set(n.dataset.id, n); });
+    const next = items.map((item) => {
+      const id = String(idOf(item));
+      const kept = old.get(id);
+      if (kept && inUse(kept)) return kept;
+      const row = build(item);
+      row.dataset.id = id;
+      return row;
+    });
+    // Re-attach in order. Rows being kept are moved, never recreated, so the
+    // cursor and whatever was typed stay put.
+    const focused = document.activeElement;
+    Array.from(box.children).forEach((n) => { if (!next.includes(n)) n.remove(); });
+    next.forEach((row, index) => { if (box.children[index] !== row) box.insertBefore(row, box.children[index] || null); });
+    if (focused && box.contains(focused) && document.activeElement !== focused) focused.focus();
+  }
+
+  const rowInUse = (row) => !!row.dataset.open ||
+    Array.from(row.querySelectorAll('input')).some((i) => i.value !== '' || i === document.activeElement);
+
+  function refundRow(o) {
+    const duplicate = o.kind === 'duplicate';
+    const div = document.createElement('div');
+    div.className = 'attn';
+    div.innerHTML =
+      '<div class="top"><div class="nm">' + escapeHtml(o.customerName) + ' · ' + escapeHtml(o.restaurantName) + '</div>' +
+      '<div class="amt" style="color:var(--error)">' + rand(o.total) + '</div></div>' +
+      '<div class="dt">' +
+      (duplicate
+        ? 'Paid twice for the same order — this second payment arrived ' + when(o.updatedAt) + '. The order itself is fine; only this payment goes back.'
+        : (o.cancelledBy === 'admin' ? 'Cancelled by you' : 'Declined by the restaurant') + ' on ' + when(o.updatedAt) +
+          (o.rejectedReason ? ' — “' + escapeHtml(o.rejectedReason) + '”' : '')) + '<br>' +
+      'PayFast payment ID: <strong>' + escapeHtml(o.paymentReference || 'not recorded') + '</strong>' +
+      ' · ' + escapeHtml(o.customerEmail || '') + (o.customerPhone ? ' · ' + escapeHtml(o.customerPhone) : '') + '</div>' +
+      '<div class="acts"></div>';
+    const acts = div.querySelector('.acts');
+    const path = duplicate
+      ? '/api/admin/extra-payments/' + encodeURIComponent(o.paymentReference) + '/refunded'
+      : '/api/admin/orders/' + o.id + '/refunded';
+
+    const idle = () => {
+      delete div.dataset.open;
+      acts.innerHTML = '<input placeholder="PayFast refund reference (optional)" aria-label="Refund reference" />' +
+        '<button class="btn ok">I have refunded ' + rand(o.total) + '</button>';
+      acts.querySelector('button').addEventListener('click', confirmStep);
+    };
+    // Recording a refund cannot be undone and tells the customer their money
+    // is on its way, so it takes two deliberate presses, like cancelling does.
+    const confirmStep = () => {
+      const reference = acts.querySelector('input').value.trim();
+      div.dataset.open = '1';
+      acts.innerHTML = '<span style="font-size:13px;">Have you already sent ' + rand(o.total) +
+        ' back in PayFast? The customer will be told it is on its way.</span>' +
+        '<button class="btn ok" data-a="yes">Yes, record it</button>' +
+        '<button class="btn plain" data-a="no">Not yet</button><span class="inline-err"></span>';
+      acts.querySelector('[data-a="no"]').addEventListener('click', () => { idle(); acts.querySelector('input').value = reference; });
+      acts.querySelector('[data-a="yes"]').addEventListener('click', async () => {
+        try {
+          await adminFetch(path, { method: 'POST', body: JSON.stringify({ reference: reference || null }) });
+          delete div.dataset.open;
+          await loadAll();
+        } catch (e) { acts.querySelector('.inline-err').textContent = e.message; }
+      });
+    };
+    idle();
+    return div;
   }
 
   function renderRefunds(list) {
-    const box = el('refundList');
     el('refundCard').style.display = list.length ? 'block' : 'none';
-    if (busyIn(box)) return;
-    box.innerHTML = '';
-    list.forEach((o) => {
-      const div = document.createElement('div');
-      div.className = 'attn';
-      div.innerHTML =
-        '<div class="top"><div class="nm">' + escapeHtml(o.customerName) + ' · ' + escapeHtml(o.restaurantName) + '</div>' +
-        '<div class="amt" style="color:var(--error)">' + rand(o.total) + '</div></div>' +
-        '<div class="dt">' + (o.cancelledBy === 'admin' ? 'Cancelled by you' : 'Declined by the restaurant') + ' on ' + when(o.updatedAt) +
-        (o.rejectedReason ? ' — “' + escapeHtml(o.rejectedReason) + '”' : '') + '<br>' +
-        'PayFast payment ID: <strong>' + escapeHtml(o.paymentReference || 'not recorded') + '</strong>' +
-        ' · ' + escapeHtml(o.customerEmail || '') + (o.customerPhone ? ' · ' + escapeHtml(o.customerPhone) : '') + '</div>' +
-        '<div class="acts"><input placeholder="PayFast refund reference (optional)" aria-label="Refund reference" />' +
-        '<button class="btn ok">I have refunded ' + rand(o.total) + '</button><span class="inline-err"></span></div>';
-      div.querySelector('button').addEventListener('click', async () => {
-        const err = div.querySelector('.inline-err');
-        err.textContent = '';
-        try {
-          await adminFetch('/api/admin/orders/' + o.id + '/refunded', {
-            method: 'POST',
-            body: JSON.stringify({ reference: div.querySelector('input').value.trim() || null }),
-          });
-          div.querySelector('input').value = '';
-          div.querySelector('input').blur();
-          await loadAll();
-        } catch (e) { err.textContent = e.message; }
-      });
-      box.appendChild(div);
-    });
+    syncList(el('refundList'), list, (o) => (o.kind === 'duplicate' ? 'x-' + o.paymentReference : o.id), refundRow, rowInUse);
   }
 
   const STATUS_WORDS = {
@@ -602,52 +647,54 @@
     out_for_delivery: 'Out for delivery',
   };
 
-  function renderLive(list) {
-    const box = el('liveList');
-    el('liveCard').style.display = list.length ? 'block' : 'none';
-    if (busyIn(box)) return;
-    box.innerHTML = '';
-    list.forEach((o) => {
-      const div = document.createElement('div');
-      div.className = 'attn';
-      let state = STATUS_WORDS[o.status] || o.status;
-      if (o.readyAt && o.status !== 'out_for_delivery') state = o.driverName ? 'Ready — driver on the way to collect' : 'Ready — waiting for a driver';
-      div.innerHTML =
-        '<div class="top"><div class="nm">' + escapeHtml(o.restaurantName) + ' → ' + escapeHtml(o.customerName) + '</div>' +
-        '<div class="amt">' + rand(o.total) + '</div></div>' +
-        '<div class="dt">' + (o.stuck ? '<span class="late">Not accepted after ' + o.waitingMinutes + ' minutes — phone the restaurant. </span>' : '') +
-        escapeHtml(state) + ' · placed ' + when(o.createdAt) +
-        (o.driverName ? ' · driver ' + escapeHtml(o.driverName) : '') +
-        (o.customerPhone ? ' · customer ' + escapeHtml(o.customerPhone) : '') + '</div>' +
-        '<div class="acts"></div>';
-      const acts = div.querySelector('.acts');
-      if (o.status !== 'out_for_delivery') {
-        const start = document.createElement('button');
-        start.className = 'btn danger';
-        start.textContent = 'Cancel order';
-        start.addEventListener('click', () => {
-          // Two deliberate steps instead of a pop-up: say why, then confirm.
-          acts.innerHTML = '<input placeholder="Reason the customer will see" aria-label="Reason" />' +
-            '<button class="btn danger" data-a="yes">Cancel it and owe a refund of ' + rand(o.total) + '</button>' +
-            '<button class="btn plain" data-a="no">Keep order</button><span class="inline-err"></span>';
-          box.dataset.busy = '1';
-          acts.querySelector('input').focus();
-          const done = () => { delete box.dataset.busy; acts.innerHTML = ''; return loadAll(); };
-          acts.querySelector('[data-a="no"]').addEventListener('click', done);
-          acts.querySelector('[data-a="yes"]').addEventListener('click', async () => {
-            try {
-              await adminFetch('/api/admin/orders/' + o.id + '/cancel', {
-                method: 'POST',
-                body: JSON.stringify({ reason: acts.querySelector('input').value.trim() }),
-              });
-              await done();
-            } catch (e) { acts.querySelector('.inline-err').textContent = e.message; }
+  function liveRow(o) {
+    const div = document.createElement('div');
+    div.className = 'attn';
+    let state = STATUS_WORDS[o.status] || o.status;
+    if (o.readyAt && o.status !== 'out_for_delivery') state = o.driverName ? 'Ready — driver on the way to collect' : 'Ready — waiting for a driver';
+    div.innerHTML =
+      '<div class="top"><div class="nm">' + escapeHtml(o.restaurantName) + ' → ' + escapeHtml(o.customerName) + '</div>' +
+      '<div class="amt">' + rand(o.total) + '</div></div>' +
+      '<div class="dt">' + (o.stuck ? '<span class="late">Not accepted ' + o.waitingMinutes + ' minutes after payment — phone the restaurant. </span>' : '') +
+      escapeHtml(state) + ' · paid ' + when(o.paidAt || o.createdAt) +
+      (o.driverName ? ' · driver ' + escapeHtml(o.driverName) : '') +
+      (o.customerPhone ? ' · customer ' + escapeHtml(o.customerPhone) : '') + '</div>' +
+      '<div class="acts"></div>';
+    const acts = div.querySelector('.acts');
+    if (o.status === 'out_for_delivery') return div;
+
+    const idle = () => {
+      delete div.dataset.open;
+      acts.innerHTML = '<button class="btn danger">Cancel order</button>';
+      acts.querySelector('button').addEventListener('click', ask);
+    };
+    // Two deliberate steps instead of a pop-up: say why, then confirm.
+    const ask = () => {
+      div.dataset.open = '1';
+      acts.innerHTML = '<input placeholder="Reason the customer will see" aria-label="Reason" />' +
+        '<button class="btn danger" data-a="yes">Cancel it and owe a refund of ' + rand(o.total) + '</button>' +
+        '<button class="btn plain" data-a="no">Keep order</button><span class="inline-err"></span>';
+      acts.querySelector('input').focus();
+      acts.querySelector('[data-a="no"]').addEventListener('click', () => { idle(); loadAll(); });
+      acts.querySelector('[data-a="yes"]').addEventListener('click', async () => {
+        try {
+          await adminFetch('/api/admin/orders/' + o.id + '/cancel', {
+            method: 'POST',
+            body: JSON.stringify({ reason: acts.querySelector('input').value.trim() }),
           });
-        });
-        acts.appendChild(start);
-      }
-      box.appendChild(div);
-    });
+          delete div.dataset.open;
+          acts.innerHTML = '';
+          await loadAll();
+        } catch (e) { acts.querySelector('.inline-err').textContent = e.message; }
+      });
+    };
+    idle();
+    return div;
+  }
+
+  function renderLive(list) {
+    el('liveCard').style.display = list.length ? 'block' : 'none';
+    syncList(el('liveList'), list, (o) => o.id, liveRow, (row) => !!row.dataset.open);
   }
 
   async function setAccount(restaurant) {
@@ -797,6 +844,8 @@
     el('sToday').textContent = ord.stats.deliveredToday;
     el('sGmv').textContent = rand(ord.stats.gmv);
     el('sDrivers').textContent = drv.drivers.filter((d) => d.online && d.approved).length;
+    el('sRefunds').textContent = rand(ord.stats.refundsDue);
+    el('sRefundsBox').style.display = ord.stats.refundsDue > 0 ? 'block' : 'none';
   }
 
   async function loadRestaurants() {

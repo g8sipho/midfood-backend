@@ -314,7 +314,7 @@ router.get('/earnings', async (req, res, next) => {
 router.get('/statement', async (req, res, next) => {
   try {
     const payoutId = req.query.payout ? String(req.query.payout) : null;
-    if (payoutId && !/^[0-9a-f-]{36}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
+    if (payoutId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
     const { rows } = await pool.query(
       `SELECT o.id, o.updated_at AS "deliveredAt", u.name AS "customerName",
               o.subtotal::float8 AS gross, o.commission::float8 AS deduction,

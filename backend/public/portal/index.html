@@ -475,10 +475,10 @@
     });
   }
 
+  // Safe for text and for attribute values alike (quotes are escaped too).
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ESC[c]);
   }
 
   async function toggleAvailability(item) {

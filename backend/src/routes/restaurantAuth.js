@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool, uuid } = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
+const money = require('../money');
 
 const router = express.Router();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -58,6 +59,9 @@ router.post('/register', async (req, res, next) => {
     if (String(password).length < 6) {
       return res.status(400).json({ error: 'password must be at least 6 characters' });
     }
+    if (!money.isPhone(phone)) {
+      return res.status(400).json({ error: 'Please enter a valid phone number, e.g. 082 123 4567' });
+    }
     const normalizedUsername = String(username).trim().toLowerCase();
     if (!/^[a-z0-9._-]{3,30}$/.test(normalizedUsername)) {
       return res.status(400).json({ error: 'username must be 3-30 letters, numbers, dots, dashes or underscores' });
@@ -70,8 +74,7 @@ router.post('/register', async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, 10);
     await pool.query(
       `INSERT INTO restaurants (id, name, cuisine, eta_minutes, delivery_fee, rating, hero_color, username, password_hash, approved, phone, address, free_until)
-       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8, false, $9, $10,
-               (now() + ((SELECT value FROM settings WHERE key = 'free_months')::int || ' months')::interval)::date)`,
+       VALUES ($1, $2, $3, $4, $5, 4.5, $6, $7, $8, false, $9, $10, ${money.FREE_UNTIL_SQL})`,
       [
         uuid(), name, cuisine,
         Number(etaMinutes) > 0 ? Number(etaMinutes) : 35,

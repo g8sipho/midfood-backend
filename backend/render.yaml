@@ -14,12 +14,13 @@
 # Render dashboard before deploying, and adjust the `plan` values below if
 # they've been renamed or retired.
 #
-# PAYFAST_* below ship set to PayFast's shared *sandbox* test credentials, so
-# checkout works immediately in test mode with no signup required. To accept
-# real payments: sign up for a PayFast merchant account, then in the Render
-# dashboard (midfood-backend -> Environment) replace PAYFAST_MERCHANT_ID,
-# PAYFAST_MERCHANT_KEY and PAYFAST_PASSPHRASE with your real account's
-# values, and set PAYFAST_MODE to "live".
+# The four PAYFAST_* values are marked `sync: false`: they are set by hand in
+# the Render dashboard (midfood-backend -> Environment) and this file must
+# never overwrite them. They hold the live merchant account's details, and a
+# deploy that quietly put test values back would stop MidFood taking money.
+# For a test copy of MidFood, PayFast's shared sandbox values are
+# PAYFAST_MODE=sandbox, merchant id 10004002, merchant key q1cd2rdny4a53,
+# passphrase "payfast".
 
 services:
   - type: web
@@ -39,18 +40,18 @@ services:
       - key: ADMIN_KEY
         generateValue: true
       - key: PAYFAST_MODE
-        value: sandbox
+        sync: false
       # Leave blank: the app and the portal/driver pages are served from this
       # same host, so no other website needs cross-origin access. Add a
       # comma-separated list only if a separate web front-end is ever added.
       - key: ALLOWED_ORIGINS
         value: ''
       - key: PAYFAST_MERCHANT_ID
-        value: '10004002'
+        sync: false
       - key: PAYFAST_MERCHANT_KEY
-        value: q1cd2rdny4a53
+        sync: false
       - key: PAYFAST_PASSPHRASE
-        value: payfast
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: midfood-db

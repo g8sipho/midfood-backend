@@ -79,7 +79,8 @@ function cleanPin(lat, lng) {
 // includes a `paymentUrl` to redirect them to next. See src/payments/payfast.js
 // and src/routes/payments.js for how payment is actually confirmed.
 router.post('/', async (req, res, next) => {
-  const { restaurantId, items, deliveryAddress, customerPhone, notes, deliveryLat, deliveryLng } = req.body || {};
+  const { restaurantId, items, deliveryAddress, customerPhone, notes, deliveryLat, deliveryLng, expectedTotal } =
+    req.body || {};
   const pin = cleanPin(deliveryLat, deliveryLng);
 
   if (!restaurantId || !Array.isArray(items) || items.length === 0) {
@@ -125,7 +126,8 @@ router.post('/', async (req, res, next) => {
       if (!menuItem.available) {
         await client.query('ROLLBACK');
         return res.status(409).json({
-          error: `Sorry, ${menuItem.name} has just sold out. Please remove it and try again.`,
+          error: `Sorry, ${menuItem.name} has just sold out.`,
+          soldOutItemId: menuItem.id,
         });
       }
       const quantity = Number(requested.quantity) > 0 ? Math.floor(Number(requested.quantity)) : 1;
@@ -135,6 +137,19 @@ router.post('/', async (req, res, next) => {
 
     const deliveryFee = restaurant.deliveryFee;
     const total = subtotal + deliveryFee;
+
+    // The ordering page sends the total it showed the customer. If a price or
+    // the delivery fee has changed since they opened the menu, they are asked
+    // to look again rather than being charged a figure they never saw.
+    if (expectedTotal !== undefined && expectedTotal !== null
+        && Math.abs(Number(expectedTotal) - total) > 0.005) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Prices have changed since you opened the menu. Please check your order and the new total.',
+        priceChanged: true,
+        total,
+      });
+    }
     const orderId = uuid();
     const now = new Date().toISOString();
     const trimmedAddress = String(deliveryAddress).trim();
@@ -279,7 +294,16 @@ router.get('/:id/tracking', async (req, res, next) => {
       [req.params.id, req.userId]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Order not found' });
-    res.json({ tracking: rows[0] });
+    const tracking = rows[0];
+    // The driver's whereabouts and number are the customer's business only
+    // while that driver is bringing them food.
+    if (tracking.status === 'delivered' || tracking.status === 'rejected') {
+      tracking.driverLat = null;
+      tracking.driverLng = null;
+      tracking.driverSeenAt = null;
+      tracking.driverPhone = null;
+    }
+    res.json({ tracking });
   } catch (err) {
     next(err);
   }

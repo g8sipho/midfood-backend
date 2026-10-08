@@ -159,17 +159,27 @@ async function paymentStatus(orderId) {
 
 // Pays for an order and waits until the server has recorded it (the server
 // answers PayFast first and does the work just after).
+// Returns PayFast's payment id, so a test can replay the very same notification.
 async function pay(order) {
-  await notify(order);
+  const pfPaymentId = String(crypto.randomInt(1000000, 9999999));
+  await notify(order, { pf_payment_id: pfPaymentId });
   for (let i = 0; i < 100; i += 1) {
     if ((await paymentStatus(order.id)) === 'paid') {
       // The money split is written straight after the status flips.
       const { rows } = await pool.query('SELECT commission FROM orders WHERE id = $1', [order.id]);
-      if (rows[0].commission !== null) return;
+      if (rows[0].commission !== null) return pfPaymentId;
     }
     await new Promise((r) => setTimeout(r, 20));
   }
   throw new Error('order was never marked paid');
+}
+
+// Swaps in a different answer from "PayFast's servers" for one test, and
+// returns a function that puts the usual one back.
+function payfastAnswers(fn) {
+  const usual = payfast.validateWithPayFast;
+  payfast.validateWithPayFast = fn;
+  return () => { payfast.validateWithPayFast = usual; };
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -197,5 +207,5 @@ async function settings(values) {
 
 module.exports = {
   ADMIN, BASE, start, stop, api, customer, restaurant, driver, placeOrder, notify, pay, paymentStatus,
-  deliver, settings, sleep, unique, db: () => pool,
+  deliver, settings, sleep, unique, payfastAnswers, db: () => pool,
 };

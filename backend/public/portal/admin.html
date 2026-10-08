@@ -544,7 +544,10 @@
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i].trim();
       if (!line) continue;
-      const m = line.match(/^(.*?)[\s\-–—:|,;]*R?\s*(\d{1,6}(?:[.,]\d{1,2})?)\s*$/i);
+      // The price is the last number on the line, after a space or other
+      // separator, with an optional R in front. The separator is required: it
+      // is what stops the "r" at the end of "Platter" being read as the R.
+      const m = line.match(/^(.*?)[\s\-–—:|,;]+(?:R\s*)?(\d{1,6}(?:[.,]\d{1,2})?)\s*$/i);
       if (!m || !m[1].trim()) return { error: 'Line ' + (i + 1) + ' needs a dish name followed by a price: “' + line.slice(0, 40) + '”' };
       const parts = m[1].trim().split(/\s+[\-–—|]\s+/);
       dishes.push({

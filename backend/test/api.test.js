@@ -1024,6 +1024,53 @@ describe("loading a restaurant's menu from the admin page", () => {
   });
 });
 
+describe("the admin page's pasted price list reader", () => {
+  // The reader lives in the admin page itself (no build step), so it is lifted
+  // out of the page's script and run here exactly as the browser runs it.
+  const fs = require('fs');
+  const path = require('path');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'public', 'portal', 'admin.html'), 'utf8');
+  const start = page.indexOf('function parseDishes(text) {');
+  const end = page.indexOf("// A restaurant's whole menu, opened under its row");
+  // eslint-disable-next-line no-new-func
+  const parseDishes = new Function(`${page.slice(start, end)}; return parseDishes;`)();
+  const read = (text) => parseDishes(text).dishes.map((d) => [d.name, d.description, d.price]);
+
+  it('reads a name and a price', () => {
+    assert.ok(start > 0 && end > start, 'the reader is still where this test expects it');
+    assert.deepEqual(read('Kota 45'), [['Kota', '', 45]]);
+    assert.deepEqual(read('Large chips R30'), [['Large chips', '', 30]]);
+    assert.deepEqual(read('Kota: 25,50'), [['Kota', '', 25.5]]);
+    assert.deepEqual(read('Wings - R 60.00'), [['Wings', '', 60]]);
+  });
+
+  it('never clips a name that ends in r', () => {
+    // "Platter 850" was once read as "Platte" with the r taken for the rand sign.
+    assert.deepEqual(read('Large Meat Platter 850\nFruit Platter R600\nBurger 55\nWors Roll, R35\nBeer batter 40'), [
+      ['Large Meat Platter', '', 850], ['Fruit Platter', '', 600], ['Burger', '', 55], ['Wors Roll', '', 35], ['Beer batter', '', 40],
+    ]);
+  });
+
+  it('keeps numbers that belong to the name', () => {
+    assert.deepEqual(read('2 Piece chicken 45\n7 Colours plate 95\nSpiderman Cake (design 2) 650\nCoke 2L 28'), [
+      ['2 Piece chicken', '', 45], ['7 Colours plate', '', 95], ['Spiderman Cake (design 2)', '', 650], ['Coke 2L', '', 28],
+    ]);
+  });
+
+  it('splits off a description, and skips blank lines', () => {
+    assert.deepEqual(read('Full House Kota - polony, russian, egg, cheese, chips - 45\n\n  \nFamily platter – wings, ribs – R320.50'), [
+      ['Full House Kota', 'polony, russian, egg, cheese, chips', 45], ['Family platter', 'wings, ribs', 320.5],
+    ]);
+  });
+
+  it('names the line it cannot read instead of guessing', () => {
+    assert.match(parseDishes('Kota 45\nJust a name').error, /Line 2/);
+    assert.match(parseDishes('45').error, /Line 1/);
+    assert.match(parseDishes('Wings 6 pc').error, /Line 1/);
+    assert.match(parseDishes('  \n ').error, /at least one dish/);
+  });
+});
+
 describe('the pages themselves', () => {
   it('every front door is served', async () => {
     for (const path of ['/', '/order/', '/portal/', '/driver/', '/portal/admin.html', '/privacy/']) {

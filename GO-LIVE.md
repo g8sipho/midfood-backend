@@ -4,6 +4,12 @@ MidFood is built, live on midfood.co.za, and tested. This page is the routine:
 what to do each day, each Tuesday, and when something goes wrong. Everything
 here happens on the admin page: **midfood.co.za/portal/admin.html**.
 
+> **Before any of this matters: payments are still in test mode.** MidFood
+> needs its own PayFast account (not the G8 VIP one). Once PayFast approves
+> it, see "PayFast" below to switch it on. Until then customers cannot pay,
+> so do not send them to the site yet. Restaurants and drivers can sign up
+> in the meantime.
+
 Your admin key is in Render → midfood-backend → **Environment** → `ADMIN_KEY`.
 Keep it private. It is the only thing protecting the admin page.
 
@@ -86,6 +92,15 @@ Payments run on the four `PAYFAST_…` values in Render → Environment:
 | `PAYFAST_MODE` | `live` for real money, `sandbox` for test cards |
 | `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY` | From your PayFast dashboard → Settings |
 | `PAYFAST_PASSPHRASE` | The security passphrase you set in PayFast. It must match **exactly**, or every payment fails. |
+
+Use MidFood's **own** PayFast account for these, never the G8 VIP Exclusive
+one: g8vip.co.za takes castle payments through that account, and a passphrase
+on it would break the Pay Now buttons there.
+
+To switch on: in the MidFood PayFast account go to Settings → Developer
+Settings, set a Security Passphrase, then put the Merchant ID, Merchant Key
+and that passphrase into Render, set `PAYFAST_MODE` to `live`, and save. Then
+place one small real order and refund it to prove both directions.
 
 Nothing needs setting inside PayFast for notifications: MidFood tells PayFast
 where to report each payment.

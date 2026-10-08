@@ -5,8 +5,9 @@
 **Owner:** Sipho Masombuka · Middelburg, Mpumalanga, South Africa
 **What it is:** A food delivery platform for Middelburg — customers order from
 local restaurants, pay by card, and a MidFood driver delivers.
-**Status (8 Oct 2026):** Live on midfood.co.za with everything needed to take
-real money. See *Where things stand* for what is switched on.
+**Status (8 Oct 2026):** Live on midfood.co.za and fully built, but **not yet
+taking real money**: it is waiting on a PayFast account of its own. See *Where
+things stand*.
 
 `GO-LIVE.md` beside this file is Sipho's day-to-day guide: daily checks,
 refunds, the Tuesday payout run.
@@ -23,7 +24,7 @@ refunds, the Tuesday payout run.
 | Domain + hosting | Axxess (ccp.axxess.co.za) · cPanel `cphost29.vpslocal.co.za` |
 | DNS | Axxess client area → the midfood.co.za hosting service → DNS Zones |
 | Local copies | `C:\Users\G8VIP\OneDrive\Documents\G8 MidFood` — this file, `GO-LIVE.md`, and dated code snapshots (`midfood-complete-2026-10-08.zip` is the go-live build; the undated zip is from before it) |
-| Payments | PayFast. Mode and merchant details are four `PAYFAST_…` values in Render → Environment |
+| Payments | PayFast. Mode and merchant details are four `PAYFAST_…` values in Render → Environment. **Test mode until MidFood has its own PayFast account** — see *Where things stand*. |
 | Restaurant flyer | A Claude artifact, "MidFood — Restaurant Flyer" (A4 front/back + WhatsApp square). Finished: 072 643 7784, Tuesday payouts. |
 
 ## The front doors
@@ -174,16 +175,47 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - Nothing was owed, in progress, or awaiting a refund at that point: no paid
   orders have gone through yet.
 
-**PayFast.** Sipho's live merchant account is approved. Whether Render already
-holds the live values has not been checked: as of 2 Oct it held PayFast's
-sandbox ones. To switch: Render → midfood-backend → Environment, set
-`PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE` to the live
-account's values and `PAYFAST_MODE` to `live`, then save and deploy. Then place
-one small real order end to end and refund it.
+**PayFast — still in test mode, by decision (8 Oct 2026)**
+
+- The only live PayFast account Sipho has is **G8 VIP Exclusive's**, and
+  g8vip.co.za takes castle payments through it. It is **not** to be used for
+  MidFood: customers would see "G8 VIP Exclusive" when paying for food, the
+  two businesses' money would share one balance, and the account cannot be
+  given a passphrase, because g8vip.co.za sends PayFast unsigned payment forms
+  and a passphrase would break its Pay Now buttons.
+- Sipho is **opening a separate PayFast account for MidFood** himself
+  (https://payfast.io/gateway-aggregator-selector/ — online payments,
+  industry Marketplace or Food & Drink). PayFast asks for ID, proof of address
+  no older than three months, and a bank confirmation letter (company papers
+  too if registering a company), and says verification usually takes about two
+  business days once valid documents are in. It will probably need an email
+  address the G8 VIP account is not already using.
+- Nothing was changed on the G8 VIP PayFast account. Sipho did switch on
+  two-factor login for it (authenticator app on his phone) during this session.
+- Render's `PAYFAST_…` values were not touched. As of 2 Oct they were
+  PayFast's sandbox ones; this was not re-checked.
+- **Until the MidFood account is live, customers cannot pay.** Chef Lue is
+  visible on the site, but checkout goes to PayFast's test page, which takes
+  no real cards. Hold off sending customers to the site until then.
+
+**When the MidFood PayFast account is approved**
+
+1. In the new account: Settings → Developer Settings. Set a **Security
+   Passphrase** (Sipho types it and keeps it).
+2. Render → midfood-backend → Environment → Edit. Sipho pastes the new
+   account's Merchant ID, Merchant Key and that passphrase into
+   `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`; set
+   `PAYFAST_MODE` to `live`; save and deploy.
+3. Place one small real order end to end (order, pay, accept, deliver), check
+   it lands on the admin page with the right split, then cancel/refund a
+   second one to prove the refund path.
 
 ## Still to do, roughly in order
 
-1. **Print the flyer** and sign up more restaurants.
+1. **Open the MidFood PayFast account** and switch payments to live (steps
+   above). Nothing earns until this is done.
+1. **Print the flyer** and sign up more restaurants. This can go ahead now;
+   restaurants do not need payments to be live to sign up and load menus.
 2. **Submit the phone app** — needs `npx eas login` / `eas init` / `npm run
    build:apk` on a machine that can reach Expo, a Google Play account (about
    $25 once), an Apple Developer account (about $99 a year), and screenshots

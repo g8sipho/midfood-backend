@@ -164,17 +164,15 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - The demo restaurants are gone, except **Sushi Yama**, which is attached to
   an old unpaid test order and so is suspended rather than deleted.
 
-**Decided, but not yet applied on the admin page.** They need Sipho to unlock
-the admin page with his `ADMIN_KEY`; after that each is a few clicks:
+**Applied on the admin page on 8 Oct 2026**
 
-- Payouts → Your rates → **"Your % of the delivery fee" = 20**. Until this is
-  saved the setting is whatever it was before (0 when the system shipped), and
-  drivers keep the whole fee.
-- Operations → Restaurants → Chef Lue → Edit terms → **delivery fee R35**
-  (it is R100) and **free until 7 January 2027** (it signed up before free
-  periods existed, so it has none and would be charged 15% from order one).
-- Approve **Lucky** (driver, 082 615 2028) if he is still waiting.
-- The payout day is already Tuesday.
+- Rates: 15% commission, **20% of the delivery fee**, 3 free months, payouts
+  on **Tuesday**.
+- **Chef Lue:** delivery fee R100 → **R35**, free until **7 January 2027**
+  (then 15%).
+- **Lucky** (driver, 082 615 2028, login `lucky`) approved.
+- Nothing was owed, in progress, or awaiting a refund at that point: no paid
+  orders have gone through yet.
 
 **PayFast.** Sipho's live merchant account is approved. Whether Render already
 holds the live values has not been checked: as of 2 Oct it held PayFast's

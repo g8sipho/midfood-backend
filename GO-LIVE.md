@@ -91,6 +91,43 @@ Restaurants**, press **Menu** on a restaurant.
 A restaurant shown as **no menu yet** is visible to customers with nothing to
 order. The restaurant can still change the same menu from its own portal.
 
+### Photos
+
+Customers order with their eyes. A dish with a photo sells; one without looks
+unfinished next to Mr D. The restaurant list shows how many of each
+restaurant's dishes still have no photo.
+
+- **A dish's photo:** in the menu panel, press the square next to the dish
+  (**+ Photo**) and pick the picture. To change it, press the photo. To take
+  it off, press **Edit** then **Remove photo**.
+- **The restaurant's cover photo** (its card on the home page and the top of
+  its menu): **Add cover photo** at the top of the menu panel. A wide photo
+  of the food works best.
+- Any phone photo will do. The page shrinks it before sending, so a 5 MB
+  picture costs customers a few kilobytes. Take it in daylight, close up,
+  with nothing else on the table.
+- Only you can add photos, from this page. Restaurants send theirs to you.
+
+### Sections
+
+A menu of more than a handful of dishes should be in sections (Kotas, Chips,
+Drinks). Customers get a row of section buttons that stays at the top of the
+menu as they scroll.
+
+- Type the section in the **Section** box when adding or editing a dish.
+- In a pasted price list, a line ending in a colon starts a section:
+  `Kotas:` then the kotas, `Sides:` then the sides. Pasting a menu that is
+  already loaded, this time with headings, files the existing dishes into
+  their sections and changes nothing else.
+- Sections appear in alphabetical order.
+
+## Star ratings
+
+The stars next to a restaurant are real. After a delivery, the customer's
+order page asks "How was your order?" and they tap one to five stars. A
+restaurant shows its average once **three** customers have rated it. Until
+then it says **New**. Nobody, including you, can set or edit a rating.
+
 ## Adding restaurants and drivers
 
 - Send restaurants to **midfood.co.za/portal** and drivers to
@@ -146,3 +183,5 @@ The number customers, restaurants and drivers are given is **072 643 7784**.
   website at midfood.co.za/order does the same job today and installs to a
   home screen.
 - **Scheduled orders** and **promo codes**.
+- **Choosing the order of menu sections** (today they are alphabetical), and
+  letting restaurants upload their own photos for you to approve.

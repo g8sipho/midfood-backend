@@ -34,7 +34,7 @@ All served by the one backend, so there is nothing extra to host.
 | Address | Who | What they do |
 |---|---|---|
 | `midfood.co.za` | Everyone | Public landing page |
-| `/order/` | **Customers** | Browse, order, pay, track on a live map. Any browser; installs to a home screen. |
+| `/order/` | **Customers** | Search, browse menus with photos, order, pay, track on a live map, rate, order again. Any browser; installs to a home screen. |
 | `/portal/` | Restaurants | Live order board, menu, open/closed, takings, statements. Also self-signup. |
 | `/driver/` | Drivers | Go online, accept deliveries, navigate, mark delivered, earnings, statements. Also self-signup. |
 | `/portal/admin.html` | Sipho | Approvals, orders in progress, refunds, restaurant terms, payouts. Needs `ADMIN_KEY`. |
@@ -44,12 +44,21 @@ The admin page has two tabs. **Operations:** refunds owed, orders in progress
 (with a flag on any kitchen that has not accepted within 10 minutes of
 payment, and a cancel button), approvals, drivers, restaurants with their
 terms and their **menus** (Sipho can load or fix any restaurant's menu, one
-dish at a time or by pasting a price list, without the restaurant's password). **Payouts:** who is owed, statements, rates and payout day, history.
+dish at a time or by pasting a price list, without the restaurant's password;
+this is also the only place **photos** are added: one per dish, and a cover
+photo per restaurant, plus the menu's **sections**). **Payouts:** who is owed,
+statements, rates and payout day, history.
+
+The customer page is built to feel like Mr D or Uber Eats: a search box (by
+restaurant, kind of food or dish), restaurant cards with a cover photo, menus
+in sections with buttons that stay at the top while scrolling, a photo on
+every dish, a tap on a dish to see it big and choose how many, star ratings,
+and "Order this again" on a past order.
 
 There is also a React Native / Expo customer app in `mobile/`, configured for
 the stores as `za.co.midfood.app`. **Not submitted, never yet run on a phone,
-and it does not have the pin or the live map.** It still works against the
-server. The `/order/` page is the real customer front end today.
+and it does not have the pin, the live map, photos, sections, search or
+ratings.** It still works against the server. The `/order/` page is the real customer front end today.
 
 ## DNS, as currently set
 
@@ -103,6 +112,18 @@ its own.
 - **Money:** `backend/src/money.js`. Percentages are worked in whole cents.
   A restaurant's free period runs up to and including `free_until`, judged on
   South African time.
+- **Photos:** stored in Postgres itself (`images` table), because Render's
+  disk is wiped on every deploy and a second storage service is more than a
+  town-sized menu needs. The admin page shrinks a photo in the browser before
+  upload (1000 px, plus a 240 px square for menu lists; a cover gets 1200 px
+  plus a 640 px card copy). Served from `/api/images/<id>` and
+  `/api/images/<id>/thumb`; a replaced photo gets a new id, so browsers keep
+  pictures for good. Only real JPEG, PNG or WebP is stored, judged by the
+  file's content. Uploads are admin-only (`routes/images.js`, `routes/admin.js`).
+- **Ratings:** `orders.rating`, 1 to 5, set by the customer on their own
+  delivered order. A restaurant's public rating is the average, shown once it
+  has three; until then the API sends `rating: null` and pages say "New". The
+  old stored `restaurants.rating` column is no longer read.
 - **Front ends:** plain HTML/CSS/JS, one file each, no build step, no CDN. The
   one library is Leaflet (the map), served from `backend/public/vendor/`; map
   images come from OpenStreetMap's public tile server, the only outside host
@@ -123,10 +144,11 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - `test/api.test.js` — the whole platform against a real database: logins and
   roles, ordering, payment notifications, kitchen to door, the money split,
   payouts and double-payout prevention, refunds, cancellations (77 checks).
-- `test/api.test.js` also covers the admin menu loader and the pasted
-  price-list reader.
-- All 86 passing as of 8 Oct 2026. The screens were also driven in a real
-  browser (64 checks) before release; that script is not in the repo.
+- `test/api.test.js` also covers the admin menu loader, the pasted
+  price-list reader, photos, sections, search and ratings.
+- All 106 passing as of 8 Oct 2026. The screens were also driven in a real
+  browser (160 checks, phone and desktop sizes) before release; those scripts
+  are not in the repo.
 
 ## Deliberate decisions
 
@@ -144,6 +166,13 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   for a store review, and neither should customers.
 - **No pop-up dialogs in new admin screens.** Confirmations are built into the
   page (two presses), partly so Claude can drive the page in a browser.
+- **No made-up stars.** A rating is only ever what customers gave; a new
+  restaurant says "New".
+- **Photos go through Sipho.** Restaurants cannot upload their own, so nothing
+  reaches customers that he has not seen.
+- **Light on mobile data.** A menu list loads small copies of photos (about
+  10 KB a dish) and only what is near the screen; the full photo loads when a
+  dish is opened.
 
 ## Commercial — settled 8 Oct 2026
 
@@ -166,11 +195,19 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - **Chef Lue** (restaurant, 1953 South 32, Rockdale · 071 528 6926 · login
   `cheflue1`) is approved and visible to customers. Its menu was loaded on
   8 Oct from its WhatsApp Business catalogue ("Chef Lue Cake"): 3 platters
-  (R600–R850) and 10 themed cakes (R600–R700), 13 dishes. Two pairs of cakes
-  share a name in the catalogue, so the second of each is "(design 2)". The
-  catalogue has no kotas, chips or meals, although the listing says it sells
-  them, and cakes are normally made to order while the site promises about 55
-  minutes. Both need a word with Chef Lue.
+  (R600–R850) and 10 themed cakes (R600–R700), 13 dishes, in two sections
+  (Cakes, Platters). **Every dish has its catalogue photo**, and the cover
+  photo is the Large Meat Platter. Two pairs of cakes share a name in the
+  catalogue; the second of each is now "Spiderman Number Cake" and "Minnie
+  Mouse Balloon Cake", after what the photos show. The photos carry Chef
+  Lue's phone-camera stamp in the bottom corner; clean originals from him
+  would look better. No dish has a description yet. The catalogue has no
+  kotas, chips or meals, although the listing says it sells them, and cakes
+  are normally made to order while the site promises about 55 minutes. All
+  of that needs a word with Chef Lue.
+- **Photos, sections, search, real ratings, the dish sheet and "Order this
+  again"** went live on 8 Oct (commit `957c0c9`), after Sipho asked for the
+  site to be brought in line with Mr D and Uber Eats.
 - **Support number 072 643 7784** is on every page.
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
@@ -237,9 +274,16 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
    level with the website first (pin, live map), and run it on a real phone.
 3. **Send a test email** to hello@midfood.co.za and check it reaches the
    Gmail inbox (look in spam too: forwarded mail sometimes lands there).
-4. **Chef Lue's real everyday menu** (kotas, chips, meals) and lead time for
-   cakes. Load it from Operations → Restaurants → Menu.
-5. **Scheduled orders** and **promo codes**.
+4. **Chef Lue's real everyday menu** (kotas, chips, meals), lead time for
+   cakes, a line of description per dish (size, serves how many), and clean
+   photos without the camera stamp. Load it all from Operations → Restaurants
+   → Menu.
+4. **Every new restaurant gets photos before it goes live.** Ask for them
+   with the menu.
+5. **Scheduled orders** and **promo codes**. Also still missing next to the
+   big apps: choosing the order of menu sections (alphabetical today), dish
+   options and extras ("add cheese"), written reviews, and restaurants
+   uploading their own photos for approval.
 6. If orders grow, move the map from OpenStreetMap's free public tiles (fine
    for a small service, no guarantee) to a paid tile provider.
 

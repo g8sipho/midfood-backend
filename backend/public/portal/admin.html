@@ -181,6 +181,26 @@
   .refunds { border-color: var(--error); border-width: 2px; }
   .refunds h2 { color: var(--error); }
   .inline-err { font-size: 13px; color: var(--error); }
+  .no-menu { color: var(--error); font-weight: 700; }
+  .menu-panel h3 { margin: 0 0 4px; font-size: 15px; }
+  .menu-panel .sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .dish { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .dish .info { flex: 1; min-width: 0; }
+  .dish .nm { font-weight: 700; font-size: 14px; }
+  .dish .ds { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .dish .pr { font-weight: 800; white-space: nowrap; font-size: 14px; }
+  .dish .do { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 190px; }
+  .dish.off .nm, .dish.off .pr { color: var(--text-secondary); text-decoration: line-through; }
+  .dish .grid { display: grid; grid-template-columns: 2fr 3fr 90px; gap: 8px; }
+  .menu-add { display: grid; grid-template-columns: 2fr 3fr 100px auto; gap: 8px; align-items: end; margin-top: 14px; }
+  .menu-add label, .menu-bulk label { margin-top: 0; }
+  .menu-bulk { margin-top: 14px; }
+  .menu-bulk summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); }
+  .menu-bulk textarea {
+    width: 100%; min-height: 130px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14px; font-family: inherit; background: var(--bg-surface); color: var(--text-primary);
+  }
+  @media (max-width: 640px) { .menu-add, .dish .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -446,6 +466,7 @@
 
   let defaultRate = 0.15;      // platform commission, for showing a restaurant's terms
   let editingRestaurant = null; // id of the restaurant whose terms form is open
+  let menuOpenFor = null;       // id of the restaurant whose menu is open
 
   const pct = (rate) => (rate * 100).toFixed(1).replace(/\.0$/, '') + '%';
   const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(new Date());
@@ -513,21 +534,178 @@
     return tr;
   }
 
+  // Turns pasted text into dishes. One dish per line, with the price last:
+  //   Full House Kota - polony, russian, egg, cheese, chips - 45
+  //   Large chips R30
+  // Returns { dishes } or { error } naming the first line it cannot read.
+  function parseDishes(text) {
+    const dishes = [];
+    const lines = String(text).split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const m = line.match(/^(.*?)[\s\-–—:|,;]*R?\s*(\d{1,6}(?:[.,]\d{1,2})?)\s*$/i);
+      if (!m || !m[1].trim()) return { error: 'Line ' + (i + 1) + ' needs a dish name followed by a price: “' + line.slice(0, 40) + '”' };
+      const parts = m[1].trim().split(/\s+[\-–—|]\s+/);
+      dishes.push({
+        name: parts[0].trim(),
+        description: parts.slice(1).join(' - ').trim(),
+        price: Number(m[2].replace(',', '.')),
+      });
+    }
+    return dishes.length ? { dishes } : { error: 'Type at least one dish.' };
+  }
+
+  // A restaurant's whole menu, opened under its row: see it, fix it, add to it.
+  // Built for loading a menu on a kitchen's behalf from a photo or a price list.
+  function menuPanel(r) {
+    const tr = document.createElement('tr');
+    tr.className = 'edit-row';
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'menu-panel';
+    td.innerHTML =
+      '<h3>' + escapeHtml(r.name) + ' — menu</h3><div class="sub" data-a="count">Loading…</div>' +
+      '<div data-a="list"></div>' +
+      '<div class="menu-add">' +
+      '<div><label>Dish</label><input data-f="name" maxlength="120" placeholder="e.g. Full House Kota" /></div>' +
+      '<div><label>Description (optional)</label><input data-f="desc" maxlength="400" placeholder="What is in it" /></div>' +
+      '<div><label>Price (R)</label><input data-f="price" type="number" min="0" step="0.5" /></div>' +
+      '<div><button class="btn go" data-a="add">Add dish</button></div></div>' +
+      '<details class="menu-bulk"><summary>Add several at once</summary>' +
+      '<textarea data-f="bulk" placeholder="One dish per line, price last. For example:&#10;Full House Kota - polony, russian, egg, cheese, chips - 45&#10;Large chips 30&#10;Family platter - wings, ribs, chips and rolls for four - R320"></textarea>' +
+      '<div class="acts"><button class="btn go" data-a="bulk">Add these dishes</button></div></details>' +
+      '<div class="acts"><button class="btn plain" data-a="close">Close menu</button><span class="inline-err" data-a="err"></span>' +
+      '<span style="font-size:13px;color:var(--success);" data-a="ok"></span></div>';
+
+    const q = (sel) => td.querySelector(sel);
+    const say = (err, ok) => { q('[data-a="err"]').textContent = err || ''; q('[data-a="ok"]').textContent = ok || ''; };
+
+    const dishRow = (d) => {
+      const row = document.createElement('div');
+      row.className = 'dish' + (d.available ? '' : ' off');
+      const show = () => {
+        row.className = 'dish' + (d.available ? '' : ' off');
+        row.innerHTML =
+          '<div class="info"><div class="nm">' + escapeHtml(d.name) + (d.available ? '' : ' (sold out)') + '</div>' +
+          (d.description ? '<div class="ds">' + escapeHtml(d.description) + '</div>' : '') + '</div>' +
+          '<div class="pr">' + rand(d.price) + '</div>' +
+          '<div class="do"><button class="link-btn" data-a="edit">Edit</button>' +
+          '<button class="link-btn" data-a="toggle">' + (d.available ? 'Mark sold out' : 'Back in stock') + '</button>' +
+          '<button class="link-btn" data-a="del" style="color:var(--error);">Remove</button></div>';
+        row.querySelector('[data-a="edit"]').addEventListener('click', edit);
+        row.querySelector('[data-a="toggle"]').addEventListener('click', async () => {
+          try {
+            const res = await adminFetch('/api/admin/menu/' + d.id, { method: 'PATCH', body: JSON.stringify({ available: !d.available }) });
+            Object.assign(d, res.item);
+            show();
+            say();
+          } catch (e) { say(e.message); }
+        });
+        // Two presses to remove, in the page rather than a pop-up.
+        row.querySelector('[data-a="del"]').addEventListener('click', () => {
+          const box = row.querySelector('.do');
+          box.innerHTML = '<button class="link-btn" data-a="yes" style="color:var(--error);">Yes, remove</button>' +
+            '<button class="link-btn" data-a="no">Keep</button>';
+          box.querySelector('[data-a="no"]').addEventListener('click', show);
+          box.querySelector('[data-a="yes"]').addEventListener('click', async () => {
+            try {
+              await adminFetch('/api/admin/menu/' + d.id, { method: 'DELETE' });
+              say('', 'Removed ' + d.name + '.');
+              await load();
+            } catch (e) { say(e.message); }
+          });
+        });
+      };
+      const edit = () => {
+        row.innerHTML = '<div class="info"><div class="grid">' +
+          '<input data-e="name" maxlength="120" aria-label="Dish name" />' +
+          '<input data-e="desc" maxlength="400" aria-label="Description" placeholder="Description (optional)" />' +
+          '<input data-e="price" type="number" min="0" step="0.5" aria-label="Price" /></div></div>' +
+          '<div class="do"><button class="link-btn" data-a="save">Save</button><button class="link-btn" data-a="cancel">Cancel</button></div>';
+        row.querySelector('[data-e="name"]').value = d.name;
+        row.querySelector('[data-e="desc"]').value = d.description || '';
+        row.querySelector('[data-e="price"]').value = d.price;
+        row.querySelector('[data-a="cancel"]').addEventListener('click', show);
+        row.querySelector('[data-a="save"]').addEventListener('click', async () => {
+          try {
+            const res = await adminFetch('/api/admin/menu/' + d.id, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                name: row.querySelector('[data-e="name"]').value,
+                description: row.querySelector('[data-e="desc"]').value,
+                price: row.querySelector('[data-e="price"]').value,
+              }),
+            });
+            Object.assign(d, res.item);
+            show();
+            say();
+          } catch (e) { say(e.message); }
+        });
+      };
+      show();
+      return row;
+    };
+
+    const load = async () => {
+      const data = await adminFetch('/api/admin/restaurants/' + r.id + '/menu');
+      const list = q('[data-a="list"]');
+      list.innerHTML = '';
+      data.menu.forEach((d) => list.appendChild(dishRow(d)));
+      const live = data.menu.filter((d) => d.available).length;
+      q('[data-a="count"]').textContent = data.menu.length
+        ? data.menu.length + (data.menu.length === 1 ? ' dish' : ' dishes') + ', ' + live + ' on sale to customers now.'
+        : 'Nothing on the menu yet. Customers see this restaurant with nothing to order.';
+      r.menuCount = data.menu.length;
+    };
+
+    const addDishes = async (dishes, clear) => {
+      try {
+        const res = await adminFetch('/api/admin/restaurants/' + r.id + '/menu', { method: 'POST', body: JSON.stringify({ items: dishes }) });
+        clear();
+        await load();
+        say('', 'Added ' + res.added.length + (res.added.length === 1 ? ' dish' : ' dishes') +
+          (res.skipped.length ? '. Already on the menu, so left alone: ' + res.skipped.join(', ') : '') + '.');
+      } catch (e) { say(e.message); }
+    };
+
+    q('[data-a="add"]').addEventListener('click', () => {
+      say();
+      addDishes(
+        [{ name: q('[data-f="name"]').value, description: q('[data-f="desc"]').value, price: q('[data-f="price"]').value }],
+        () => { q('[data-f="name"]').value = ''; q('[data-f="desc"]').value = ''; q('[data-f="price"]').value = ''; q('[data-f="name"]').focus(); }
+      );
+    });
+    q('[data-a="bulk"]').addEventListener('click', () => {
+      say();
+      const parsed = parseDishes(q('[data-f="bulk"]').value);
+      if (parsed.error) return say(parsed.error);
+      addDishes(parsed.dishes, () => { q('[data-f="bulk"]').value = ''; });
+    });
+    q('[data-a="close"]').addEventListener('click', () => { menuOpenFor = null; loadAll(); });
+
+    load().catch((e) => say(e.message));
+    tr.appendChild(td);
+    return tr;
+  }
+
   function renderRestaurants(restaurants, force) {
     const body = el('restaurantTableBody');
     // The page refreshes itself every few seconds. Never redraw underneath
     // someone who has a terms form open and may be halfway through typing.
-    if (!force && editingRestaurant && body.querySelector('.edit-row')) return;
+    if (!force && (editingRestaurant || menuOpenFor) && body.querySelector('.edit-row')) return;
     body.innerHTML = '';
     restaurants.forEach((r) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><strong>${escapeHtml(r.name)}</strong><div class="terms">${r.username ? 'login ' + escapeHtml(r.username) : ''}</div></td>
+        <td><strong>${escapeHtml(r.name)}</strong><div class="terms">${r.username ? 'login ' + escapeHtml(r.username) + ' · ' : ''}${r.menuCount ? r.menuCount + (r.menuCount === 1 ? ' dish' : ' dishes') : '<span class="no-menu">no menu yet</span>'}</div></td>
         <td><span class="pill ${r.approved ? 'yes' : 'no'}">${r.approved ? (r.open === false ? 'Closed' : 'Live') : 'Suspended'}</span></td>
         <td>${rand(r.deliveryFee)}</td>
         <td class="terms">${termsLine(r)}</td>
         <td><span class="pill ${r.hasAccount ? 'yes' : 'no'}">${r.hasAccount ? 'Active' : 'No login yet'}</span></td>
         <td>
+          <button class="link-btn" data-action="menu">Menu</button>
+          &nbsp;·&nbsp;
           <button class="link-btn" data-action="terms">Edit terms</button>
           &nbsp;·&nbsp;
           <button class="link-btn" data-action="toggle">${r.approved ? 'Suspend' : 'Approve'}</button>
@@ -549,10 +727,17 @@
       tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteRestaurant(r));
       tr.querySelector('[data-action="terms"]').addEventListener('click', () => {
         editingRestaurant = editingRestaurant === r.id ? null : r.id;
+        menuOpenFor = null;
+        renderRestaurants(restaurants, true);
+      });
+      tr.querySelector('[data-action="menu"]').addEventListener('click', () => {
+        menuOpenFor = menuOpenFor === r.id ? null : r.id;
+        editingRestaurant = null;
         renderRestaurants(restaurants, true);
       });
       body.appendChild(tr);
       if (editingRestaurant === r.id) body.appendChild(termsForm(r));
+      if (menuOpenFor === r.id) body.appendChild(menuPanel(r));
     });
   }
 

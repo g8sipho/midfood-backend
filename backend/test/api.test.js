@@ -919,6 +919,111 @@ describe('refunds and cancelled orders', () => {
   });
 });
 
+describe("loading a restaurant's menu from the admin page", () => {
+  let resto, cust;
+  before(async () => {
+    cust = await h.customer();
+    resto = await h.restaurant({ name: 'Menu Kitchen', menu: [] });
+  });
+
+  const menu = async () => (await api('GET', `/api/admin/restaurants/${resto.id}/menu`, ADMIN)).data.menu;
+  const add = (items, opts = ADMIN) => api('POST', `/api/admin/restaurants/${resto.id}/menu`, { ...opts, body: { items } });
+
+  it('is closed to everyone but the owner', async () => {
+    assert.equal((await api('GET', `/api/admin/restaurants/${resto.id}/menu`)).status, 401);
+    assert.equal((await add([{ name: 'Kota', price: 45 }], {})).status, 401);
+    assert.equal((await add([{ name: 'Kota', price: 45 }], { token: resto.token })).status, 401);
+    assert.equal((await api('PATCH', '/api/admin/menu/00000000-0000-4000-8000-000000000000', { body: { price: 1 } })).status, 401);
+    assert.equal((await api('DELETE', '/api/admin/menu/00000000-0000-4000-8000-000000000000')).status, 401);
+  });
+
+  it('adds a whole menu in one go, and customers can order from it straight away', async () => {
+    const r = await add([
+      { name: 'Large Meat Platter', price: 850 },
+      { name: '  Fruit Platter ', description: ' Seasonal fruit ', price: '600' },
+      { name: 'Kota', price: 45.5 },
+    ]);
+    assert.equal(r.status, 201);
+    assert.equal(r.data.added.length, 3);
+    assert.deepEqual((await menu()).map((d) => [d.name, d.description, d.price, d.available]), [
+      ['Fruit Platter', 'Seasonal fruit', 600, true],
+      ['Kota', '', 45.5, true],
+      ['Large Meat Platter', '', 850, true],
+    ]);
+    const pub = (await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.menu;
+    assert.equal(pub.length, 3);
+    const kota = pub.find((d) => d.name === 'Kota');
+    const order = await h.placeOrder(cust, resto, [[kota, 2]]);
+    assert.equal(order.status, 201);
+    assert.equal(order.data.order.subtotal, 91);
+    // The restaurant sees the same menu in its own portal.
+    assert.equal((await api('GET', '/api/portal/menu', { token: resto.token })).data.menu.length, 3);
+  });
+
+  it('pasting the same list twice does not double the menu', async () => {
+    const r = await add([{ name: 'kota', price: 50 }, { name: 'Chips', price: 25 }, { name: 'CHIPS', price: 30 }]);
+    assert.equal(r.status, 201);
+    assert.deepEqual(r.data.added.map((d) => d.name), ['Chips']);
+    assert.deepEqual(r.data.skipped, ['kota', 'CHIPS']);
+    const m = await menu();
+    assert.equal(m.length, 4);
+    assert.equal(m.find((d) => d.name === 'Kota').price, 45.5, 'the dish already there is left as it was');
+  });
+
+  it('one bad line stops the whole batch, so a half-loaded menu never goes live', async () => {
+    for (const bad of [
+      [{ name: 'Wings', price: 60 }, { name: '', price: 20 }],
+      [{ name: 'Wings', price: 60 }, { name: 'Ribs' }],
+      [{ name: 'Wings', price: 60 }, { name: 'Ribs', price: -5 }],
+      [{ name: 'Wings', price: 60 }, { name: 'Ribs', price: 'lots' }],
+      [{ name: 'W'.repeat(121), price: 60 }],
+    ]) {
+      assert.equal((await add(bad)).status, 400, JSON.stringify(bad).slice(0, 60));
+    }
+    assert.equal((await add([])).status, 400);
+    assert.equal((await api('POST', `/api/admin/restaurants/${resto.id}/menu`, { ...ADMIN, body: {} })).status, 400);
+    assert.equal((await menu()).length, 4, 'nothing from the failed batches was added');
+    assert.equal((await api('POST', '/api/admin/restaurants/00000000-0000-4000-8000-000000000000/menu', { ...ADMIN, body: { items: [{ name: 'X', price: 1 }] } })).status, 404);
+    assert.equal((await api('GET', '/api/admin/restaurants/not-an-id/menu', ADMIN)).status, 404);
+  });
+
+  it('a dish can be repriced, renamed, marked sold out and removed', async () => {
+    const kota = (await menu()).find((d) => d.name === 'Kota');
+    const patch = (body) => api('PATCH', `/api/admin/menu/${kota.id}`, { ...ADMIN, body });
+
+    const priced = await patch({ price: 50 });
+    assert.equal(priced.data.item.price, 50);
+    assert.equal(priced.data.item.name, 'Kota', 'only what was sent is changed');
+    assert.equal((await patch({ name: 'Full House Kota', description: 'Polony, russian, egg' })).data.item.name, 'Full House Kota');
+    assert.equal((await patch({ price: -1 })).status, 400);
+    assert.equal((await patch({ name: '' })).status, 400);
+    assert.equal((await patch({ available: 'no' })).status, 400);
+
+    // Sold out: hidden from customers and cannot be ordered, still on the owner's list.
+    assert.equal((await patch({ available: false })).data.item.available, false);
+    const pub = (await api('GET', `/api/restaurants/${resto.id}`)).data.restaurant.menu;
+    assert.ok(!pub.some((d) => d.id === kota.id));
+    assert.equal((await h.placeOrder(cust, resto, [[kota, 1]])).status, 409);
+    assert.equal((await menu()).length, 4);
+    await patch({ available: true });
+
+    // Removing a dish leaves past orders intact.
+    const order = (await h.placeOrder(cust, resto, [[kota, 1]])).data.order;
+    assert.equal((await api('DELETE', `/api/admin/menu/${kota.id}`, ADMIN)).status, 204);
+    assert.equal((await api('DELETE', `/api/admin/menu/${kota.id}`, ADMIN)).status, 404);
+    assert.equal((await menu()).length, 3);
+    const kept = (await api('GET', `/api/orders/${order.id}`, { token: cust.token })).data.order;
+    assert.deepEqual(kept.items.map((i) => [i.name, i.price]), [['Full House Kota', 50]]);
+  });
+
+  it('the restaurant list shows how many dishes each has', async () => {
+    const empty = await h.restaurant({ name: 'Empty Kitchen', menu: [] });
+    const list = (await api('GET', '/api/admin/restaurants', ADMIN)).data.restaurants;
+    assert.equal(list.find((r) => r.id === resto.id).menuCount, 3);
+    assert.equal(list.find((r) => r.id === empty.id).menuCount, 0);
+  });
+});
+
 describe('the pages themselves', () => {
   it('every front door is served', async () => {
     for (const path of ['/', '/order/', '/portal/', '/driver/', '/portal/admin.html', '/privacy/']) {
@@ -936,6 +1041,14 @@ describe('the pages themselves', () => {
     assert.match(csp, /script-src 'self' 'unsafe-inline';/);
     assert.match(csp, /img-src 'self' data: https:\/\/tile\.openstreetmap\.org;/);
     assert.match(csp, /connect-src 'self';/);
+  });
+
+  it('every page tells people how to reach MidFood', async () => {
+    for (const path of ['/', '/order/', '/portal/', '/driver/', '/privacy/']) {
+      const html = await (await fetch(h.BASE + path)).text();
+      assert.match(html, /href="tel:0726437784"/, path);
+      assert.match(html, /072 643 7784/, path);
+    }
   });
 
   it('unknown API paths answer 404 in JSON', async () => {

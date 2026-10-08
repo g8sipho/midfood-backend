@@ -26,7 +26,8 @@ router.get('/restaurants', async (req, res, next) => {
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
               rating::float8 AS rating, hero_color AS "heroColor", username, approved, open,
               phone, address, free_until::text AS "freeUntil", commission_rate::float8 AS "commissionRate",
-              (password_hash IS NOT NULL) AS "hasAccount"
+              (password_hash IS NOT NULL) AS "hasAccount",
+              (SELECT COUNT(*)::int FROM menu_items m WHERE m.restaurant_id = restaurants.id) AS "menuCount"
        FROM restaurants ORDER BY name`
     );
     res.json({ restaurants: rows });
@@ -162,6 +163,141 @@ router.patch('/restaurants/:id', async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
     res.json({ restaurant: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- A restaurant's menu, managed by the owner of MidFood --------------------
+//
+// Most small kitchens will not type their own menu in. These routes let the
+// admin page load and maintain a menu on a restaurant's behalf, without ever
+// needing that restaurant's password. The restaurant can still edit the same
+// menu from its own portal.
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// One dish, cleaned up. Returns { name, description, price } or an error string.
+function cleanDish(raw) {
+  const name = String((raw && raw.name) || '').trim();
+  const description = String((raw && raw.description) || '').trim();
+  const price = Number(raw && raw.price);
+  if (!name) return 'Every dish needs a name';
+  if (name.length > 120) return `"${name.slice(0, 30)}…" is too long for a dish name (120 characters at most)`;
+  if (description.length > 400) return `The description for "${name}" is too long (400 characters at most)`;
+  if (raw.price === '' || raw.price === null || raw.price === undefined || !Number.isFinite(price) || price < 0 || price > 100000) {
+    return `"${name}" needs a price in rand, e.g. 45 or 45.50`;
+  }
+  return { name, description, price: Math.round(price * 100) / 100 };
+}
+
+// GET /api/admin/restaurants/:id/menu - every dish, sold-out ones included
+router.get('/restaurants/:id/menu', async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Restaurant not found' });
+    const r = await pool.query('SELECT id, name FROM restaurants WHERE id = $1', [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
+    const { rows } = await pool.query(
+      `SELECT id, name, description, price::float8 AS price, available
+       FROM menu_items WHERE restaurant_id = $1 ORDER BY name`,
+      [req.params.id]
+    );
+    res.json({ restaurant: r.rows[0], menu: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/restaurants/:id/menu { items: [{ name, description?, price }] }
+// Adds one dish or a whole menu. All or nothing: if any line is wrong, none
+// are added, so a half-loaded menu never reaches customers. A dish whose name
+// is already on the menu is skipped rather than duplicated, which makes it
+// safe to paste the same list twice.
+router.post('/restaurants/:id/menu', async (req, res, next) => {
+  if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Restaurant not found' });
+  const list = req.body && Array.isArray(req.body.items) ? req.body.items : null;
+  if (!list || list.length === 0) return res.status(400).json({ error: 'Send at least one dish' });
+  if (list.length > 300) return res.status(400).json({ error: 'That is more than 300 dishes at once. Add them in smaller batches.' });
+
+  const dishes = [];
+  for (const raw of list) {
+    const dish = cleanDish(raw);
+    if (typeof dish === 'string') return res.status(400).json({ error: dish });
+    dishes.push(dish);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query('SELECT id FROM restaurants WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (!r.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    const existing = await client.query('SELECT lower(name) AS name FROM menu_items WHERE restaurant_id = $1', [req.params.id]);
+    const taken = new Set(existing.rows.map((x) => x.name));
+    const added = [];
+    const skipped = [];
+    for (const dish of dishes) {
+      const key = dish.name.toLowerCase();
+      if (taken.has(key)) { skipped.push(dish.name); continue; }
+      taken.add(key);
+      const id = uuid();
+      await client.query(
+        'INSERT INTO menu_items (id, restaurant_id, name, description, price) VALUES ($1, $2, $3, $4, $5)',
+        [id, req.params.id, dish.name, dish.description, dish.price]
+      );
+      added.push({ id, ...dish, available: true });
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ added, skipped });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// PATCH /api/admin/menu/:itemId { name?, description?, price?, available? }
+router.patch('/menu/:itemId', async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.itemId)) return res.status(404).json({ error: 'Dish not found' });
+    const body = req.body || {};
+    const cur = await pool.query(
+      'SELECT name, description, price::float8 AS price, available FROM menu_items WHERE id = $1',
+      [req.params.itemId]
+    );
+    if (!cur.rows[0]) return res.status(404).json({ error: 'Dish not found' });
+    const merged = cleanDish({
+      name: body.name !== undefined ? body.name : cur.rows[0].name,
+      description: body.description !== undefined ? body.description : cur.rows[0].description,
+      price: body.price !== undefined ? body.price : cur.rows[0].price,
+    });
+    if (typeof merged === 'string') return res.status(400).json({ error: merged });
+    if (body.available !== undefined && typeof body.available !== 'boolean') {
+      return res.status(400).json({ error: 'available must be true or false' });
+    }
+    const available = body.available !== undefined ? body.available : cur.rows[0].available;
+    const { rows } = await pool.query(
+      `UPDATE menu_items SET name = $1, description = $2, price = $3, available = $4 WHERE id = $5
+       RETURNING id, name, description, price::float8 AS price, available`,
+      [merged.name, merged.description, merged.price, available, req.params.itemId]
+    );
+    res.json({ item: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/admin/menu/:itemId - take a dish off the menu for good. Past
+// orders keep their own copy of what was ordered, so nothing is lost.
+router.delete('/menu/:itemId', async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.itemId)) return res.status(404).json({ error: 'Dish not found' });
+    const { rowCount } = await pool.query('DELETE FROM menu_items WHERE id = $1', [req.params.itemId]);
+    if (!rowCount) return res.status(404).json({ error: 'Dish not found' });
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

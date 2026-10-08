@@ -198,6 +198,9 @@
   .line .rm { background: none; border: none; padding: 0 0 0 10px; font-size: 12px; font-weight: 700; color: var(--error); cursor: pointer; }
   .notice { background: rgba(201,168,45,0.12); border: 1px solid var(--warning); border-radius: 11px; padding: 11px 13px; font-size: 13px; margin-bottom: 14px; display: none; }
 
+  .help-line { font-size: 13px; color: var(--text-tertiary); text-align: center; margin: 4px 0 0; }
+  .help-line a { color: var(--accent); font-weight: 700; text-decoration: none; }
+
   .order-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
   .order-row:last-child { border-bottom: none; }
   .order-row .nm { font-weight: 700; font-size: 15px; }
@@ -317,6 +320,7 @@
       <div class="map-foot"><span id="trMapNote"></span><span id="trMapSeen"></span></div>
     </div>
     <div class="card" id="trItems"></div>
+    <p class="help-line">Problem with this order? Call MidFood on <a href="tel:0726437784">072 643 7784</a>.</p>
   </div>
 
   <!-- Account -->
@@ -326,6 +330,12 @@
       <div style="font-weight:800;font-size:17px;" id="acName"></div>
       <div style="font-size:14px;color:var(--text-secondary);margin-top:2px;" id="acEmail"></div>
       <button class="ghost" id="acLogout" style="margin-top:20px;">Log out</button>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;">Need help?</div>
+      <div style="font-size:14px;color:var(--text-secondary);margin-top:3px;">
+        Call MidFood on <a href="tel:0726437784" style="color:var(--accent);font-weight:700;text-decoration:none;">072 643 7784</a>.
+      </div>
     </div>
     <div class="card">
       <a href="/privacy/" style="color:var(--accent);font-weight:600;text-decoration:none;font-size:14px;">Privacy policy</a>
@@ -976,7 +986,7 @@
         (t.refundedAt
           ? ' Your refund was sent on ' + new Date(t.refundedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long' }) +
             '. Banks can take a few working days to show it.'
-          : ' You\'ll be refunded in full — contact MidFood if you don\'t see it within 3 working days.') +
+          : ' You\'ll be refunded in full. If you don\'t see it within 3 working days, call MidFood on 072 643 7784.') +
         '</div></div>'
       : status === 'delivered'
         ? '<div class="banner good"><div class="t">Delivered</div><div class="b">Enjoy your meal.</div></div>'

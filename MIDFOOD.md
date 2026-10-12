@@ -5,9 +5,9 @@
 **Owner:** Sipho Masombuka · Middelburg, Mpumalanga, South Africa
 **What it is:** A food delivery platform for Middelburg — customers order from
 local restaurants, pay by card, and a MidFood driver delivers.
-**Status (8 Oct 2026):** Live on midfood.co.za and fully built, but **not yet
-taking real money**: it is waiting on a PayFast account of its own. See *Where
-things stand*.
+**Status (12 Oct 2026):** Live on midfood.co.za and **taking real card
+payments** through MidFood's own PayFast account since 12 Oct (proved with a
+real R45 order, reference 334053679). See *Where things stand*.
 
 `GO-LIVE.md` beside this file is Sipho's day-to-day guide: daily checks,
 refunds, the Tuesday payout run.
@@ -24,7 +24,8 @@ refunds, the Tuesday payout run.
 | Domain + hosting | Axxess (ccp.axxess.co.za) · cPanel `cphost29.vpslocal.co.za` |
 | DNS | Axxess client area → the midfood.co.za hosting service → DNS Zones |
 | Local copies | `C:\Users\G8VIP\OneDrive\Documents\G8 MidFood` — this file, `GO-LIVE.md`, and dated code snapshots (`midfood-complete-2026-10-08.zip` is the go-live build; the undated zip is from before it) |
-| Payments | PayFast. Mode and merchant details are four `PAYFAST_…` values in Render → Environment. **Test mode until MidFood has its own PayFast account** — see *Where things stand*. |
+| Payments | PayFast, **live** — MidFood's own account (login hello@midfood.co.za, Merchant ID 37527361). Mode and merchant details are four `PAYFAST_…` values in Render → Environment. See *Where things stand*. |
+| Bank | Capitec **Entrepreneur** account in the name **G8 MidFood** (Sipho R Masombuka), acc 2610297293, branch 470010 — where PayFast pays out. Opened 12 Oct 2026. |
 | Restaurant flyer | A Claude artifact, "MidFood — Restaurant Flyer" (A4 front/back + WhatsApp square). Finished: 072 643 7784, Tuesday payouts. |
 
 ## The front doors
@@ -226,45 +227,35 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
 - Nothing was owed, in progress, or awaiting a refund at that point: no paid
   orders have gone through yet.
 
-**PayFast — still in test mode, by decision (8 Oct 2026)**
+**PayFast — live since 12 Oct 2026**
 
-- The only live PayFast account Sipho has is **G8 VIP Exclusive's**, and
-  g8vip.co.za takes castle payments through it. It is **not** to be used for
-  MidFood: customers would see "G8 VIP Exclusive" when paying for food, the
-  two businesses' money would share one balance, and the account cannot be
-  given a passphrase, because g8vip.co.za sends PayFast unsigned payment forms
-  and a passphrase would break its Pay Now buttons.
-- Sipho is **opening a separate PayFast account for MidFood** himself
-  (https://payfast.io/gateway-aggregator-selector/ — online payments,
-  industry Marketplace or Food & Drink). PayFast asks for ID, proof of address
-  no older than three months, and a bank confirmation letter (company papers
-  too if registering a company), and says verification usually takes about two
-  business days once valid documents are in. It will probably need an email
-  address the G8 VIP account is not already using.
-- Nothing was changed on the G8 VIP PayFast account. Sipho did switch on
-  two-factor login for it (authenticator app on his phone) during this session.
-- Render's `PAYFAST_…` values were not touched. As of 2 Oct they were
-  PayFast's sandbox ones; this was not re-checked.
-- **Until the MidFood account is live, customers cannot pay.** Chef Lue is
-  visible on the site, but checkout goes to PayFast's test page, which takes
-  no real cards. Hold off sending customers to the site until then.
-
-**When the MidFood PayFast account is approved**
-
-1. In the new account: Settings → Developer Settings. Set a **Security
-   Passphrase** (Sipho types it and keeps it).
-2. Render → midfood-backend → Environment → Edit. Sipho pastes the new
-   account's Merchant ID, Merchant Key and that passphrase into
-   `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`; set
-   `PAYFAST_MODE` to `live`; save and deploy.
-3. Place one small real order end to end (order, pay, accept, deliver), check
-   it lands on the admin page with the right split, then cancel/refund a
-   second one to prove the refund path.
+- MidFood has its **own PayFast account**, registered as a sole trader
+  ("MidFood", owner Sipho, mobile 072 643 7784). Login hello@midfood.co.za
+  (forwards to g8vipexclusive@gmail.com). Merchant ID **37527361**. Documents
+  were verified automatically on sign-up; two-factor login is on.
+- Settings in PayFast: a **security passphrase** is set (Sipho keeps it; it
+  must match `PAYFAST_PASSPHRASE` in Render exactly). ITN is on, notify URL
+  `https://midfood.co.za/api/payments/payfast/notify`.
+- Render has the live values: `PAYFAST_MODE=live`, the merchant ID and key,
+  and the passphrase. Changed by Sipho on 12 Oct; deployed.
+- PayFast pays out to the Capitec Entrepreneur account **G8 MidFood**
+  (acc 2610297293, branch 470010), opened 12 Oct.
+- **Proved end to end on 12 Oct:** real R45 order 061ee70f paid by card,
+  PayFast reference 334053679, flipped to `paid` on the admin page. Then
+  cancelled, refunded in PayFast and recorded, to prove the refund path.
+- A bug found on the way: the server was rejecting every real PayFast
+  notification with "signature mismatch" because it checked the signature
+  the way the *outgoing* payment link is signed (empty fields dropped);
+  PayFast signs its notification over every posted field, empty ones
+  included. Fixed in commit 9f592d5 (`itnSignature()` in
+  `backend/src/payments/payfast.js`). Two earlier test payments (17:58 and
+  a sandbox one at 17:22) were refused by the old code; the real one was
+  refunded in PayFast by hand.
+- The **G8 VIP Exclusive** PayFast account is not used by MidFood and was
+  not changed (two-factor login was switched on for it on 8 Oct).
 
 ## Still to do, roughly in order
 
-1. **Open the MidFood PayFast account** and switch payments to live (steps
-   above). Nothing earns until this is done.
 1. **Print the flyer** and sign up more restaurants. This can go ahead now;
    restaurants do not need payments to be live to sign up and load menus.
 2. **Submit the phone app** — needs `npx eas login` / `eas init` / `npm run

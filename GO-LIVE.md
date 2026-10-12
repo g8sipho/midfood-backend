@@ -4,11 +4,9 @@ MidFood is built, live on midfood.co.za, and tested. This page is the routine:
 what to do each day, each Tuesday, and when something goes wrong. Everything
 here happens on the admin page: **midfood.co.za/portal/admin.html**.
 
-> **Before any of this matters: payments are still in test mode.** MidFood
-> needs its own PayFast account (not the G8 VIP one). Once PayFast approves
-> it, see "PayFast" below to switch it on. Until then customers cannot pay,
-> so do not send them to the site yet. Restaurants and drivers can sign up
-> in the meantime.
+> **Payments are live** (since 12 Oct 2026) on MidFood's own PayFast
+> account. Customers can pay by card now. See "PayFast" below for the
+> details.
 
 Your admin key is in Render → midfood-backend → **Environment** → `ADMIN_KEY`.
 Keep it private. It is the only thing protecting the admin page.
@@ -147,17 +145,22 @@ Payments run on the four `PAYFAST_…` values in Render → Environment:
 | `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY` | From your PayFast dashboard → Settings |
 | `PAYFAST_PASSPHRASE` | The security passphrase you set in PayFast. It must match **exactly**, or every payment fails. |
 
-Use MidFood's **own** PayFast account for these, never the G8 VIP Exclusive
-one: g8vip.co.za takes castle payments through that account, and a passphrase
-on it would break the Pay Now buttons there.
+**MidFood's PayFast account** (live since 12 Oct 2026):
 
-To switch on: in the MidFood PayFast account go to Settings → Developer
-Settings, set a Security Passphrase, then put the Merchant ID, Merchant Key
-and that passphrase into Render, set `PAYFAST_MODE` to `live`, and save. Then
-place one small real order and refund it to prove both directions.
+| | |
+|---|---|
+| Dashboard | https://my.payfast.io — login **hello@midfood.co.za** (mail forwards to g8vipexclusive@gmail.com); two-factor login is on |
+| Merchant ID | **37527361** (sole trader "MidFood") |
+| Passphrase | Set in PayFast → Settings → Integration. You keep it; it is also `PAYFAST_PASSPHRASE` in Render. Change it in one place and the other must follow, or every payment fails |
+| Notifications | On, to `https://midfood.co.za/api/payments/payfast/notify` |
+| Pays out to | Capitec Entrepreneur account **G8 MidFood**, acc 2610297293, branch 470010 |
 
-Nothing needs setting inside PayFast for notifications: MidFood tells PayFast
-where to report each payment.
+This is a separate account from G8 VIP Exclusive's, and must stay so:
+g8vip.co.za takes castle payments through that one, and a passphrase on it
+would break the Pay Now buttons there.
+
+Proved on 12 Oct with a real R45 order (PayFast ref 334053679), then
+cancelled, refunded and recorded.
 
 ## Email and phone
 

@@ -5,6 +5,12 @@
 #   apk        installable Android file for testing on a phone (preview profile)
 #   android    Play Store bundle (.aab, production profile)
 #   ios        App Store build (production profile; needs Apple credentials in EAS)
+#   preview    no native build: publishes the app's JavaScript to Expo's
+#              "preview" channel. Expo Go (App Store / Play Store) signed in
+#              as the g8-vip account then opens it on any phone, iPhone
+#              included — the quick way to look at the app without a store
+#              account. Builds made with the preview profile also pick up
+#              these updates on launch.
 #
 # Needs one repository secret: EXPO_TOKEN, an access token from
 # expo.dev → account settings → Access tokens. The build itself runs on Expo's
@@ -24,6 +30,7 @@ on:
           - apk
           - android
           - ios
+          - preview
 
 concurrency:
   group: mobile-build
@@ -54,7 +61,18 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Publish preview update (Expo Go)
+        if: inputs.target == 'preview'
+        run: |
+          eas update --channel preview --message "${GITHUB_SHA::7} ${{ github.event.head_commit.message || 'manual' }}" --non-interactive --json > update.json
+          cat update.json
+          echo "### Preview published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Open **Expo Go** on the phone, signed in as g8-vip → Projects → **G8 MidFood** → branch **preview**." >> "$GITHUB_STEP_SUMMARY"
+          node -e "const u=require('./update.json'); for (const x of (Array.isArray(u)?u:[u])) console.log(x.platform, x.id, x.group||'')" >> "$GITHUB_STEP_SUMMARY" || true
+
       - name: Build
+        if: inputs.target != 'preview'
         id: build
         env:
           TARGET: ${{ inputs.target }}

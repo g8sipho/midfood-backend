@@ -6,8 +6,9 @@ import type { User } from '../types';
 type AuthContextValue = {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  // `identifier` is the email address or the cellphone number.
+  login: (identifier: string, password: string) => Promise<void>;
+  register: (name: string, email: string, phone: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -36,15 +37,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  async function login(email: string, password: string) {
-    const { token, user: loggedInUser } = await api.login(email, password);
+  async function login(identifier: string, password: string) {
+    const { token, user: loggedInUser } = await api.login(identifier, password);
     await api.setToken(token);
     setUser(loggedInUser);
     registerForPushNotifications();
   }
 
-  async function register(name: string, email: string, password: string) {
-    const { token, user: newUser } = await api.register(name, email, password);
+  async function register(name: string, email: string, phone: string, password: string) {
+    const { token, user: newUser } = await api.register(name, email, phone, password);
     await api.setToken(token);
     setUser(newUser);
     registerForPushNotifications();

@@ -62,18 +62,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // --- Auth ---
 
-export async function register(name: string, email: string, password: string) {
+export async function register(name: string, email: string, phone: string, password: string) {
   return request<{ token: string; user: User }>('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, phone, password }),
   });
 }
 
-export async function login(email: string, password: string) {
+// `identifier` is the email address or the cellphone number.
+export async function login(identifier: string, password: string) {
   return request<{ token: string; user: User }>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
+}
+
+// Turns an image path from the API ("/api/images/<id>/thumb") into a URL the
+// phone can load. Null stays null so callers can fall back to a colour block.
+export function imageSource(path?: string | null): { uri: string } | null {
+  return path ? { uri: `${API_BASE_URL}${path}` } : null;
 }
 
 // Restores a saved session on app launch (see context/AuthContext).
@@ -84,8 +91,13 @@ export async function fetchMe() {
 
 // --- Restaurants ---
 
-export async function fetchRestaurants() {
-  const data = await request<{ restaurants: Restaurant[] }>('/api/restaurants');
+// The home feed, or with `query` only the restaurants whose name, kind of
+// food or menu matches (each with up to three matching dish names).
+export async function fetchRestaurants(query?: string) {
+  const q = (query || '').trim();
+  const data = await request<{ restaurants: Restaurant[] }>(
+    q ? `/api/restaurants?q=${encodeURIComponent(q)}` : '/api/restaurants'
+  );
   return data.restaurants;
 }
 

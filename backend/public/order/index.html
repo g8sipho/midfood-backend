@@ -411,8 +411,12 @@
           <label for="auName">Your name</label>
           <input id="auName" autocomplete="name" />
         </div>
-        <label for="auEmail">Email</label>
-        <input id="auEmail" type="email" autocomplete="email" required />
+        <label for="auEmail" id="auEmailLabel">Email or cellphone number</label>
+        <input id="auEmail" type="text" autocomplete="username" inputmode="email" required />
+        <div id="phoneWrap" style="display:none;">
+          <label for="auPhone">Cellphone number</label>
+          <input id="auPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="082 123 4567" />
+        </div>
         <label for="auPass">Password</label>
         <input id="auPass" type="password" autocomplete="current-password" minlength="6" required />
         <div class="msg err" id="authError"></div>
@@ -1091,7 +1095,7 @@
     refreshBasket();
     // Reuse the last address and number, so a repeat order is a few taps.
     el('ckAddress').value = el('ckAddress').value || localStorage.getItem('midfood_addr') || '';
-    el('ckPhone').value = el('ckPhone').value || localStorage.getItem('midfood_phone') || '';
+    el('ckPhone').value = el('ckPhone').value || localStorage.getItem('midfood_phone') || (user && user.phone) || '';
     paintPin();
   }
 
@@ -1281,6 +1285,13 @@
       : 'Welcome back.';
     el('nameWrap').style.display = register ? 'block' : 'none';
     el('auName').required = register;
+    // Signing up asks for the email and the cellphone number separately;
+    // signing in takes either one in the first box.
+    el('phoneWrap').style.display = register ? 'block' : 'none';
+    el('auPhone').required = register;
+    el('auEmailLabel').textContent = register ? 'Email' : 'Email or cellphone number';
+    el('auEmail').type = register ? 'email' : 'text';
+    el('auEmail').autocomplete = register ? 'email' : 'username';
     el('auPass').autocomplete = register ? 'new-password' : 'current-password';
     el('authSubmit').textContent = register ? 'Create account' : 'Sign in';
     el('authSwap').textContent = register ? 'I already have an account' : 'New here? Create an account';
@@ -1291,8 +1302,9 @@
   el('authForm').addEventListener('submit', function (e) {
     e.preventDefault();
     setMsg('authError', '');
-    var body = { email: el('auEmail').value.trim(), password: el('auPass').value };
-    if (isRegister) body.name = el('auName').value.trim();
+    var body = isRegister
+      ? { name: el('auName').value.trim(), email: el('auEmail').value.trim(), phone: el('auPhone').value.trim(), password: el('auPass').value }
+      : { identifier: el('auEmail').value.trim(), password: el('auPass').value };
     var btn = el('authSubmit');
     btn.disabled = true;
 

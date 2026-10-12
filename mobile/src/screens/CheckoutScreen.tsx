@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { placeOrder } from '../api/client';
 import Button from '../components/Button';
 import { colors, radius, spacing } from '../theme/colors';
@@ -12,8 +13,10 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'Checkout'>;
 
 export default function CheckoutScreen({ navigation }: Props) {
   const { restaurant, lines, subtotal, clear } = useCart();
+  const { user } = useAuth();
   const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
+  // The number from sign-up, already in the form the driver dials.
+  const [phone, setPhone] = useState(user?.phone || '');
   const [notes, setNotes] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);

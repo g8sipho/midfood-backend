@@ -22,9 +22,14 @@ export type Restaurant = {
   // restaurant is too new to have a rating (show "New", never a made-up score).
   rating: number | null;
   ratingCount?: number;
+  // Cover photo paths on the API host (prefix with the API base URL), or
+  // null when the restaurant has none yet: the full photo and a card-sized copy.
   imageUrl?: string | null;
+  thumbUrl?: string | null;
   heroColor: string;
   menu?: MenuItem[];
+  // Up to three dish names that matched a search, when the list was searched.
+  matches?: string[];
 };
 
 export type CartLine = {
@@ -95,5 +100,8 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  // Ten-digit local form, 0821234567, or null for accounts made before
+  // sign-up asked for it.
+  phone?: string | null;
   createdAt: string;
 };

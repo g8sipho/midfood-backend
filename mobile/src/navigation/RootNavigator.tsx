@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
 
@@ -62,7 +63,7 @@ function HomeNavigator() {
 function OrdersNavigator() {
   return (
     <OrdersStack.Navigator screenOptions={screenOptions}>
-      <OrdersStack.Screen name="OrderList" component={OrderListScreen} options={{ title: 'Your orders' }} />
+      <OrdersStack.Screen name="OrderList" component={OrderListScreen} options={{ title: 'My orders' }} />
       <OrdersStack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order status' }} />
     </OrdersStack.Navigator>
   );
@@ -76,11 +77,39 @@ function MainTabs() {
         tabBarActiveTintColor: colors.accentPrimary,
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: { backgroundColor: colors.bgSurface, borderTopColor: colors.border },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
       }}
     >
-      <Tab.Screen name="HomeTab" component={HomeNavigator} options={{ title: 'Order' }} />
-      <Tab.Screen name="OrdersTab" component={OrdersNavigator} options={{ title: 'Orders' }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Profile' }} />
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeNavigator}
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="OrdersTab"
+        component={OrdersNavigator}
+        options={{
+          title: 'My orders',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileScreen}
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 }

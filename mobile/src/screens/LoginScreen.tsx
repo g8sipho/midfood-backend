@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
@@ -10,16 +19,20 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
+    if (!identifier.trim() || !password) {
+      setError('Enter your email or cellphone number, and your password.');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(identifier.trim(), password);
     } catch (err: any) {
       setError(err.message || 'Something went wrong logging in.');
     } finally {
@@ -32,38 +45,53 @@ export default function LoginScreen({ navigation }: Props) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.content}>
-        <Text style={styles.logo}>🍔 MidFood</Text>
-        <Text style={styles.subtitle}>Good food, delivered fast.</Text>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.brand}>
+          <Image source={require('../../assets/icon.png')} style={styles.logo} />
+          <Text style={styles.wordmark}>MidFood</Text>
+          <Text style={styles.subtitle}>Middelburg's food, delivered to your door.</Text>
+        </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.card}>
+          <Text style={styles.title}>Sign in</Text>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={colors.textTertiary}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor={colors.textTertiary}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+          <Text style={styles.label}>Email or cellphone number</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="you@example.com or 082 123 4567"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="username"
+            value={identifier}
+            onChangeText={setIdentifier}
+          />
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Your password"
+            placeholderTextColor={colors.textTertiary}
+            secureTextEntry
+            textContentType="password"
+            value={password}
+            onChangeText={setPassword}
+            onSubmitEditing={handleLogin}
+          />
 
-        <Button title="Log in" onPress={handleLogin} loading={loading} />
+          <Button title="Sign in" onPress={handleLogin} loading={loading} />
+        </View>
 
-        <Button
-          title="Create an account"
-          variant="secondary"
-          onPress={() => navigation.navigate('Register')}
-        />
-      </View>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>New to MidFood?</Text>
+          <Button
+            title="Create an account"
+            variant="secondary"
+            onPress={() => navigation.navigate('Register')}
+          />
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -74,25 +102,54 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgApp,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-    gap: spacing.md,
+    paddingVertical: spacing.xxl,
+  },
+  brand: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
   },
   logo: {
-    fontSize: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    marginBottom: spacing.md,
+  },
+  wordmark: {
+    fontSize: 30,
     fontWeight: '800',
     color: colors.textPrimary,
-    textAlign: 'center',
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginTop: 4,
+  },
+  card: {
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
   },
   input: {
-    backgroundColor: colors.bgSurface,
+    backgroundColor: colors.bgApp,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -100,10 +157,19 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: 15,
     color: colors.textPrimary,
+    marginBottom: spacing.xs,
   },
   error: {
     color: colors.accentError,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
+    fontSize: 13,
+  },
+  footer: {
+    marginTop: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  footerText: {
+    color: colors.textSecondary,
+    fontSize: 13,
   },
 });

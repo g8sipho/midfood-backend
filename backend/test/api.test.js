@@ -48,6 +48,39 @@ describe('who can get in', () => {
     assert.equal((await api('GET', '/api/admin/orders', { token: cust.token })).status, 401);
   });
 
+  it('a customer can log in with their email or their cellphone number', async () => {
+    const email = `${h.unique('phoneuser')}@example.com`;
+    const signup = await api('POST', '/api/auth/register', {
+      body: { name: 'Lerato Phone', email, password: 'secret123', phone: '+27 82 555 0199' },
+    });
+    assert.equal(signup.status, 201);
+    assert.equal(signup.data.user.phone, '0825550199'); // stored in the local ten-digit form
+
+    // Email still works, written any which way.
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: email.toUpperCase(), password: 'secret123' } })).status, 200);
+    // So does the number, with spaces, with the country code, or plain.
+    for (const number of ['082 555 0199', '+27825550199', '0825550199']) {
+      const r = await api('POST', '/api/auth/login', { body: { identifier: number, password: 'secret123' } });
+      assert.equal(r.status, 200, `login with ${number}`);
+      assert.equal(r.data.user.email, email);
+    }
+    // Wrong password with the number is still refused.
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: '0825550199', password: 'wrong' } })).status, 401);
+    // The old field name keeps working for apps that have not updated.
+    assert.equal((await api('POST', '/api/auth/login', { body: { email, password: 'secret123' } })).status, 200);
+
+    // One number, one account.
+    const again = await api('POST', '/api/auth/register', {
+      body: { name: 'Someone Else', email: `${h.unique('other')}@example.com`, password: 'secret123', phone: '0825550199' },
+    });
+    assert.equal(again.status, 409);
+    // And a number that is not a number is refused at sign-up.
+    const bad = await api('POST', '/api/auth/register', {
+      body: { name: 'Bad Phone', email: `${h.unique('bad')}@example.com`, password: 'secret123', phone: '12345' },
+    });
+    assert.equal(bad.status, 400);
+  });
+
   it('a restaurant that signs itself up is hidden and locked out until approved', async () => {
     const username = h.unique('selfsign');
     const signup = await api('POST', '/api/restaurant-auth/register', {

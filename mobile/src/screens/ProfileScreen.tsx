@@ -14,6 +14,7 @@ export default function ProfileScreen() {
       </View>
       <Text style={styles.name}>{user?.name}</Text>
       <Text style={styles.email}>{user?.email}</Text>
+      {user?.phone ? <Text style={styles.email}>{user.phone.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1 $2 $3')}</Text> : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Account</Text>

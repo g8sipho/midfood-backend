@@ -70,6 +70,27 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/health', (req, res) => res.json({ ok: true, service: 'midfood-backend' }));
 
+// midfood.co.za/app - the one link to give anyone who wants the phone app.
+// Android phones go to the current test build (or the Play Store once the
+// app is there); iPhones to the App Store once it exists. The addresses
+// live in app-links.json so a new build changes the file, not the code.
+const appLinks = require('../app-links.json');
+app.get(['/app', '/app/android', '/app/ios'], (req, res) => {
+  const ua = String(req.headers['user-agent'] || '');
+  const wantsIos = req.path === '/app/ios' || (req.path === '/app' && /iPhone|iPad|iPod/i.test(ua));
+  const target = wantsIos ? appLinks.appStore || appLinks.ios : appLinks.playStore || appLinks.android;
+  if (target) return res.redirect(302, target);
+  res
+    .status(200)
+    .type('html')
+    .send(
+      `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<title>MidFood app</title><body style="font-family:system-ui;padding:32px;max-width:420px;margin:auto;text-align:center">` +
+        `<h1>MidFood app</h1><p>The ${wantsIos ? 'iPhone' : 'Android'} app is not out yet. ` +
+        `Order on the web in the meantime: <a href="https://midfood.co.za/order/">midfood.co.za/order</a></p></body>`
+    );
+});
+
 // Brute-force protection on the auth endpoints.
 //
 // Deliberately NOT a plain per-IP cap: South African mobile networks put very

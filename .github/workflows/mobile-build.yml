@@ -36,6 +36,11 @@ concurrency:
   group: mobile-build
   cancel-in-progress: false
 
+# After an APK build the workflow rewrites backend/app-links.json so that
+# midfood.co.za/app points at the new build, and pushes that one-line change.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -107,6 +112,22 @@ jobs:
           echo "**$TARGET** — download: $URL" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Also listed at https://expo.dev under the project's Builds." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Point midfood.co.za/app at this build
+        if: inputs.target == 'apk' && steps.build.outputs.id != ''
+        working-directory: ${{ github.workspace }}
+        run: |
+          PAGE="https://expo.dev/accounts/g8-vip/projects/g8-midfood/builds/${{ steps.build.outputs.id }}"
+          node -e "
+            const fs = require('fs'); const f = 'backend/app-links.json';
+            const j = JSON.parse(fs.readFileSync(f, 'utf8')); j.android = process.argv[1];
+            fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
+          " "$PAGE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/app-links.json
+          git diff --cached --quiet || git commit -m "midfood.co.za/app -> Android build ${{ steps.build.outputs.id }}"
+          git push
 
       - name: Download the file
         if: steps.build.outputs.url != ''

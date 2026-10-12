@@ -1,8 +1,10 @@
 """
 Generates the MidFood app icon set from one vector-ish definition.
 
-The mark: a steaming bowl. Food-first, reads at 48px on a home screen, and
-sits in the same warm palette as the site (accent #d97757 on #faf9f5).
+The mark: a delivery scooter, seen from the side and heading right, with a
+hot-food box on the back and steam rising from it. Says "food on its way"
+at a glance, reads at 48px on a home screen, and sits in the same warm
+palette as the site (accent #d97757 on #faf9f5).
 
 Everything is drawn at 4x and downsampled, which is what gives the curves
 clean edges without needing a real vector renderer.
@@ -20,7 +22,7 @@ os.makedirs(OUT, exist_ok=True)
 
 
 def draw_mark(size, color, inset=0.0):
-    """The bowl-with-steam mark, transparent background, centred.
+    """The scooter-with-hot-box mark, transparent background, centred.
 
     `inset` shrinks the mark within the canvas — Android's adaptive icon
     crops to a circle, so the foreground layer needs it.
@@ -30,53 +32,72 @@ def draw_mark(size, color, inset=0.0):
     d = ImageDraw.Draw(img)
 
     scale = (1.0 - inset)
-    cx = S / 2
     unit = S * scale / 100.0          # work in a 100-unit design grid
+    ox = S / 2 - 50 * unit            # grid origin so the grid is centred
+    oy = S / 2 - 50 * unit - 2.5 * unit   # a touch high: the wheels carry the visual weight
+
+    def P(x, y):
+        return (ox + x * unit, oy + y * unit)
 
     def u(v):
         return v * unit
 
-    # Vertical placement: bowl sits low, steam above.
-    base_y = S / 2 + u(26)            # bottom of the bowl
-    bowl_w = u(74)
-    bowl_h = u(34)
+    def thick_line(a, b, w):
+        d.line([P(*a), P(*b)], fill=color, width=int(u(w)))
+        for (x, y) in (a, b):
+            cx, cy = P(x, y)
+            r = u(w) / 2
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color)
 
-    # --- bowl: a half-ellipse with a flat rim -----------------------------
-    left = cx - bowl_w / 2
-    right = cx + bowl_w / 2
-    rim_y = base_y - bowl_h
+    def ring(center, r, w):
+        cx, cy = P(*center)
+        d.ellipse([cx - u(r), cy - u(r), cx + u(r), cy + u(r)], outline=color, width=int(u(w)))
 
-    # bowl body (lower half of an ellipse)
-    d.pieslice([left, rim_y - bowl_h, right, base_y], start=0, end=180, fill=color)
+    def dot(center, r):
+        cx, cy = P(*center)
+        d.ellipse([cx - u(r), cy - u(r), cx + u(r), cy + u(r)], fill=color)
 
-    # rim: a rounded bar across the top of the bowl, slightly wider
-    rim_h = u(9)
-    rim_over = u(6)
-    d.rounded_rectangle(
-        [left - rim_over, rim_y - rim_h / 2, right + rim_over, rim_y + rim_h / 2],
-        radius=rim_h / 2, fill=color,
-    )
+    # --- wheels ------------------------------------------------------------
+    rear = (25, 78)
+    front = (79, 78)
+    for c in (rear, front):
+        ring(c, 11.5, 5.5)
+        dot(c, 3.2)
 
-    # --- steam: three rising curves ---------------------------------------
-    steam_w = u(7.0)
-    tops = [(-u(20), u(30)), (0, u(38)), (u(20), u(30))]
-    for dx, height in tops:
-        x0 = cx + dx
-        top_y = rim_y - u(12) - height
-        bot_y = rim_y - u(12)
-        pts = []
-        steps = 60
+    # --- frame -------------------------------------------------------------
+    # floorboard from the rear upright to the steering column
+    thick_line((34, 72), (68, 72), 7)
+    # steering column up to the handlebar, leaning back a little
+    thick_line((71, 74), (63, 36), 7)
+    # handlebar
+    thick_line((55, 35), (75, 33), 6)
+    # rear upright carrying the box
+    thick_line((31, 72), (31, 58), 7)
+    # seat, in front of the box
+    thick_line((42, 58), (57, 56), 7)
+
+    # --- hot-food box on the back -----------------------------------------
+    x0, y0 = P(10, 34)
+    x1, y1 = P(42, 60)
+    d.rounded_rectangle([x0, y0, x1, y1], radius=u(4.5), fill=color)
+
+    # --- steam: three rising curves above the box, drawn as a trail of dots
+    # so the edges stay smooth at every size -------------------------------
+    steam_r = 2.6
+    tops = [(18, 15), (26, 20), (34, 15)]
+    for sx, height in tops:
+        bot_y = 29
+        top_y = bot_y - height
+        steps = 80
         for i in range(steps + 1):
             t = i / steps
             y = bot_y + (top_y - bot_y) * t
-            # gentle S-curve, fading amplitude toward the top
-            x = x0 + math.sin(t * math.pi * 1.25) * u(7) * (1 - t * 0.35)
-            pts.append((x, y))
-        d.line(pts, fill=color, width=int(steam_w), joint='curve')
-        # round the ends
-        for (px, py) in (pts[0], pts[-1]):
-            r = steam_w / 2
-            d.ellipse([px - r, py - r, px + r, py + r], fill=color)
+            x = sx + math.sin(t * math.pi * 1.25) * 3.0 * (1 - t * 0.35)
+            dot((x, y), steam_r)
+
+    # --- motion: two short dashes behind the scooter -----------------------
+    thick_line((1, 64), (8, 64), 4.5)
+    thick_line((3, 74), (8, 74), 4.5)
 
     return img.resize((size, size), Image.LANCZOS)
 
@@ -87,13 +108,8 @@ def on_background(mark, size, bg):
     return img.convert('RGB')
 
 
-def rounded_square(size, bg, radius_ratio=0.22):
-    """iOS applies its own mask, but a full-bleed square is what it wants."""
-    return Image.new('RGBA', (size, size), bg + (255,))
-
-
 # --- iOS / general app icon: white mark on terracotta, full bleed ----------
-icon = on_background(draw_mark(1024, WHITE, inset=0.22), 1024, ACCENT)
+icon = on_background(draw_mark(1024, WHITE, inset=0.18), 1024, ACCENT)
 icon.save(os.path.join(OUT, 'icon.png'))
 
 # --- Android adaptive ------------------------------------------------------
@@ -110,7 +126,7 @@ draw_mark(1024, (255, 255, 255), inset=0.40).save(
 draw_mark(1024, ACCENT, inset=0.30).save(os.path.join(OUT, 'splash-icon.png'))
 
 # --- Favicon ---------------------------------------------------------------
-on_background(draw_mark(196, WHITE, inset=0.20), 196, ACCENT).save(
+on_background(draw_mark(196, WHITE, inset=0.16), 196, ACCENT).save(
     os.path.join(OUT, 'favicon.png'))
 
 print('wrote:', sorted(os.listdir(OUT)))

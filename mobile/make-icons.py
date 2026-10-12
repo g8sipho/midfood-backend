@@ -1,132 +1,148 @@
 """
-Generates the MidFood app icon set from one vector-ish definition.
+Generates the MidFood app icon set.
 
-The mark: a delivery scooter, seen from the side and heading right, with a
-hot-food box on the back and steam rising from it. Says "food on its way"
-at a glance, reads at 48px on a home screen, and sits in the same warm
-palette as the site (accent #d97757 on #faf9f5).
+The mark is a white delivery scooter with a steaming hot-food box (an
+illustration picked by Sipho on 12 Oct 2026, kept in assets/source/scooter.jpg)
+on a warm orange radial gradient, with the MidFood wordmark underneath in
+Poppins ExtraBold (assets/source/Poppins-ExtraBold.ttf, SIL Open Font License).
 
-Everything is drawn at 4x and downsampled, which is what gives the curves
-clean edges without needing a real vector renderer.
+Run: python3 make-icons.py
 """
-from PIL import Image, ImageDraw
-import math, os
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+import os
 
-ACCENT = (217, 119, 87)     # #d97757
-CREAM  = (250, 249, 245)    # #faf9f5
-WHITE  = (255, 255, 255)
-SS = 4                      # supersample factor
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, 'assets')
+SRC = os.path.join(OUT, 'source')
 
-OUT = os.path.join(os.path.dirname(__file__), 'assets')
+CREAM = (250, 249, 245)
+TERRACOTTA = (217, 119, 87)       # #d97757, the site's accent
+GLOW = (236, 96, 24)              # centre of the gradient (sampled from the art)
+EDGE = (176, 32, 0)               # corners of the gradient (sampled from the art)
+WORD = 'MidFood'
+
+
+def scooter_cutout():
+    """The white scooter lifted off its orange background as RGBA.
+
+    White has a high blue channel, the orange background almost none, so the
+    blue channel is a clean alpha mask with soft anti-aliased edges.
+    """
+    src = Image.open(os.path.join(SRC, 'scooter.jpg')).convert('RGB')
+    b = src.split()[2]
+    alpha = b.point(lambda v: max(0, min(255, int((v - 70) * 255 / 150))))
+    white = Image.new('RGBA', src.size, (255, 255, 255, 0))
+    white.putalpha(alpha)
+    # Trim to the scooter's bounding box.
+    bbox = alpha.point(lambda v: 255 if v > 8 else 0).getbbox()
+    return white.crop(bbox)
+
+
+def gradient(size, center=GLOW, edge=EDGE, cy=0.45):
+    """Radial glow: bright a little above centre, deepening to the corners."""
+    small = 256
+    img = Image.new('RGB', (small, small))
+    px = img.load()
+    for y in range(small):
+        for x in range(small):
+            dx = (x / small) - 0.5
+            dy = (y / small) - cy
+            t = min(1.0, (dx * dx + dy * dy) ** 0.5 / 0.78)
+            t = t * t * (3 - 2 * t)  # smoothstep
+            px[x, y] = tuple(int(center[i] + (edge[i] - center[i]) * t) for i in range(3))
+    return img.resize((size, size), Image.BICUBIC)
+
+
+def wordmark(width_px, color=(255, 255, 255)):
+    """The word rendered to fit `width_px`, as RGBA."""
+    font_path = os.path.join(SRC, 'Poppins-ExtraBold.ttf')
+    size = 100
+    font = ImageFont.truetype(font_path, size)
+    w = font.getbbox(WORD)[2]
+    size = int(size * width_px / w)
+    font = ImageFont.truetype(font_path, size)
+    l, t, r, b = font.getbbox(WORD)
+    img = Image.new('RGBA', (r - l + 8, b - t + 8), (0, 0, 0, 0))
+    ImageDraw.Draw(img).text((-l + 4, -t + 4), WORD, font=font, fill=color + (255,))
+    return img
+
+
+def soft_shadow(layer, blur, offset=(0, 0), opacity=0.35):
+    sh = Image.new('RGBA', layer.size, (0, 0, 0, 0))
+    a = layer.split()[3].point(lambda v: int(v * opacity))
+    sh.putalpha(a)
+    sh = sh.filter(ImageFilter.GaussianBlur(blur))
+    return sh, offset
+
+
+def compose(size, inset=0.0, with_word=True, mark_color=None, background=None):
+    """Scooter above the wordmark, centred in the inner (1 - inset) of the canvas.
+
+    `background`: an RGB image or None for transparent.
+    `mark_color`: tint the white art (for the splash).
+    """
+    canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    if background is not None:
+        canvas.paste(background.convert('RGBA'))
+    field = size * (1.0 - inset)
+    ox = oy = (size - field) / 2
+
+    scooter = scooter_cutout()
+    sw = int(field * 0.82)
+    scooter = scooter.resize((sw, int(scooter.height * sw / scooter.width)), Image.LANCZOS)
+
+    if with_word:
+        word = wordmark(int(field * 0.74))
+        gap = int(field * 0.06)
+        total_h = scooter.height + gap + word.height
+        top = oy + (field - total_h) / 2
+        word_pos = (int(ox + (field - word.width) / 2), int(top + scooter.height + gap))
+    else:
+        total_h = scooter.height
+        top = oy + (field - total_h) / 2
+        word_pos = None
+    scooter_pos = (int(ox + (field - scooter.width) / 2), int(top))
+
+    if mark_color:
+        tint = Image.new('RGBA', scooter.size, mark_color + (255,))
+        tint.putalpha(scooter.split()[3])
+        scooter = tint
+
+    if background is not None:
+        # A soft shadow under the scooter so it sits on the gradient.
+        sh, off = soft_shadow(scooter, blur=size * 0.02, opacity=0.35)
+        canvas.alpha_composite(sh, (scooter_pos[0], scooter_pos[1] + int(size * 0.025)))
+    canvas.alpha_composite(scooter, scooter_pos)
+
+    if with_word:
+        if mark_color:
+            tinted = Image.new('RGBA', word.size, mark_color + (255,))
+            tinted.putalpha(word.split()[3])
+            word = tinted
+        if background is not None:
+            sh, _ = soft_shadow(word, blur=size * 0.012, opacity=0.3)
+            canvas.alpha_composite(sh, (word_pos[0], word_pos[1] + int(size * 0.012)))
+        canvas.alpha_composite(word, word_pos)
+    return canvas
+
+
 os.makedirs(OUT, exist_ok=True)
 
-
-def draw_mark(size, color, inset=0.0):
-    """The scooter-with-hot-box mark, transparent background, centred.
-
-    `inset` shrinks the mark within the canvas — Android's adaptive icon
-    crops to a circle, so the foreground layer needs it.
-    """
-    S = size * SS
-    img = Image.new('RGBA', (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-
-    scale = (1.0 - inset)
-    unit = S * scale / 100.0          # work in a 100-unit design grid
-    ox = S / 2 - 50 * unit            # grid origin so the grid is centred
-    oy = S / 2 - 50 * unit - 2.5 * unit   # a touch high: the wheels carry the visual weight
-
-    def P(x, y):
-        return (ox + x * unit, oy + y * unit)
-
-    def u(v):
-        return v * unit
-
-    def thick_line(a, b, w):
-        d.line([P(*a), P(*b)], fill=color, width=int(u(w)))
-        for (x, y) in (a, b):
-            cx, cy = P(x, y)
-            r = u(w) / 2
-            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color)
-
-    def ring(center, r, w):
-        cx, cy = P(*center)
-        d.ellipse([cx - u(r), cy - u(r), cx + u(r), cy + u(r)], outline=color, width=int(u(w)))
-
-    def dot(center, r):
-        cx, cy = P(*center)
-        d.ellipse([cx - u(r), cy - u(r), cx + u(r), cy + u(r)], fill=color)
-
-    # --- wheels ------------------------------------------------------------
-    rear = (25, 78)
-    front = (79, 78)
-    for c in (rear, front):
-        ring(c, 11.5, 5.5)
-        dot(c, 3.2)
-
-    # --- frame -------------------------------------------------------------
-    # floorboard from the rear upright to the steering column
-    thick_line((34, 72), (68, 72), 7)
-    # steering column up to the handlebar, leaning back a little
-    thick_line((71, 74), (63, 36), 7)
-    # handlebar
-    thick_line((55, 35), (75, 33), 6)
-    # rear upright carrying the box
-    thick_line((31, 72), (31, 58), 7)
-    # seat, in front of the box
-    thick_line((42, 58), (57, 56), 7)
-
-    # --- hot-food box on the back -----------------------------------------
-    x0, y0 = P(10, 34)
-    x1, y1 = P(42, 60)
-    d.rounded_rectangle([x0, y0, x1, y1], radius=u(4.5), fill=color)
-
-    # --- steam: three rising curves above the box, drawn as a trail of dots
-    # so the edges stay smooth at every size -------------------------------
-    steam_r = 2.6
-    tops = [(18, 15), (26, 20), (34, 15)]
-    for sx, height in tops:
-        bot_y = 29
-        top_y = bot_y - height
-        steps = 80
-        for i in range(steps + 1):
-            t = i / steps
-            y = bot_y + (top_y - bot_y) * t
-            x = sx + math.sin(t * math.pi * 1.25) * 3.0 * (1 - t * 0.35)
-            dot((x, y), steam_r)
-
-    # --- motion: two short dashes behind the scooter -----------------------
-    thick_line((1, 64), (8, 64), 4.5)
-    thick_line((3, 74), (8, 74), 4.5)
-
-    return img.resize((size, size), Image.LANCZOS)
-
-
-def on_background(mark, size, bg):
-    img = Image.new('RGBA', (size, size), bg + (255,))
-    img.alpha_composite(mark)
-    return img.convert('RGB')
-
-
-# --- iOS / general app icon: white mark on terracotta, full bleed ----------
-icon = on_background(draw_mark(1024, WHITE, inset=0.18), 1024, ACCENT)
-icon.save(os.path.join(OUT, 'icon.png'))
+# --- iOS / general app icon: full-bleed gradient, scooter + wordmark -------
+compose(1024, inset=0.10, background=gradient(1024)).convert('RGB').save(os.path.join(OUT, 'icon.png'))
 
 # --- Android adaptive ------------------------------------------------------
-# Foreground must sit inside the inner 66% safe zone, since the launcher
-# crops it to whatever shape the phone uses.
-draw_mark(1024, WHITE, inset=0.40).save(os.path.join(OUT, 'android-icon-foreground.png'))
-Image.new('RGBA', (1024, 1024), ACCENT + (255,)).convert('RGB').save(
-    os.path.join(OUT, 'android-icon-background.png'))
-# Monochrome (themed icons on Android 13+): silhouette on transparent.
-draw_mark(1024, (255, 255, 255), inset=0.40).save(
-    os.path.join(OUT, 'android-icon-monochrome.png'))
+# The launcher crops the layers to a circle/squircle, so the art stays inside
+# the inner 66% (inset 0.34 leaves a little breathing room).
+compose(1024, inset=0.36, background=None).save(os.path.join(OUT, 'android-icon-foreground.png'))
+gradient(1024).save(os.path.join(OUT, 'android-icon-background.png'))
+# Monochrome (themed icons on Android 13+): silhouette only, no wordmark.
+compose(1024, inset=0.40, with_word=False, background=None).save(os.path.join(OUT, 'android-icon-monochrome.png'))
 
-# --- Splash: terracotta mark on the app's cream background -----------------
-draw_mark(1024, ACCENT, inset=0.30).save(os.path.join(OUT, 'splash-icon.png'))
+# --- Splash: terracotta scooter + wordmark on the app's cream background ----
+compose(1024, inset=0.30, mark_color=TERRACOTTA, background=None).save(os.path.join(OUT, 'splash-icon.png'))
 
 # --- Favicon ---------------------------------------------------------------
-on_background(draw_mark(196, WHITE, inset=0.16), 196, ACCENT).save(
-    os.path.join(OUT, 'favicon.png'))
+compose(196, inset=0.08, with_word=False, background=gradient(196)).convert('RGB').save(os.path.join(OUT, 'favicon.png'))
 
 print('wrote:', sorted(os.listdir(OUT)))

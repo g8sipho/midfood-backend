@@ -1,30 +1,34 @@
 # Building the MidFood app
 
-Everything here is ready. These are the only commands that need running, and
-they must run on a computer with internet access to Expo's build service.
+Builds run on Expo's build service (EAS), started from GitHub so no computer
+needs anything installed.
 
-## One-time setup
+## Where things are
+
+- **Expo account:** expo.dev, signed in with Google (g8vipexclusive@gmail.com),
+  account `g8-vip`, project **G8 MidFood** (slug `g8-midfood`, project id in
+  `app.json` → `extra.eas.projectId`). That id is what routes push
+  notifications to this app.
+- **Build pipeline:** GitHub → Actions → **Mobile app build** → Run workflow →
+  pick `apk` (test file for a phone), `android` (Play Store bundle) or `ios`.
+  It needs the repository secret `EXPO_TOKEN` (expo.dev → account settings →
+  Access tokens). When it finishes, the download link is in the run's summary
+  and the file is attached to the run; it is also listed under Builds on
+  expo.dev.
+
+## From a computer instead (optional)
 
 ```bash
 cd mobile
 npm install
-npx eas login          # free Expo account — create one at expo.dev if needed
-npx eas init           # links this project and writes the EAS project id
-```
-
-`eas init` adds `extra.eas.projectId` to app.json. That id is what routes push
-notifications to this app, so push only works on builds made after this step.
-
-## Builds
-
-```bash
+npx eas login
 npm run build:apk        # installable APK for testing on your own phone
 npm run build:android    # Play Store bundle (.aab)
 npm run build:ios        # App Store build — needs an Apple Developer account
 ```
 
-Each prints a link when it finishes. The APK can be downloaded straight to a
-phone and installed (allow "install from unknown sources" when prompted).
+The APK can be downloaded straight to a phone and installed (allow "install
+from unknown sources" when prompted).
 
 ## Before submitting to the stores
 

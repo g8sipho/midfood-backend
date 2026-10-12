@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "MidFood",
-    "slug": "midfood",
+    "slug": "g8-midfood",
+    "owner": "g8-vip",
     "scheme": "midfood",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -53,6 +54,11 @@
     "androidStatusBar": {
       "barStyle": "dark-content",
       "backgroundColor": "#faf9f5"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "60b392c7-f674-4762-a5b7-5f5a56406669"
+      }
     }
   }
 }

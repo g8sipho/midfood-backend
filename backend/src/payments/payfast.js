@@ -4,11 +4,16 @@
 // after placing an order, and verifying the server-to-server ITN (Instant
 // Transaction Notification) PayFast sends once payment completes.
 //
-// PayFast's signature scheme has been stable for years: concatenate every
-// non-empty field as urlencoded name=value pairs (PHP-style encoding, with
-// spaces as '+'), in a fixed order, append the merchant's passphrase if one
-// is set, then MD5 the result. The same recipe is used both when building
-// the outgoing payment URL and when verifying an incoming ITN.
+// PayFast's signature scheme has been stable for years: concatenate fields as
+// urlencoded name=value pairs (PHP urlencode(): spaces as '+', and unlike
+// JS's encodeURIComponent also escapes ! ' ( ) * ~), append the merchant's
+// passphrase if one is set, then MD5 the result. There are two variants:
+//   - the outgoing payment URL signs only the NON-EMPTY fields, and
+//   - the incoming ITN is signed over EVERY posted field, empty ones included,
+//     in the order PayFast posted them (everything before "signature").
+// Mixing the two up makes every real payment fail with "signature mismatch"
+// even though PayFast took the money, because an ITN always carries empty
+// fields (name_last, custom_str1..5, custom_int1..5, ...).
 //
 // Which PayFast this talks to is decided by four environment variables set in
 // Render's Environment tab: PAYFAST_MODE ("live" or "sandbox") and the
@@ -26,20 +31,41 @@ const PROCESS_URL = `https://${HOST}/eng/process`;
 const VALIDATE_HOST = HOST;
 const VALIDATE_PATH = '/eng/query/validate';
 
-// PayFast expects PHP's urlencode() convention (spaces as '+'), which is
-// close to but not identical to JS's encodeURIComponent.
+// PayFast expects PHP's urlencode() convention: spaces as '+', and every
+// character outside A-Z a-z 0-9 - _ . percent-encoded (uppercase hex).
+// JS's encodeURIComponent leaves ! ' ( ) * ~ alone, so those are fixed up.
 function pfEncode(value) {
-  return encodeURIComponent(String(value)).replace(/%20/g, '+');
+  return encodeURIComponent(String(value))
+    .replace(/%20/g, '+')
+    .replace(/[!'()*~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
+function md5(text) {
+  return crypto.createHash('md5').update(text).digest('hex');
+}
+
+function signParts(parts, passphrase) {
+  if (passphrase) parts.push(`passphrase=${pfEncode(passphrase)}`);
+  return md5(parts.join('&'));
+}
+
+// Signature for the outgoing payment URL: non-empty fields only.
 function buildSignature(fields, passphrase) {
   const parts = Object.entries(fields)
     .filter(([key, value]) => key !== 'signature' && value !== undefined && value !== null && value !== '')
     .map(([key, value]) => `${key}=${pfEncode(value)}`);
-  if (passphrase) {
-    parts.push(`passphrase=${pfEncode(passphrase)}`);
+  return signParts(parts, passphrase);
+}
+
+// Signature PayFast puts on an ITN: every posted field, empty ones included,
+// in posted order, stopping at "signature" (which is always posted last).
+function itnSignature(body, passphrase) {
+  const parts = [];
+  for (const [key, value] of Object.entries(body)) {
+    if (key === 'signature') break;
+    parts.push(`${key}=${pfEncode(value === undefined || value === null ? '' : value)}`);
   }
-  return crypto.createHash('md5').update(parts.join('&')).digest('hex');
+  return signParts(parts, passphrase);
 }
 
 // Builds the URL to send the customer's browser to for payment. Returns null
@@ -74,11 +100,25 @@ function buildPaymentUrl({ order, buyer, returnUrl, cancelUrl, notifyUrl }) {
   return `${PROCESS_URL}?${query}`;
 }
 
-// Recomputes the ITN's signature from the parsed POST body and compares.
-function isSignatureValid(body) {
+// Recomputes the ITN's signature and compares. The documented recipe
+// (re-encode every parsed field) is tried first; as a safety net the exact
+// bytes PayFast posted are also tried as-is, in case their encoding of a
+// value ever differs from the re-encoded form.
+function isSignatureValid(body, rawBody) {
   const passphrase = process.env.PAYFAST_PASSPHRASE || '';
-  const expected = buildSignature(body, passphrase);
-  return expected === body.signature;
+  const given = String(body.signature || '').toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(given)) return false;
+
+  if (itnSignature(body, passphrase) === given) return true;
+
+  if (rawBody) {
+    const cut = rawBody.indexOf('&signature=');
+    if (cut > 0) {
+      const raw = rawBody.slice(0, cut) + (passphrase ? `&passphrase=${pfEncode(passphrase)}` : '');
+      if (md5(raw) === given) return true;
+    }
+  }
+  return false;
 }
 
 // Confirms with PayFast's own servers that an ITN really came from them --
@@ -114,4 +154,4 @@ function validateWithPayFast(rawBody) {
   });
 }
 
-module.exports = { buildPaymentUrl, buildSignature, isSignatureValid, validateWithPayFast, IS_SANDBOX };
+module.exports = { buildPaymentUrl, buildSignature, itnSignature, isSignatureValid, validateWithPayFast, IS_SANDBOX };

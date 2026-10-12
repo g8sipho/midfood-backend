@@ -262,6 +262,33 @@ describe('payment', () => {
     assert.equal((await api('POST', `/api/portal/orders/${order.id}/accept`, { token: resto.token })).status, 200);
   });
 
+  it("a notification is checked the way PayFast signs it: every field, empty ones too, PHP-encoded", async () => {
+    const payfast = require('../src/payments/payfast');
+    const crypto = require('crypto');
+    // What PayFast's own PHP sample computes for this ITN:
+    //   m_payment_id=abc&pf_payment_id=1&payment_status=COMPLETE&item_name=It%27s+a+%28test%29&
+    //   custom_str1=&name_last=&amount_gross=45.00&passphrase=payfast
+    const php = crypto.createHash('md5').update(
+      'm_payment_id=abc&pf_payment_id=1&payment_status=COMPLETE&item_name=It%27s+a+%28test%29'
+      + '&custom_str1=&name_last=&amount_gross=45.00&passphrase=payfast'
+    ).digest('hex');
+    const body = {
+      m_payment_id: 'abc', pf_payment_id: '1', payment_status: 'COMPLETE',
+      item_name: "It's a (test)", custom_str1: '', name_last: '', amount_gross: '45.00',
+      signature: php,
+    };
+    assert.equal(payfast.itnSignature(body, 'payfast'), php);
+    assert.ok(payfast.isSignatureValid(body));
+    // ...and the old recipe (empty fields dropped) must NOT be what we check against.
+    assert.notEqual(payfast.buildSignature(body, 'payfast'), php);
+
+    // An order paid for real: its ITN carries empty fields and is accepted.
+    const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
+    await h.notify(order);
+    await h.sleep(150);
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+  });
+
   it('a notification with a forged signature is ignored', async () => {
     const order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
     const r = await h.notify(order, { signature: 'deadbeefdeadbeefdeadbeefdeadbeef' });

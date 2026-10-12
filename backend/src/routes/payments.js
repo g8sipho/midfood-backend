@@ -45,8 +45,13 @@ router.post('/payfast/notify', urlencodedCapturingRaw, async (req, res) => {
   try {
     const body = req.body || {};
 
-    if (!payfast.isSignatureValid(body)) {
-      console.error('PayFast ITN: signature mismatch for order', body.m_payment_id);
+    if (!payfast.isSignatureValid(body, req.rawBody)) {
+      // The posted fields (minus the signature itself) are logged so a
+      // mismatch can be reproduced offline against the passphrase.
+      console.error(
+        'PayFast ITN: signature mismatch for order', body.m_payment_id,
+        '- posted:', String(req.rawBody || '').replace(/&signature=[^&]*/, '')
+      );
       return;
     }
     const authentic = await confirmedByPayFast(req.rawBody);

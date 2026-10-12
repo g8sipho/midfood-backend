@@ -142,21 +142,36 @@ async function placeOrder(cust, resto, lines, extra = {}) {
   });
 }
 
-// The notification PayFast sends when a payment completes, signed the way
-// PayFast signs it. `overrides` lets a test send a wrong amount or signature.
+// The notification PayFast sends when a payment completes, with the same
+// field set and order a real ITN has (empty fields included) and signed the
+// way PayFast signs it. `overrides` lets a test send a wrong amount or signature.
 async function notify(order, overrides = {}) {
   const fields = {
     m_payment_id: order.id,
     pf_payment_id: String(crypto.randomInt(1000000, 9999999)),
     payment_status: 'COMPLETE',
-    item_name: 'MidFood order',
+    item_name: 'MidFood order — Test Kitchen',
+    item_description: '',
     amount_gross: Number(order.total).toFixed(2),
     amount_fee: '-5.00',
     amount_net: (Number(order.total) - 5).toFixed(2),
+    custom_str1: '',
+    custom_str2: '',
+    custom_str3: '',
+    custom_str4: '',
+    custom_str5: '',
+    custom_int1: '',
+    custom_int2: '',
+    custom_int3: '',
+    custom_int4: '',
+    custom_int5: '',
+    name_first: "Sipho O'Test",
+    name_last: '',
+    email_address: 'customer@example.com',
     merchant_id: '10004002',
     ...overrides,
   };
-  if (!overrides.signature) fields.signature = payfast.buildSignature(fields, 'payfast');
+  if (!overrides.signature) fields.signature = payfast.itnSignature(fields, 'payfast');
   return api('POST', '/api/payments/payfast/notify', { form: fields });
 }
 

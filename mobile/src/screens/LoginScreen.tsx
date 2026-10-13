@@ -48,8 +48,7 @@ export default function LoginScreen({ navigation }: Props) {
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
-          <Image source={require('../../assets/icon.png')} style={styles.logo} />
-          <Text style={styles.wordmark}>MidFood</Text>
+          <Image source={require('../../assets/logo-terracotta.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.subtitle}>Middelburg's food, delivered to your door.</Text>
         </View>
 
@@ -119,17 +118,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
+  // The MidFood lockup: scooter + wordmark in the brand terracotta.
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    marginBottom: spacing.md,
-  },
-  wordmark: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
+    width: 240,
+    height: 60,
+    marginBottom: spacing.sm,
   },
   subtitle: {
     fontSize: 14,

@@ -72,3 +72,25 @@ fav = compose(64, inset=0.06, with_word=False, background=gradient(64)).convert(
 fav.save(os.path.join(WEB, 'favicon.ico'), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
 
 print('wrote:', sorted(os.listdir(STORE)), 'and website icons')
+
+# --- In-app logo lockups: scooter + wordmark side by side, transparent -------
+# logo-white.png sits on the orange home-screen header; logo-terracotta.png on
+# the cream sign-in screen. Drawn at 3x so they stay crisp on any phone.
+def lockup(color, name, height=240):
+    from PIL import ImageFont as _F
+    scoot = scooter_cutout()
+    sh_ = height
+    scoot = scoot.resize((int(scoot.width * sh_ / scoot.height), sh_), Image.LANCZOS)
+    tint = Image.new('RGBA', scoot.size, color + (255,))
+    tint.putalpha(scoot.split()[3])
+    font = _F.truetype(os.path.join(SRC, 'Poppins-ExtraBold.ttf'), int(height * 0.62))
+    l, t, r, b = font.getbbox('MidFood')
+    gap = int(height * 0.12)
+    canvas = Image.new('RGBA', (scoot.width + gap + (r - l) + 8, height), (0, 0, 0, 0))
+    canvas.alpha_composite(tint, (0, 0))
+    ImageDraw.Draw(canvas).text((scoot.width + gap - l, (height - (b - t)) // 2 - t), 'MidFood', font=font, fill=color + (255,))
+    canvas.save(os.path.join(HERE, 'assets', name))
+    return canvas.size
+
+print('logo-white', lockup((255, 255, 255), 'logo-white.png'))
+print('logo-terracotta', lockup((217, 119, 87), 'logo-terracotta.png'))

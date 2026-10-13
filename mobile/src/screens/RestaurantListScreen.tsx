@@ -131,6 +131,14 @@ export default function RestaurantListScreen({ navigation }: Props) {
   const header = (
     <View>
       <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.brandRow}>
+          <Image source={require('../../assets/logo-white.png')} style={styles.brandLogo} resizeMode="contain" />
+          {itemCount > 0 && (
+            <Pressable style={styles.cartPill} onPress={() => navigation.navigate('Cart')}>
+              <Text style={styles.cartPillText}>🛒 {itemCount}</Text>
+            </Pressable>
+          )}
+        </View>
         <View style={styles.heroTop}>
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>
@@ -139,11 +147,6 @@ export default function RestaurantListScreen({ navigation }: Props) {
             <Text style={styles.title}>What are you craving?</Text>
             <Text style={styles.place}>📍 Delivering in Middelburg</Text>
           </View>
-          {itemCount > 0 && (
-            <Pressable style={styles.cartPill} onPress={() => navigation.navigate('Cart')}>
-              <Text style={styles.cartPillText}>🛒 {itemCount}</Text>
-            </Pressable>
-          )}
         </View>
 
         <View style={styles.search}>
@@ -278,6 +281,17 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 28,
     marginHorizontal: -spacing.lg,
     marginBottom: spacing.md,
+  },
+  // The MidFood lockup (scooter + wordmark, white) at the top of every visit.
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  brandLogo: {
+    width: 128,
+    height: 32,
   },
   heroTop: {
     flexDirection: 'row',

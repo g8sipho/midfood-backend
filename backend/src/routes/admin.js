@@ -5,9 +5,11 @@
 // This is intentionally simple: one admin, one key, no separate admin-user
 // system -- revisit if MidFood ever needs more than one person managing this.
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { pool, uuid } = require('../db');
 const { requireAdmin } = require('../middleware/auth');
+const { normalizePhone, looksLikePhone } = require('../phone');
 const { notifyOrderStatus } = require('../notify');
 const money = require('../money');
 const images = require('./images');
@@ -494,6 +496,41 @@ router.post('/restaurants/:id/suspend', async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
     res.json({ restaurant: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Customers -------------------------------------------------------------
+
+// POST /api/admin/customers/temporary-password { identifier } - for a
+// customer who phones in locked out (no email, or email reset not set up).
+// Sets a fresh random password and returns it once, to be read out to them;
+// nothing else about the account is changed and the old password stops
+// working immediately.
+router.post('/customers/temporary-password', async (req, res, next) => {
+  try {
+    const who = String((req.body || {}).identifier || '').trim();
+    if (!who) return res.status(400).json({ error: 'identifier (email or cellphone number) is required' });
+    const byPhone = looksLikePhone(who) ? normalizePhone(who) : null;
+    const { rows } = await pool.query(
+      `SELECT id, name, email, phone FROM users
+       WHERE email = $1 OR ($2::text IS NOT NULL AND phone = $2) ORDER BY created_at DESC`,
+      [who.toLowerCase(), byPhone]
+    );
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'No customer account with that email or cellphone number' });
+
+    // Eight characters, no look-alike letters, easy to read over the phone.
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let temporary = '';
+    for (let i = 0; i < 8; i += 1) temporary += alphabet[crypto.randomInt(0, alphabet.length)];
+    await pool.query(
+      `UPDATE users SET password_hash = $1, reset_code_hash = NULL, reset_expires_at = NULL, reset_attempts = 0
+       WHERE id = $2`,
+      [await bcrypt.hash(temporary, 10), user.id]
+    );
+    res.json({ ok: true, temporaryPassword: temporary, customer: { name: user.name, email: user.email, phone: user.phone } });
   } catch (err) {
     next(err);
   }

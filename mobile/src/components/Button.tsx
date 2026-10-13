@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../theme/colors';
 
 type Props = {
@@ -8,10 +9,15 @@ type Props = {
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
   loading?: boolean;
+  // A MaterialCommunityIcons name drawn before the title. The ordering
+  // buttons use "moped", the delivery scooter from the app icon, so the
+  // button that sends food on its way looks the part.
+  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
-export default function Button({ title, onPress, variant = 'primary', disabled, loading }: Props) {
+export default function Button({ title, onPress, variant = 'primary', disabled, loading, icon }: Props) {
   const isPrimary = variant === 'primary';
+  const tint = isPrimary ? colors.textInverse : colors.textPrimary;
   return (
     <Pressable
       onPress={onPress}
@@ -26,9 +32,10 @@ export default function Button({ title, onPress, variant = 'primary', disabled, 
       {loading ? (
         <ActivityIndicator color={isPrimary ? colors.textInverse : colors.accentPrimary} />
       ) : (
-        <Text style={[styles.text, isPrimary ? styles.textPrimary : styles.textSecondary]}>
-          {title}
-        </Text>
+        <View style={styles.row}>
+          {icon ? <MaterialCommunityIcons name={icon} size={22} color={tint} style={styles.icon} /> : null}
+          <Text style={[styles.text, isPrimary ? styles.textPrimary : styles.textSecondary]}>{title}</Text>
+        </View>
       )}
     </Pressable>
   );
@@ -55,6 +62,14 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    marginRight: spacing.sm,
   },
   text: {
     fontSize: 16,

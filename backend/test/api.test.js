@@ -171,6 +171,84 @@ describe('who can get in', () => {
     assert.equal((await api('POST', '/api/auth/login', { body: { email: victim.email, password: 'secret123' } })).status, 429);
     assert.equal((await api('POST', '/api/auth/login', { body: { email: bystander.email, password: 'secret123' } })).status, 200);
   });
+
+  it('a customer who forgot their password gets a code by email and chooses a new one', async () => {
+    const mailer = require('../src/mailer');
+    const email = `${h.unique('forgot')}@example.com`;
+    const signup = await api('POST', '/api/auth/register', {
+      body: { name: 'Naledi Forgot', email, password: 'oldpass1', phone: '083 111 2233' },
+    });
+    assert.equal(signup.status, 201);
+
+    // Asking with the cellphone number works, and the reply says where the
+    // code went without giving the address away.
+    mailer.outbox.length = 0;
+    const asked = await api('POST', '/api/auth/forgot', { body: { identifier: '083 111 2233' } });
+    assert.equal(asked.status, 200);
+    assert.equal(asked.data.emailHint, `f${'*'.repeat(email.indexOf('@') - 2)}${email[email.indexOf('@') - 1]}@example.com`);
+    assert.equal(mailer.outbox.length, 1);
+    assert.equal(mailer.outbox[0].to, email);
+    const code = mailer.outbox[0].subject.match(/^(\d{6}) /)[1];
+    assert.ok(mailer.outbox[0].text.includes(code));
+
+    // Asking again straight away does not send a second email (one a minute).
+    await api('POST', '/api/auth/forgot', { body: { identifier: email } });
+    assert.equal(mailer.outbox.length, 1);
+
+    // An unknown address gets the same friendly answer and no email.
+    const unknown = await api('POST', '/api/auth/forgot', { body: { identifier: 'nobody@example.com' } });
+    assert.equal(unknown.status, 200);
+    assert.equal(unknown.data.emailHint, undefined);
+    assert.equal(mailer.outbox.length, 1);
+
+    // A wrong code is refused and the password stays as it was.
+    const wrong = await api('POST', '/api/auth/reset', { body: { identifier: email, code: '000000', password: 'newpass9' } });
+    assert.equal(wrong.status, 400);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: email, password: 'oldpass1' } })).status, 200);
+
+    // The right code (typed with a space, as people do) sets the new password
+    // and signs them in; the old password is gone and the code is spent.
+    const reset = await api('POST', '/api/auth/reset', {
+      body: { identifier: '0831112233', code: `${code.slice(0, 3)} ${code.slice(3)}`, password: 'newpass9' },
+    });
+    assert.equal(reset.status, 200, JSON.stringify(reset.data));
+    assert.equal(reset.data.user.email, email);
+    assert.ok(reset.data.token);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: email, password: 'newpass9' } })).status, 200);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: email, password: 'oldpass1' } })).status, 401);
+    assert.equal((await api('POST', '/api/auth/reset', { body: { identifier: email, code, password: 'again123' } })).status, 400);
+
+    // Five wrong guesses burn a code even if it is right the sixth time.
+    await h.db().query('UPDATE users SET reset_sent_at = NULL WHERE email = $1', [email]);
+    await api('POST', '/api/auth/forgot', { body: { identifier: email } });
+    const second = mailer.outbox[mailer.outbox.length - 1].subject.match(/^(\d{6}) /)[1];
+    for (let i = 0; i < 5; i += 1) {
+      await api('POST', '/api/auth/reset', { body: { identifier: email, code: '111111', password: 'x'.repeat(8) } });
+    }
+    assert.equal((await api('POST', '/api/auth/reset', { body: { identifier: email, code: second, password: 'burnt123' } })).status, 400);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: email, password: 'newpass9' } })).status, 200);
+  });
+
+  it('a signed-in customer can change their password, and support can hand out a temporary one', async () => {
+    const c = await h.customer();
+    // Wrong current password: refused.
+    const bad = await api('PUT', '/api/auth/password', { token: c.token, body: { currentPassword: 'nope', newPassword: 'changed1' } });
+    assert.equal(bad.status, 400); // not 401, which would log the customer out
+    const ok = await api('PUT', '/api/auth/password', { token: c.token, body: { currentPassword: 'secret123', newPassword: 'changed1' } });
+    assert.equal(ok.status, 200);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: c.email, password: 'changed1' } })).status, 200);
+
+    // Support (admin key) gives a temporary password to a customer who phoned in.
+    const temp = await api('POST', '/api/admin/customers/temporary-password', { ...ADMIN, body: { identifier: c.email.toUpperCase() } });
+    assert.equal(temp.status, 200);
+    assert.match(temp.data.temporaryPassword, /^[A-Z2-9]{8}$/);
+    assert.equal(temp.data.customer.email, c.email);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: c.email, password: 'changed1' } })).status, 401);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: c.email, password: temp.data.temporaryPassword } })).status, 200);
+    assert.equal((await api('POST', '/api/admin/customers/temporary-password', { ...ADMIN, body: { identifier: 'nobody@example.com' } })).status, 404);
+    // Not without the admin key.
+    assert.equal((await api('POST', '/api/admin/customers/temporary-password', { body: { identifier: c.email } })).status, 401);
+  });
 });
 
 describe('placing an order', () => {

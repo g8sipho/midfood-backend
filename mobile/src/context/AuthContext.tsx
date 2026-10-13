@@ -9,6 +9,8 @@ type AuthContextValue = {
   // `identifier` is the email address or the cellphone number.
   login: (identifier: string, password: string) => Promise<void>;
   register: (name: string, email: string, phone: string, password: string) => Promise<void>;
+  // Finishes "forgot password": the emailed code plus the new password.
+  resetPassword: (identifier: string, code: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -51,13 +53,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerForPushNotifications();
   }
 
+  async function resetPassword(identifier: string, code: string, password: string) {
+    const { token, user: restored } = await api.resetPassword(identifier, code, password);
+    await api.setToken(token);
+    setUser(restored);
+    registerForPushNotifications();
+  }
+
   async function logout() {
     await api.setToken(null);
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );

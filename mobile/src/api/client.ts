@@ -77,6 +77,31 @@ export async function login(identifier: string, password: string) {
   });
 }
 
+// Forgot password, step 1: the server emails a 6-digit code to the address
+// on the account. `emailHint` is the masked address it went to.
+export async function forgotPassword(identifier: string) {
+  return request<{ ok: true; message: string; emailHint?: string }>('/api/auth/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ identifier }),
+  });
+}
+
+// Forgot password, step 2: the code plus the new password. Signs them in.
+export async function resetPassword(identifier: string, code: string, password: string) {
+  return request<{ token: string; user: User }>('/api/auth/reset', {
+    method: 'POST',
+    body: JSON.stringify({ identifier, code, password }),
+  });
+}
+
+// A signed-in customer changing their own password.
+export async function changePassword(currentPassword: string, newPassword: string) {
+  return request<{ ok: true }>('/api/auth/password', {
+    method: 'PUT',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 // Turns an image path from the API ("/api/images/<id>/thumb") into a URL the
 // phone can load. Null stays null so callers can fall back to a colour block.
 export function imageSource(path?: string | null): { uri: string } | null {

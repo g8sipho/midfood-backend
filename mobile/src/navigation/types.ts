@@ -1,6 +1,8 @@
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
+  // `identifier` carries over whatever was typed on the sign-in screen.
+  ForgotPassword: { identifier?: string } | undefined;
 };
 
 export type HomeStackParamList = {

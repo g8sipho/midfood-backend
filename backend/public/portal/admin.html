@@ -361,6 +361,19 @@
     </div>
 
     <div class="card">
+      <h2>Customer locked out?</h2>
+      <p class="hint">Customers can reset their own password from the sign-in screen (a code is emailed to them). If someone phones in instead, type their email or cellphone number here: it sets a temporary password you read out to them, and their old one stops working.</p>
+      <form id="tempPasswordForm">
+        <div class="row">
+          <div><label for="tpIdentifier">Email or cellphone number</label><input id="tpIdentifier" required /></div>
+        </div>
+        <div class="error-msg" id="tempPasswordError"></div>
+        <div class="success-msg" id="tempPasswordSuccess"></div>
+        <button class="primary" type="submit">Give a temporary password</button>
+      </form>
+    </div>
+
+    <div class="card">
       <h2>Add a new restaurant</h2>
       <p class="hint">This creates the restaurant's listing and its portal login in one step. Give the username/password to the restaurant owner so they can sign in at /portal.</p>
       <form id="addRestaurantForm">
@@ -1239,6 +1252,26 @@
       await loadAll();
     } catch (err) {
       showMsg('addDriverError', err.message);
+    }
+  });
+
+  el('tempPasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showMsg('tempPasswordError', '');
+    showMsg('tempPasswordSuccess', '');
+    try {
+      const data = await adminFetch('/api/admin/customers/temporary-password', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: el('tpIdentifier').value.trim() }),
+      });
+      el('tempPasswordForm').reset();
+      showMsg(
+        'tempPasswordSuccess',
+        `${data.customer.name} (${data.customer.email}) can now sign in with the temporary password ${data.temporaryPassword} ` +
+          '— read it out, and tell them to change it under Account.'
+      );
+    } catch (err) {
+      showMsg('tempPasswordError', err.message);
     }
   });
 

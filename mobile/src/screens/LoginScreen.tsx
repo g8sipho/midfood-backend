@@ -3,6 +3,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -81,6 +82,13 @@ export default function LoginScreen({ navigation }: Props) {
           />
 
           <Button title="Sign in" onPress={handleLogin} loading={loading} />
+          <Pressable
+            onPress={() => navigation.navigate('ForgotPassword', { identifier: identifier.trim() })}
+            hitSlop={8}
+            style={styles.forgot}
+          >
+            <Text style={styles.forgotText}>Forgot your password?</Text>
+          </Pressable>
         </View>
 
         <View style={styles.footer}>
@@ -162,6 +170,15 @@ const styles = StyleSheet.create({
   error: {
     color: colors.accentError,
     fontSize: 13,
+  },
+  forgot: {
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+  },
+  forgotText: {
+    color: colors.accentPrimary,
+    fontSize: 14,
+    fontWeight: '700',
   },
   footer: {
     marginTop: spacing.xl,

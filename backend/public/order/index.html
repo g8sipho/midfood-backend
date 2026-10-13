@@ -92,6 +92,10 @@
     width: 100%; background: none; border: 1px solid var(--border); border-radius: 11px;
     padding: 13px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; margin-top: 10px;
   }
+  button.link {
+    width: 100%; background: none; border: none; padding: 12px 0 0; font-size: 14px; font-weight: 600;
+    color: var(--accent); cursor: pointer; text-align: center;
+  }
   .msg { font-size: 13px; margin-top: 12px; display: none; }
   .msg.err { color: var(--error); }
   .msg.ok { color: var(--success); }
@@ -260,6 +264,10 @@
     padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer;
     display: flex; justify-content: space-between; align-items: center;
   }
+  .cart-right { display: inline-flex; align-items: center; gap: 10px; }
+  /* The delivery scooter from the app icon, on the buttons that send an order on its way. */
+  .moped { flex: none; }
+  #ckPlace { display: flex; align-items: center; justify-content: center; gap: 10px; }
 
   .line { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 14px; }
   .line .l { color: var(--text-secondary); }
@@ -394,7 +402,7 @@
       <label for="ckNotes">Note for the restaurant (optional)</label>
       <textarea id="ckNotes" placeholder="e.g. no chilli, gate code 1234"></textarea>
       <div class="msg err" id="ckError"></div>
-      <button class="primary" id="ckPlace">Place order</button>
+      <button class="primary" id="ckPlace"><svg class="moped" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg><span id="ckPlaceText">Place order</span></button>
       <div class="hint" style="text-align:center;margin-top:12px;">
         You'll be taken to PayFast to pay securely. The restaurant only sees your order once payment goes through.
       </div>
@@ -422,7 +430,32 @@
         <div class="msg err" id="authError"></div>
         <button class="primary" type="submit" id="authSubmit">Sign in</button>
       </form>
+      <button class="link" id="authForgot" type="button">Forgot your password?</button>
       <button class="ghost" id="authSwap">New here? Create an account</button>
+    </div>
+  </div>
+
+  <!-- Forgot password: step 1 asks where to send the code, step 2 takes the
+       code and the new password. -->
+  <div class="view" id="v-forgot">
+    <h1 class="page">Reset your password</h1>
+    <p class="page-sub" id="fpSub">We'll email a 6-digit code to the address on your account.</p>
+    <div class="card">
+      <form id="fpForm">
+        <label for="fpWho">Email or cellphone number</label>
+        <input id="fpWho" type="text" autocomplete="username" required />
+        <div id="fpStep2" style="display:none;">
+          <label for="fpCode">The 6-digit code from the email</label>
+          <input id="fpCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" placeholder="123456" />
+          <label for="fpPass">New password</label>
+          <input id="fpPass" type="password" autocomplete="new-password" minlength="6" />
+        </div>
+        <div class="msg err" id="fpError"></div>
+        <div class="msg ok" id="fpOk"></div>
+        <button class="primary" type="submit" id="fpSubmit">Email me a code</button>
+      </form>
+      <button class="link" id="fpResend" type="button" style="display:none;">Didn't get it? Send the code again</button>
+      <button class="ghost" id="fpBack" type="button">Back to sign in</button>
     </div>
   </div>
 
@@ -457,6 +490,18 @@
       <div style="font-weight:800;font-size:17px;" id="acName"></div>
       <div style="font-size:14px;color:var(--text-secondary);margin-top:2px;" id="acEmail"></div>
       <button class="ghost" id="acLogout" style="margin-top:20px;">Log out</button>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;">Change password</div>
+      <form id="cpForm">
+        <label for="cpCurrent">Current password</label>
+        <input id="cpCurrent" type="password" autocomplete="current-password" required />
+        <label for="cpNew">New password</label>
+        <input id="cpNew" type="password" autocomplete="new-password" minlength="6" required />
+        <div class="msg err" id="cpError"></div>
+        <div class="msg ok" id="cpOk"></div>
+        <button class="primary" type="submit" id="cpSubmit">Change password</button>
+      </form>
     </div>
     <div class="card">
       <div style="font-weight:700;font-size:15px;">Need help?</div>
@@ -500,7 +545,7 @@
 
 <div class="cartbar" id="cartBar">
   <div class="inner">
-    <button id="cartGo"><span id="cartLabel"></span><span id="cartTotal"></span></button>
+    <button id="cartGo"><span id="cartLabel"></span><span class="cart-right"><span id="cartTotal"></span><svg class="moped" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg></span></button>
   </div>
 </div>
 
@@ -572,7 +617,7 @@
   // --- routing ------------------------------------------------------------
   // Hash routing so the browser back button works and a paid order can be
   // linked straight to its tracking page from PayFast's return URL.
-  var VIEWS = ['home', 'menu', 'checkout', 'auth', 'orders', 'track', 'account'];
+  var VIEWS = ['home', 'menu', 'checkout', 'auth', 'forgot', 'orders', 'track', 'account'];
   function show(view) {
     VIEWS.forEach(function (v) { el('v-' + v).className = 'view' + (v === view ? ' on' : ''); });
     el('backBtn').style.display = view === 'home' ? 'none' : 'block';
@@ -598,6 +643,7 @@
     if (h === 'account') return openAccount();
     if (h === 'signin') return openAuth(false);
     if (h === 'signup') return openAuth(true);
+    if (h === 'forgot') return openForgot();
     show('home');
     loadRestaurants();
   }
@@ -1228,7 +1274,7 @@
     setMsg('ckError', '');
     var btn = el('ckPlace');
     btn.disabled = true;
-    btn.textContent = 'Placing your order…';
+    el('ckPlaceText').textContent = 'Placing your order…';
 
     api('/api/orders', {
       method: 'POST',
@@ -1258,7 +1304,7 @@
       else go('#order/' + data.order.id);
     }).catch(function (err) {
       btn.disabled = false;
-      btn.textContent = 'Place order';
+      el('ckPlaceText').textContent = 'Place order';
       // Sold out or repriced while they were typing: fix the basket, show the
       // new total, and let them decide.
       if (err.data && (err.data.soldOutItemId || err.data.priceChanged)) {
@@ -1319,6 +1365,96 @@
         go(next || '');
       })
       .catch(function (err) { setMsg('authError', err.message); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  // --- forgot password ----------------------------------------------------
+  // Step 1: where to send the code. Step 2: the code plus the new password.
+  // Both steps post to the server; the page just remembers which step it is on.
+  var fpCodeSent = false;
+
+  function openForgot() {
+    show('forgot');
+    fpCodeSent = false;
+    // Carry over whatever they had typed on the sign-in screen.
+    if (!el('fpWho').value && !isRegister) el('fpWho').value = el('auEmail').value.trim();
+    el('fpStep2').style.display = 'none';
+    el('fpCode').required = false;
+    el('fpPass').required = false;
+    el('fpCode').value = '';
+    el('fpPass').value = '';
+    el('fpSubmit').textContent = 'Email me a code';
+    el('fpResend').style.display = 'none';
+    el('fpSub').textContent = "We'll email a 6-digit code to the address on your account.";
+    setMsg('fpError', '');
+    setMsg('fpOk', '');
+  }
+
+  function sendResetCode() {
+    var btn = el('fpSubmit');
+    btn.disabled = true;
+    setMsg('fpError', '');
+    return api('/api/auth/forgot', { method: 'POST', body: { identifier: el('fpWho').value.trim() } })
+      .then(function (data) {
+        fpCodeSent = true;
+        el('fpStep2').style.display = 'block';
+        el('fpCode').required = true;
+        el('fpPass').required = true;
+        el('fpSubmit').textContent = 'Set new password';
+        el('fpResend').style.display = 'block';
+        el('fpSub').textContent = data.emailHint
+          ? 'Check ' + data.emailHint + ' for the code (look in spam too), then choose a new password.'
+          : data.message;
+        if (data.emailHint) setMsg('fpOk', 'Code sent to ' + data.emailHint + '. It is valid for 15 minutes.', 'ok');
+        el('fpCode').focus();
+      })
+      .catch(function (err) { setMsg('fpError', err.message); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  el('fpForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!fpCodeSent) { sendResetCode(); return; }
+    var btn = el('fpSubmit');
+    btn.disabled = true;
+    setMsg('fpError', '');
+    setMsg('fpOk', '');
+    api('/api/auth/reset', {
+      method: 'POST',
+      body: { identifier: el('fpWho').value.trim(), code: el('fpCode').value.trim(), password: el('fpPass').value },
+    })
+      .then(function (data) {
+        token = data.token;
+        user = data.user;
+        try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
+        paintAccount();
+        var next = pendingAfterAuth;
+        pendingAfterAuth = null;
+        go(next || '');
+      })
+      .catch(function (err) { setMsg('fpError', err.message); })
+      .then(function () { btn.disabled = false; });
+  });
+  el('fpResend').addEventListener('click', function () { setMsg('fpOk', ''); sendResetCode(); });
+  el('fpBack').addEventListener('click', function () { go('#signin'); });
+  el('authForgot').addEventListener('click', function () { go('#forgot'); });
+
+  // --- change password (signed in) ---------------------------------------
+  el('cpForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = el('cpSubmit');
+    btn.disabled = true;
+    setMsg('cpError', '');
+    setMsg('cpOk', '');
+    api('/api/auth/password', {
+      method: 'PUT',
+      body: { currentPassword: el('cpCurrent').value, newPassword: el('cpNew').value },
+    })
+      .then(function () {
+        el('cpForm').reset();
+        setMsg('cpOk', 'Password changed.', 'ok');
+      })
+      .catch(function (err) { setMsg('cpError', err.message); })
       .then(function () { btn.disabled = false; });
   });
 

@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchRestaurant, imageSource } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { colors, radius, spacing } from '../theme/colors';
@@ -169,6 +170,7 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
           </View>
           <Text style={styles.cartBarText}>View cart</Text>
           <Text style={styles.cartBarTotal}>R{subtotal.toFixed(2)}</Text>
+          <MaterialCommunityIcons name="moped" size={24} color={colors.textInverse} style={styles.cartBarIcon} />
         </Pressable>
       )}
     </View>
@@ -398,5 +400,8 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontWeight: '800',
     fontSize: 15,
+  },
+  cartBarIcon: {
+    marginLeft: spacing.md,
   },
 });

@@ -66,7 +66,7 @@ export default function CartScreen({ navigation }: Props) {
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>R{subtotal + restaurant.deliveryFee}</Text>
         </View>
-        <Button title="Go to checkout" onPress={() => navigation.navigate('Checkout')} />
+        <Button title="Go to checkout" icon="moped" onPress={() => navigation.navigate('Checkout')} />
       </View>
     </View>
   );

@@ -135,7 +135,7 @@ export default function CheckoutScreen({ navigation }: Props) {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Button title={`Place order · R${total}`} onPress={handlePlaceOrder} loading={placing} />
+      <Button title={`Place order · R${total}`} icon="moped" onPress={handlePlaceOrder} loading={placing} />
     </ScrollView>
   );
 }

@@ -131,9 +131,10 @@ function rateLimitAuth(req, res, next) {
     return res.status(429).json({ error: 'Too many requests. Please wait a few minutes and try again.' });
   }
 
-  // The account being tried: email for customers, username for the others.
+  // The account being tried: email or cellphone number for customers,
+  // username for the others.
   const body = req.body || {};
-  const who = String(body.email || body.username || '').trim().toLowerCase();
+  const who = String(body.identifier || body.email || body.username || '').trim().toLowerCase();
   if (who && countOf(failures, who, FAIL_WINDOW_MS) >= MAX_FAILURES) {
     return res.status(429).json({
       error: 'Too many failed attempts for this account. Please wait 15 minutes, or reset your password.',
@@ -141,11 +142,14 @@ function rateLimitAuth(req, res, next) {
   }
 
   // Count the attempt as a failure only once we see the response go out as a
-  // 401. A correct password clears the count, so a customer who fat-fingers
-  // their password a few times is not punished after they get it right.
+  // 401 (a wrong password) or, on the password-reset route, a 400 (a wrong
+  // code). A correct password clears the count, so a customer who
+  // fat-fingers their password a few times is not punished after they get it
+  // right.
   if (who) {
+    const wrongCode = req.path === '/reset' || req.originalUrl.endsWith('/auth/reset');
     res.on('finish', () => {
-      if (res.statusCode === 401) bump(failures, who, FAIL_WINDOW_MS);
+      if (res.statusCode === 401 || (wrongCode && res.statusCode === 400)) bump(failures, who, FAIL_WINDOW_MS);
       else if (res.statusCode < 400) failures.delete(who);
     });
   }
@@ -159,7 +163,7 @@ setInterval(() => {
   for (const [k, rec] of ipHits) if (now - rec.start > IP_WINDOW_MS) ipHits.delete(k);
 }, 5 * 60 * 1000).unref();
 
-app.use(['/api/auth/login', '/api/auth/register'], rateLimitAuth);
+app.use(['/api/auth/login', '/api/auth/register', '/api/auth/forgot', '/api/auth/reset'], rateLimitAuth);
 app.use(['/api/restaurant-auth', '/api/driver-auth'], rateLimitAuth);
 
 app.use('/api/auth', authRoutes);

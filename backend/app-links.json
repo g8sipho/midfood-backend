@@ -1,6 +1,6 @@
 {
   "_comment": "Where midfood.co.za/app sends people. The GitHub 'Mobile app build' workflow rewrites `android` after every APK build; `ios` and the store links are filled in by hand once they exist.",
-  "android": "https://expo.dev/accounts/g8-vip/projects/g8-midfood/builds/06bd02dd-6dcf-4f3b-be69-f33b5169a70d",
+  "android": "https://expo.dev/accounts/g8-vip/projects/g8-midfood/builds/39b2460c-3ed5-4f88-b92e-179501ef8d7a",
   "ios": null,
   "playStore": null,
   "appStore": null

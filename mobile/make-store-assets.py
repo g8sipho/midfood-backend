@@ -94,3 +94,41 @@ def lockup(color, name, height=240):
 
 print('logo-white', lockup((255, 255, 255), 'logo-white.png'))
 print('logo-terracotta', lockup((217, 119, 87), 'logo-terracotta.png'))
+
+# --- Social media kit (mobile/social/) ---------------------------------------
+# profile-1080.png   square icon for Facebook / Instagram / TikTok profile pictures
+# facebook-cover.png 1640 x 624 page cover: scooter, wordmark, promise, web address
+SOCIAL = os.path.join(HERE, 'social')
+os.makedirs(SOCIAL, exist_ok=True)
+compose(1080, inset=0.12, background=gradient(1080)).convert('RGB').save(os.path.join(SOCIAL, 'profile-1080.png'))
+
+def cover(path, W=1640, Hc=624):
+    base = gradient(W, cy=0.5).crop((0, (W - Hc) // 2, W, (W - Hc) // 2 + Hc))
+    img = Image.new('RGBA', (W, Hc), (0, 0, 0, 0))
+    img.paste(base.convert('RGBA'))
+    sc = scooter_cutout()
+    sw = 520
+    sc = sc.resize((sw, int(sc.height * sw / sc.width)), Image.LANCZOS)
+    pos = (90, (Hc - sc.height) // 2)
+    shd, _ = soft_shadow(sc, blur=16, opacity=0.35)
+    img.alpha_composite(shd, (pos[0], pos[1] + 16))
+    img.alpha_composite(sc, pos)
+    d = ImageDraw.Draw(img)
+    fp = os.path.join(SRC, 'Poppins-ExtraBold.ttf')
+    f1 = ImageFont.truetype(fp, 128); f2 = ImageFont.truetype(fp, 40); f3 = ImageFont.truetype(fp, 38)
+    x = 680
+    d.text((x + 3, 150 + 4), 'MidFood', font=f1, fill=(120, 20, 0, 110))
+    d.text((x, 150), 'MidFood', font=f1, fill=(255, 255, 255, 255))
+    d.text((x + 2, 312), "Middelburg's food, delivered to your door", font=f2, fill=(120, 20, 0, 90))
+    d.text((x, 310), "Middelburg's food, delivered to your door", font=f2, fill=(255, 240, 228, 255))
+    # Pill with the web address.
+    label = 'Order at midfood.co.za'
+    lb = f3.getbbox(label)
+    pw, ph = lb[2] - lb[0] + 64, lb[3] - lb[1] + 36
+    py = 400
+    d.rounded_rectangle((x, py, x + pw, py + ph), radius=ph // 2, fill=(255, 255, 255, 255))
+    d.text((x + 32 - lb[0], py + 18 - lb[1]), label, font=f3, fill=(176, 32, 0, 255))
+    img.convert('RGB').save(path)
+
+cover(os.path.join(SOCIAL, 'facebook-cover-1640x624.png'))
+print('social kit:', sorted(os.listdir(SOCIAL)))

@@ -127,7 +127,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add backend/app-links.json
           git diff --cached --quiet || git commit -m "midfood.co.za/app -> Android build ${{ steps.build.outputs.id }}"
-          git push
+          # main usually moves on during a 10-minute build; rebase the one-line
+          # commit onto whatever is there now before pushing (a few tries).
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push && break
+            echo "push attempt $i failed, retrying"; sleep 10
+          done
 
       - name: Download the file
         if: steps.build.outputs.url != ''

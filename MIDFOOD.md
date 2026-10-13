@@ -210,6 +210,12 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   again"** went live on 8 Oct (commit `957c0c9`), after Sipho asked for the
   site to be brought in line with Mr D and Uber Eats.
 - **Support number 072 643 7784** is on every page.
+- **Forgot password / change password** went in on 13 Oct (first tester
+  request). Emailed 6-digit code, `POST /api/auth/forgot` + `/reset`;
+  `PUT /api/auth/password` for signed-in changes; admin
+  `POST /api/admin/customers/temporary-password` for phone support. Mail is
+  SMTP via `src/mailer.js`, configured with `SMTP_*` in Render; unconfigured
+  means the reset route answers 503 with the support number.
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

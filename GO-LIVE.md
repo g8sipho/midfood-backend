@@ -169,6 +169,25 @@ g8vipexclusive@gmail.com. There are no separate inboxes to check. To change
 where it goes: Axxess → midfood.co.za hosting → Control Panel Login → Forwarders.
 The number customers, restaurants and drivers are given is **072 643 7784**.
 
+## A customer who forgot their password
+
+They can fix it themselves: **Forgot your password?** on the sign-in screen
+(app or website) emails a 6-digit code to the address on their account; they
+type it back with a new password and are signed in. The code lasts 15 minutes
+and five wrong guesses burn it. Signed-in customers change their password
+under **Account**.
+
+The emails go out from `noreply@midfood.co.za`, a mailbox on the midfood.co.za
+hosting at Axxess (cPanel → Email Accounts). The server needs four values in
+Render → midfood-backend → Environment: `SMTP_HOST` (`mail.midfood.co.za`),
+`SMTP_PORT` (`465`), `SMTP_USER` (`noreply@midfood.co.za`) and `SMTP_PASS`
+(that mailbox's password). **Until they are set, the reset screen tells
+customers to phone 072 643 7784 instead** - nothing is silently dropped.
+
+If someone phones in: admin page → **Customer locked out?** → type their email
+or cellphone number → read out the temporary password it shows. Their old
+password stops working at once; ask them to change it under Account.
+
 ## If something looks wrong
 
 - **Site down?** Check https://midfood.co.za/health, then Render →

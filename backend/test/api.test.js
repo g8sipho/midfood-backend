@@ -1854,6 +1854,18 @@ describe('signing in with Google or Facebook', () => {
   });
 });
 
+describe('a restaurant changing its own portal password', () => {
+  it('needs the current one, then the new one works', async () => {
+    const resto = await h.restaurant({ name: 'Password Kitchen' });
+    const wrong = await api('PUT', '/api/portal/password', { token: resto.token, body: { currentPassword: 'nope123', newPassword: 'fresh123' } });
+    assert.equal(wrong.status, 400);
+    const ok = await api('PUT', '/api/portal/password', { token: resto.token, body: { currentPassword: 'secret123', newPassword: 'fresh123' } });
+    assert.equal(ok.status, 200);
+    assert.equal((await api('POST', '/api/restaurant-auth/login', { body: { username: resto.username, password: 'secret123' } })).status, 401);
+    assert.equal((await api('POST', '/api/restaurant-auth/login', { body: { username: resto.username, password: 'fresh123' } })).status, 200);
+  });
+});
+
 describe('the pages themselves', () => {
   it('every front door is served', async () => {
     for (const path of ['/', '/order/', '/portal/', '/driver/', '/portal/admin.html', '/privacy/']) {

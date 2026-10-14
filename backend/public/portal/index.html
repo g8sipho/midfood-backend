@@ -395,6 +395,20 @@
     </div>
 
     <div class="card">
+      <h2 style="font-size:15px;">Change your password</h2>
+      <p class="hint">Forgot it? Call or WhatsApp MidFood on 072 643 7784 and we'll reset it, then change it here.</p>
+      <form id="pwForm">
+        <label for="pwCurrent">Current password</label>
+        <input id="pwCurrent" type="password" autocomplete="current-password" required />
+        <label for="pwNew">New password</label>
+        <input id="pwNew" type="password" autocomplete="new-password" minlength="6" required />
+        <div class="error-msg" id="pwError"></div>
+        <div class="msg-ok" id="pwOk"></div>
+        <button class="primary" type="submit" id="pwSubmit">Change password</button>
+      </form>
+    </div>
+
+    <div class="card">
       <h2>Your menu</h2>
       <p class="hint">Mark an item sold out to hide it from customers without deleting it.</p>
       <div id="emptyState" style="display:none;">No menu items yet — add your first one above.</div>
@@ -444,6 +458,25 @@
     }
     return data;
   }
+
+  el('pwForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = el('pwError'); const okBox = el('pwOk');
+    errBox.textContent = ''; okBox.textContent = ''; okBox.style.display = 'none';
+    el('pwSubmit').disabled = true;
+    try {
+      await apiFetch('/api/portal/password', {
+        method: 'PUT',
+        body: JSON.stringify({ currentPassword: el('pwCurrent').value, newPassword: el('pwNew').value }),
+      });
+      el('pwForm').reset();
+      okBox.textContent = 'Password changed.'; okBox.style.display = 'block';
+    } catch (err) {
+      errBox.textContent = err.message;
+    } finally {
+      el('pwSubmit').disabled = false;
+    }
+  });
 
   function logout() {
     token = null;

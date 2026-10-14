@@ -2,6 +2,7 @@
 // Every route here is scoped to req.restaurantId (set by requireRestaurantAuth),
 // so a restaurant can only ever see or change its own items.
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { pool, uuid } = require('../db');
 const { requireRestaurantAuth } = require('../middleware/auth');
 const { notifyOrderStatus, notifyChatMessage } = require('../notify');
@@ -345,6 +346,31 @@ router.patch('/open', async (req, res, next) => {
     const open = !!(req.body && req.body.open);
     await pool.query('UPDATE restaurants SET open = $1 WHERE id = $2', [open, req.restaurantId]);
     res.json({ open });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/portal/password { currentPassword, newPassword } - the restaurant
+// changes its own portal password. A forgotten one is reset by MidFood from
+// the admin page ("Reset login"), after which the owner changes it here.
+router.put('/password', async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Your current password and a new password are required' });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'password must be at least 6 characters' });
+    }
+    const { rows } = await pool.query('SELECT password_hash AS "passwordHash" FROM restaurants WHERE id = $1', [req.restaurantId]);
+    if (!rows[0] || !rows[0].passwordHash) return res.status(404).json({ error: 'Restaurant not found' });
+    // 400, not 401: a 401 would sign the kitchen out over a typo.
+    if (!(await bcrypt.compare(String(currentPassword), rows[0].passwordHash))) {
+      return res.status(400).json({ error: 'Your current password is not right' });
+    }
+    await pool.query('UPDATE restaurants SET password_hash = $1 WHERE id = $2', [await bcrypt.hash(String(newPassword), 10), req.restaurantId]);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

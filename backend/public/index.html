@@ -3,208 +3,233 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="theme-color" content="#d97757" />
+<meta name="theme-color" content="#24122F" />
 <title>MidFood — Food delivery in Middelburg</title>
-<meta name="description" content="MidFood delivers from Middelburg's restaurants and takeaways straight to your door. Order on your phone, pay securely, and track your driver to the gate." />
+<meta name="description" content="MidFood delivers from Middelburg's restaurants, takeaways and shops straight to your door. Order on your phone, pay securely, and track your driver to the gate." />
 <meta property="og:title" content="MidFood — Food delivery in Middelburg" />
-<meta property="og:description" content="Order from Middelburg's restaurants and takeaways. Pay securely and track your driver to the gate." />
+<meta property="og:description" content="Order from Middelburg's restaurants, takeaways and shops. Pay securely and track your driver to the gate." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://midfood.co.za" />
 <link rel="icon" href="/icon-192.png" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,800&family=Poppins:wght@400;500;600;700;800&display=swap" />
 <style>
+  /* The same "Highveld sunset" as the app: plum sky, ember sun, paper and sand. */
   :root {
-    --bg-app: #faf9f5;
-    --bg-surface: #ffffff;
-    --bg-muted: #f0eee6;
-    --border: rgba(15, 12, 8, 0.12);
-    --text-primary: rgba(15, 12, 8, 0.92);
-    --text-secondary: rgba(15, 12, 8, 0.64);
-    --text-tertiary: rgba(15, 12, 8, 0.6);
-    --accent: #d97757;
-    --accent-hover: #c46a4d;
-    --ink: #191915;
-    --success: #558a42;
-    --shadow: rgba(20, 20, 19, 0.1);
+    --paper: #FFF7F0;
+    --surface: #ffffff;
+    --sand: #F6E9DE;
+    --line: rgba(36, 18, 47, 0.1);
+    --ink: #1C1020;
+    --ink-soft: #5E4D66;
+    --ink-faint: #8F7E98;
+    --ember: #FF5A2D;
+    --ember-deep: #E8431C;
+    --ember-soft: #FFE9E0;
+    --plum: #24122F;
+    --plum-deep: #170A1F;
+    --mint: #16A86B;
+    --flame: linear-gradient(100deg, #FF7A3C, #FF3D5E);
+    --display: "Fraunces", Georgia, serif;
+    --shadow: 0 2px 14px rgba(36, 18, 47, 0.08);
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body {
-    margin: 0;
-    background: var(--bg-app);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    line-height: 1.55;
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; line-height: 1.55;
   }
   a { color: inherit; }
-  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
 
-  /* Nav */
-  nav {
-    position: sticky; top: 0; z-index: 10;
-    background: rgba(250, 249, 245, 0.92);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border);
-  }
-  nav .inner { display: flex; align-items: center; justify-content: space-between; height: 66px; gap: 16px; }
-  .logo { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; text-decoration: none; }
-  .logo span { color: var(--accent); }
-  nav .links { display: flex; align-items: center; gap: 8px; }
-  nav .links a {
-    text-decoration: none; font-size: 14px; font-weight: 600; color: var(--text-secondary);
-    padding: 9px 13px; border-radius: 9px;
-  }
-  nav .links a:hover { background: var(--bg-muted); color: var(--text-primary); }
-  nav .links a.cta { background: var(--ink); color: #fff; }
-  nav .links a.cta:hover { background: #2b2b26; color: #fff; }
-  @media (max-width: 720px) { nav .links a.hide-sm { display: none; } }
+  /* Nav sits on the sky */
+  nav { background: var(--plum); color: #fff; position: sticky; top: 0; z-index: 30; }
+  nav .inner { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+  .logo { display: inline-flex; align-items: center; gap: 7px; font-weight: 800; font-size: 21px; text-decoration: none; color: #fff; letter-spacing: -0.3px; }
+  .logo b { font-weight: 800; }
+  .logo span { color: var(--ember); }
+  .logo svg { color: var(--ember); }
+  .links { display: flex; align-items: center; gap: 6px; }
+  .links a { text-decoration: none; font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.82); padding: 8px 12px; border-radius: 999px; }
+  .links a:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  .links a.cta { background: var(--ember); color: #fff; }
+  .links a.cta:hover { background: var(--ember-deep); }
+  @media (max-width: 640px) { .hide-sm { display: none; } }
 
-  /* Hero */
-  header.hero { padding: 72px 0 64px; }
-  .hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: center; }
-  .eyebrow {
-    display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 1.2px;
-    text-transform: uppercase; color: var(--accent);
-    background: rgba(217, 119, 87, 0.1); border-radius: 999px; padding: 6px 14px; margin-bottom: 22px;
+  /* Hero: the sky, the sun, and today's food fanned out beside it */
+  .hero { position: relative; overflow: hidden; color: #fff; background: linear-gradient(165deg, var(--plum) 0%, var(--plum-deep) 100%); border-radius: 0 0 40px 40px; }
+  .hero .sun { position: absolute; width: 520px; height: 520px; border-radius: 50%; background: var(--ember); right: -120px; top: -180px; opacity: 0.92; }
+  .hero .glow { position: absolute; width: 820px; height: 820px; border-radius: 50%; background: #FF7A3C; right: -300px; top: -360px; opacity: 0.14; }
+  .hero-grid { position: relative; display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding: 64px 20px 80px; }
+  @media (max-width: 880px) {
+    .hero-grid { grid-template-columns: 1fr; padding: 40px 20px 56px; gap: 36px; }
+    .hero .sun { width: 300px; height: 300px; right: -90px; top: -110px; }
   }
-  h1 { font-size: 52px; line-height: 1.07; letter-spacing: -1.5px; margin: 0 0 20px; font-weight: 800; }
-  .lede { font-size: 18px; color: var(--text-secondary); margin: 0 0 32px; max-width: 30em; }
-  .btn-row { display: flex; flex-wrap: wrap; gap: 12px; }
-  .btn {
-    display: inline-block; text-decoration: none; font-weight: 700; font-size: 15px;
-    padding: 14px 26px; border-radius: 11px; border: 1px solid transparent;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: var(--accent-hover); }
-  .btn-outline { border-color: var(--border); color: var(--text-primary); background: var(--bg-surface); }
-  .btn-outline:hover { border-color: var(--text-tertiary); }
-  .hero-note { font-size: 13px; color: var(--text-tertiary); margin-top: 18px; }
+  .place { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 600; }
+  .place svg { color: var(--ember); }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(40px, 6.4vw, 68px); line-height: 1.02; letter-spacing: -0.5px; margin: 18px 0 16px; }
+  .lede { font-size: 17px; color: rgba(255,255,255,0.78); max-width: 30em; margin: 0 0 28px; }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 15px 26px; font-weight: 700; font-size: 15.5px; text-decoration: none; border: none; cursor: pointer; }
+  .btn-primary { background: var(--flame); color: #fff; box-shadow: 0 10px 26px rgba(255, 90, 45, 0.35); }
+  .btn-primary:hover { filter: brightness(0.96); }
+  .btn-ghost { background: rgba(255,255,255,0.1); color: #fff; border: 1.5px solid rgba(255,255,255,0.22); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.16); }
+  .btn-dark { background: var(--plum); color: #fff; }
+  .btn-outline { background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--ember); outline-offset: 3px; }
+  .hero-note { margin: 18px 0 0; font-size: 13px; color: rgba(255,255,255,0.6); }
 
-  /* Phone mock */
-  .phone {
-    background: var(--ink); border-radius: 36px; padding: 11px;
-    box-shadow: 0 28px 60px rgba(20, 20, 19, 0.22); margin: 0 auto; max-width: 300px;
+  /* Fan of real dishes */
+  .fan { position: relative; height: 430px; }
+  @media (max-width: 880px) { .fan { height: 300px; } }
+  .fan .pc {
+    position: absolute; width: 44%; aspect-ratio: 3 / 4; border-radius: 28px; overflow: hidden; background: var(--plum-deep);
+    box-shadow: 0 24px 50px rgba(0,0,0,0.35); text-decoration: none; color: #fff;
+    transition: transform 0.25s ease;
   }
-  .phone-screen { background: var(--bg-app); border-radius: 27px; overflow: hidden; }
-  .ps-top { background: var(--accent); color: #fff; padding: 20px 18px 16px; }
-  .ps-top .hi { font-size: 12px; opacity: 0.85; }
-  .ps-top .q { font-size: 17px; font-weight: 800; margin-top: 2px; }
-  .ps-body { padding: 14px; display: grid; gap: 10px; }
-  .ps-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 13px; padding: 11px 13px; }
-  .ps-card .n { font-weight: 700; font-size: 13px; }
-  .ps-card .m { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
-  .ps-card .p { font-size: 12px; font-weight: 800; color: var(--accent); margin-top: 5px; }
-  .ps-track { background: var(--bg-surface); border: 1px solid var(--accent); border-radius: 13px; padding: 12px 13px; }
-  .ps-track .t { font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: var(--accent); }
-  .ps-track .d { font-weight: 800; font-size: 14px; margin-top: 3px; }
-  .ps-track .s { font-size: 11px; color: var(--text-tertiary); }
-  .dots { display: flex; gap: 5px; margin-top: 9px; }
-  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
-  .dots i.on { background: var(--accent); }
+  @media (max-width: 880px) { .fan .pc { width: 44%; } }
+  .fan .pc img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .fan .pc::after { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(23,10,31,0) 50%, rgba(23,10,31,0.88)); }
+  .fan .pc .cap { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 1; }
+  .fan .pc .nm { font-family: var(--display); font-weight: 800; font-size: 18px; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fan .pc .rs { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fan .pc .pr { position: absolute; top: 12px; right: 12px; z-index: 1; background: var(--ember); border-radius: 999px; padding: 5px 12px; font-weight: 800; font-size: 14px; }
+  .fan .pc:nth-child(1) { left: 2%; top: 56px; transform: rotate(-8deg); }
+  .fan .pc:nth-child(2) { left: 28%; top: 6px; transform: rotate(1deg); z-index: 2; }
+  .fan .pc:nth-child(3) { right: 2%; top: 70px; transform: rotate(8deg); z-index: 1; }
+  .fan .pc:hover { transform: rotate(0) translateY(-6px); z-index: 3; }
+  @media (prefers-reduced-motion: reduce) { .fan .pc { transition: none; } }
+  .fan.empty .pc { display: none; }
+  .fan .placeholder { display: none; }
+  .fan.empty .placeholder {
+    display: flex; position: absolute; inset: 30px 10%; border-radius: 28px; background: rgba(255,255,255,0.06); border: 1.5px dashed rgba(255,255,255,0.2);
+    align-items: center; justify-content: center; text-align: center; font-family: var(--display); font-size: 26px; padding: 30px;
+  }
 
   /* Sections */
-  section { padding: 66px 0; }
-  section.alt { background: var(--bg-surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  h2.sec { font-size: 33px; letter-spacing: -0.8px; margin: 0 0 12px; font-weight: 800; }
-  p.sub { font-size: 16px; color: var(--text-secondary); margin: 0 0 40px; max-width: 34em; }
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
-  .step .num {
-    width: 38px; height: 38px; border-radius: 11px; background: var(--accent); color: #fff;
-    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; margin-bottom: 14px;
-  }
-  .step h3 { font-size: 17px; margin: 0 0 6px; font-weight: 700; }
-  .step p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+  section { padding: 72px 0; }
+  .sec { font-family: var(--display); font-weight: 800; font-size: clamp(30px, 4.2vw, 42px); line-height: 1.1; letter-spacing: -0.3px; margin: 0 0 8px; }
+  .sub { color: var(--ink-soft); font-size: 16px; margin: 0 0 32px; max-width: 36em; }
+  .head-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .head-row .btn { margin-bottom: 32px; }
 
-  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
-  .pcard {
-    background: var(--bg-app); border: 1px solid var(--border); border-radius: 18px; padding: 30px;
-  }
-  section.alt .pcard { background: var(--bg-app); }
-  .pcard h3 { font-size: 21px; margin: 0 0 8px; font-weight: 800; letter-spacing: -0.3px; }
-  .pcard p { font-size: 14px; color: var(--text-secondary); margin: 0 0 18px; }
-  .pcard ul { margin: 0 0 22px; padding-left: 20px; font-size: 14px; color: var(--text-secondary); }
-  .pcard ul li { margin-bottom: 6px; }
+  /* Today's menu grid */
+  .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 960px) { .menu-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 680px) { .menu-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+  .dish { background: var(--surface); border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); text-decoration: none; color: inherit; display: block; position: relative; transition: transform 0.15s; }
+  .dish:hover { transform: translateY(-3px); }
+  @media (prefers-reduced-motion: reduce) { .dish { transition: none; } }
+  .dish img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--sand); }
+  .dish .plus { position: absolute; right: 12px; width: 38px; height: 38px; border-radius: 50%; background: var(--plum); color: #fff; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 700; transform: translateY(-50%); }
+  .dish .bd { padding: 14px 14px 16px; }
+  .dish .nm { font-weight: 700; font-size: 15px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 39px; }
+  .dish .rs { font-size: 12.5px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dish .pr { font-family: var(--display); font-weight: 800; color: var(--ember); font-size: 19px; margin-top: 6px; }
+  .menu-grid:empty + .menu-empty { display: block; }
+  .menu-empty { display: none; color: var(--ink-soft); }
 
-  /* Footer */
-  footer { background: var(--ink); color: rgba(250, 249, 245, 0.72); padding: 50px 0 34px; font-size: 14px; }
-  footer .logo { color: #fff; }
-  footer .cols { display: flex; flex-wrap: wrap; gap: 48px; justify-content: space-between; }
-  footer h4 { color: #fff; font-size: 13px; text-transform: uppercase; letter-spacing: 0.9px; margin: 0 0 12px; }
-  footer a { display: block; text-decoration: none; margin-bottom: 7px; color: rgba(250, 249, 245, 0.72); }
+  /* Category strip */
+  .cats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 36px; }
+  .cat { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; padding: 9px 16px 9px 10px; text-decoration: none; font-weight: 600; font-size: 14px; }
+  .cat .e { font-size: 20px; width: 30px; height: 30px; border-radius: 50%; background: var(--ember-soft); display: inline-flex; align-items: center; justify-content: center; }
+  .cats:empty { display: none; }
+
+  /* How it works: a real sequence, so numbers belong here */
+  .alt { background: var(--sand); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 800px) { .steps { grid-template-columns: 1fr; } }
+  .step { background: var(--surface); border-radius: 24px; padding: 26px; box-shadow: var(--shadow); }
+  .step .num { width: 44px; height: 44px; border-radius: 14px; background: var(--plum); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 20px; margin-bottom: 16px; }
+  .step:nth-child(2) .num { background: var(--ember); }
+  .step:nth-child(3) .num { background: var(--mint); }
+  .step h3 { margin: 0 0 6px; font-size: 18px; }
+  .step p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+
+  /* Get the app */
+  .app-band { background: linear-gradient(165deg, var(--plum) 0%, var(--plum-deep) 100%); color: #fff; border-radius: 32px; padding: 44px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; align-items: center; position: relative; overflow: hidden; }
+  .app-band .sun { position: absolute; width: 260px; height: 260px; border-radius: 50%; background: var(--ember); right: -70px; bottom: -110px; opacity: 0.9; }
+  @media (max-width: 800px) { .app-band { grid-template-columns: 1fr; padding: 30px 24px; } }
+  .app-band .sec { color: #fff; }
+  .app-band p { color: rgba(255,255,255,0.78); margin: 0 0 22px; }
+  .stores { display: grid; gap: 12px; position: relative; }
+  .store { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,0.08); border: 1.5px solid rgba(255,255,255,0.16); border-radius: 20px; padding: 16px 18px; text-decoration: none; color: #fff; }
+  .store:hover { background: rgba(255,255,255,0.13); }
+  .store svg { flex: none; }
+  .store b { display: block; font-size: 16px; }
+  .store small { color: rgba(255,255,255,0.7); font-size: 13px; }
+
+  /* Partners */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  @media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
+  .pcard { background: var(--surface); border-radius: 24px; padding: 28px; box-shadow: var(--shadow); }
+  .pcard h3 { font-family: var(--display); font-size: 24px; margin: 0 0 6px; }
+  .pcard p { color: var(--ink-soft); margin: 0 0 12px; }
+  .pcard ul { margin: 0 0 22px; padding: 0; list-style: none; }
+  .pcard li { padding: 6px 0 6px 28px; position: relative; font-size: 15px; }
+  .pcard li::before { content: ''; position: absolute; left: 0; top: 11px; width: 16px; height: 16px; border-radius: 50%; background: var(--ember-soft); box-shadow: inset 0 0 0 5px var(--ember); }
+  .offer { display: inline-block; background: var(--ember-soft); color: var(--ember-deep); font-weight: 700; font-size: 13px; border-radius: 999px; padding: 5px 12px; margin-bottom: 12px; }
+
+  footer { background: var(--plum-deep); color: rgba(255,255,255,0.75); padding: 52px 0 30px; margin-top: 72px; border-radius: 40px 40px 0 0; }
+  footer .cols { display: flex; gap: 40px; flex-wrap: wrap; justify-content: space-between; }
+  footer h4 { color: #fff; margin: 0 0 10px; font-size: 14px; }
+  footer a { display: block; text-decoration: none; font-size: 14px; padding: 3px 0; color: rgba(255,255,255,0.75); }
   footer a:hover { color: #fff; }
-  footer .base { border-top: 1px solid rgba(250, 249, 245, 0.14); margin-top: 38px; padding-top: 22px; font-size: 13px; color: rgba(250, 249, 245, 0.5); }
-
-  @media (max-width: 860px) {
-    .hero-grid { grid-template-columns: 1fr; gap: 44px; }
-    h1 { font-size: 38px; letter-spacing: -1px; }
-    .steps, .cards { grid-template-columns: 1fr; }
-    header.hero { padding: 48px 0 40px; }
-    section { padding: 48px 0; }
-    h2.sec { font-size: 27px; }
-  }
-  /* The delivery scooter from the app icon, beside the wordmark. */
-  .brand-mark, .logo-mark { color: #d97757; vertical-align: -6px; margin-right: 6px; }
+  footer .base { border-top: 1px solid rgba(255,255,255,0.1); margin-top: 34px; padding-top: 18px; font-size: 13px; }
 </style>
 </head>
 <body>
 
 <nav>
   <div class="wrap inner">
-    <a class="logo" href="/"><svg class="logo-mark" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>Mid<span>Food</span></a>
+    <a class="logo" href="/"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg><b>Mid<span>Food</span></b></a>
     <div class="links">
-      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#menu">Today's food</a>
       <a class="hide-sm" href="#partners">For restaurants</a>
-      <a href="/driver/">Drive</a>
+      <a class="hide-sm" href="/driver/">Drive</a>
       <a class="cta" href="/order/">Order now</a>
     </div>
   </div>
 </nav>
 
 <header class="hero">
+  <div class="glow"></div><div class="sun"></div>
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow">Middelburg, Mpumalanga</span>
-      <h1>Middelburg's food, delivered to your door.</h1>
-      <p class="lede">
-        Order from restaurants and takeaways around town, pay securely on your phone, and watch your
-        driver all the way to the gate.
-      </p>
+      <span class="place"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.3 7 13 7 13s7-7.7 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>Middelburg &amp; Mhluzi</span>
+      <h1>Hungry?<br>We deliver.</h1>
+      <p class="lede">Kotas, cakes, braai, pizza, groceries and medicine from Middelburg's own kitchens and shops. Pay on your phone, then watch your driver all the way to the gate.</p>
       <div class="btn-row">
-        <a class="btn btn-primary" href="/order/">Order now</a>
-        <a class="btn btn-outline" href="#partners">List your restaurant</a>
+        <a class="btn btn-primary" href="/order/">Order food now</a>
+        <a class="btn btn-ghost" href="/app">Get the app</a>
       </div>
       <p class="hero-note">Card payments secured by PayFast. No cash needed at the door.</p>
     </div>
-
-    <div class="phone" aria-hidden="true">
-      <div class="phone-screen">
-        <div class="ps-top">
-          <div class="hi">Delivering to</div>
-          <div class="q">Mineralia, Middelburg</div>
-        </div>
-        <div class="ps-body">
-          <div class="ps-card">
-            <div class="n">Braai House</div>
-            <div class="m">South African · Grills · 35 min</div>
-            <div class="p">R25 delivery</div>
-          </div>
-          <div class="ps-card">
-            <div class="n">Mama Thandi's Kitchen</div>
-            <div class="m">Home-style · Comfort food · 40 min</div>
-            <div class="p">R20 delivery</div>
-          </div>
-          <div class="ps-track">
-            <div class="t">Out for delivery</div>
-            <div class="d">Thabo is on the way</div>
-            <div class="s">Arriving in about 8 minutes</div>
-            <div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
-          </div>
-        </div>
-      </div>
+    <div class="fan empty" id="fan" aria-label="Dishes you can order today">
+      <div class="placeholder">Middelburg's food, one tap away.</div>
     </div>
   </div>
 </header>
+
+<section id="menu">
+  <div class="wrap">
+    <div class="head-row">
+      <div>
+        <h2 class="sec">On the menu today</h2>
+        <p class="sub">Real dishes from MidFood kitchens. Tap one to order it.</p>
+      </div>
+      <a class="btn btn-dark" href="/order/">See every store</a>
+    </div>
+    <div class="menu-grid" id="menuGrid"></div>
+    <p class="menu-empty">New dishes are being added every day. <a href="/order/">Browse the stores</a>.</p>
+    <div class="cats" id="cats"></div>
+  </div>
+</section>
 
 <section id="how" class="alt">
   <div class="wrap">
@@ -214,7 +239,7 @@
       <div class="step">
         <div class="num">1</div>
         <h3>Pick your food</h3>
-        <p>Browse restaurants and takeaways near you, see what's in stock, and build your order.</p>
+        <p>Browse restaurants, takeaways and shops near you. Search for a dish or tap a category.</p>
       </div>
       <div class="step">
         <div class="num">2</div>
@@ -224,7 +249,7 @@
       <div class="step">
         <div class="num">3</div>
         <h3>Track it to your door</h3>
-        <p>Follow your order from the kitchen to the gate, and see exactly where your driver is.</p>
+        <p>Follow your order from the kitchen to the gate, and chat with the kitchen if you need to.</p>
       </div>
     </div>
   </div>
@@ -232,31 +257,22 @@
 
 <section id="get-app">
   <div class="wrap">
-    <h2 class="sec">Order now, app optional</h2>
-    <p class="sub">
-      You can order straight from this website today — no download needed. The phone app is finishing
-      its store review and will bring push notifications when it lands.
-    </p>
-    <div class="cards">
-      <div class="pcard">
-        <h3>For customers</h3>
-        <p>Order, pay and track right here in your browser.</p>
-        <ul>
-          <li>Restaurants and takeaways across Middelburg</li>
-          <li>Secure card payment, no cash at the door</li>
-          <li>Live driver tracking to your door</li>
-        </ul>
-        <a class="btn btn-primary" href="/order/">Start an order</a>
+    <div class="app-band">
+      <div class="sun"></div>
+      <div style="position:relative;">
+        <h2 class="sec">MidFood on your phone</h2>
+        <p>Order in a few taps, get a notification the moment your food is on its way, and chat with the kitchen. Or order right here on the website, no download needed.</p>
+        <a class="btn btn-primary" href="/order/">Order on the website</a>
       </div>
-      <div class="pcard">
-        <h3>For drivers</h3>
-        <p>Deliver around town on your own schedule and get paid per delivery.</p>
-        <ul>
-          <li>Go online when it suits you</li>
-          <li>See the fee before you accept a delivery</li>
-          <li>Works straight from your phone's browser</li>
-        </ul>
-        <a class="btn btn-outline" href="/driver/">Sign up to drive</a>
+      <div class="stores">
+        <a class="store" href="/app">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="#3DDC84" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.46 11.46 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 17 15.25z"/></svg>
+          <span><b>Android app</b><small>Download and install from midfood.co.za/app</small></span>
+        </a>
+        <a class="store" href="/order/">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46a4.24 4.24 0 0 0-3.33-1.8c-1.42-.15-2.77.84-3.49.84-.72 0-1.83-.82-3-.8a4.46 4.46 0 0 0-3.77 2.29c-1.61 2.8-.41 6.93 1.16 9.2.77 1.11 1.68 2.36 2.88 2.31 1.16-.05 1.6-.75 2.99-.75 1.4 0 1.79.75 3 .73 1.24-.02 2.03-1.13 2.79-2.25a9.86 9.86 0 0 0 1.27-2.6 4.04 4.04 0 0 1-2.46-3.71zM14.08 5.84a4.1 4.1 0 0 0 .94-2.94 4.18 4.18 0 0 0-2.7 1.4 3.92 3.92 0 0 0-.97 2.84 3.46 3.46 0 0 0 2.73-1.3z"/></svg>
+          <span><b>iPhone</b><small>App Store version coming soon. For now, open the website in Safari and tap Share → Add to Home Screen.</small></span>
+        </a>
       </div>
     </div>
   </div>
@@ -264,29 +280,27 @@
 
 <section id="partners" class="alt">
   <div class="wrap">
-    <h2 class="sec">Run a restaurant in Middelburg?</h2>
-    <p class="sub">
-      Get your food in front of customers across town, with no website to build and no delivery drivers
-      to hire.
-    </p>
+    <h2 class="sec">Run a restaurant or shop in Middelburg?</h2>
+    <p class="sub">Get your food in front of customers across town, with no website to build and no delivery drivers to hire.</p>
     <div class="cards">
       <div class="pcard">
-        <h3>List your restaurant</h3>
-        <p>Sign up in a few minutes. We check your details and call you before you go live.</p>
+        <span class="offer">First 3 months commission-free</span>
+        <h3>List your store</h3>
+        <p>Sign up in a few minutes. We load your menu and photos, and call you before you go live.</p>
         <ul>
-          <li>Manage your own menu and prices</li>
-          <li>Mark items sold out in one tap</li>
-          <li>Open and close whenever you need to</li>
+          <li>Our drivers collect and deliver</li>
+          <li>Customers pay upfront, and you're paid every Tuesday</li>
+          <li>Customers can chat to you, and quick questions are answered for you</li>
         </ul>
         <a class="btn btn-primary" href="/portal/">Apply to join MidFood</a>
       </div>
       <div class="pcard">
         <h3>Already with us?</h3>
-        <p>Your order board shows new orders as they arrive and chimes so the kitchen never misses one.</p>
+        <p>Your order board chimes for every new order so the kitchen never misses one.</p>
         <ul>
           <li>Accept orders and mark food ready</li>
-          <li>Our drivers handle every delivery</li>
-          <li>See the day's sales at a glance</li>
+          <li>Mark dishes sold out in one tap</li>
+          <li>See the day's sales and what you're owed</li>
         </ul>
         <a class="btn btn-outline" href="/portal/">Open the restaurant portal</a>
       </div>
@@ -298,22 +312,23 @@
   <div class="wrap">
     <div class="cols">
       <div style="max-width: 22em;">
-        <a class="logo" href="/"><svg class="logo-mark" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>Mid<span>Food</span></a>
+        <a class="logo" href="/"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg><b>Mid<span>Food</span></b></a>
         <p style="margin: 10px 0 0;">Food delivery for Middelburg, Mpumalanga. A G8 company.</p>
       </div>
       <div>
         <h4>Order</h4>
         <a href="/order/">Order now</a>
+        <a href="/app">Android app</a>
         <a href="#how">How it works</a>
       </div>
       <div>
         <h4>Partners</h4>
         <a href="/portal/">Restaurant portal</a>
-        <a href="/driver/">Driver app</a>
+        <a href="/driver/">Drive for MidFood</a>
       </div>
       <div>
         <h4>Contact</h4>
-        <a href="tel:0726437784">072 643 7784</a>
+        <a href="https://wa.me/27726437784">WhatsApp 072 643 7784</a>
         <a href="mailto:hello@midfood.co.za">hello@midfood.co.za</a>
         <a href="/privacy/">Privacy policy</a>
       </div>
@@ -323,7 +338,53 @@
 </footer>
 
 <script>
+(function () {
+  'use strict';
   document.getElementById('yr').textContent = new Date().getFullYear();
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var rand = function (n) { return 'R' + Number(n || 0).toFixed(2).replace(/\.00$/, ''); };
+  var link = function (d) { return '/order/#r/' + d.restaurantId + '/d/' + d.id; };
+
+  // Today's dishes: three fanned out in the hero, the rest in the grid.
+  fetch('/api/restaurants/dishes/featured?limit=11').then(function (r) { return r.json(); }).then(function (data) {
+    var dishes = (data && data.dishes) || [];
+    if (!dishes.length) return;
+    var fan = document.getElementById('fan');
+    dishes.slice(0, 3).forEach(function (d) {
+      var a = document.createElement('a');
+      a.className = 'pc';
+      a.href = link(d);
+      a.innerHTML = '<img alt="" src="' + esc(d.imageUrl) + '" /><span class="pr">' + rand(d.price) + '</span>' +
+        '<span class="cap"><span class="nm">' + esc(d.name) + '</span><span class="rs" style="display:block">' + esc(d.restaurantName) + '</span></span>';
+      fan.appendChild(a);
+    });
+    fan.className = 'fan';
+    var grid = document.getElementById('menuGrid');
+    var rest = dishes.length > 6 ? dishes.slice(3) : dishes;
+    rest.slice(0, 8).forEach(function (d) {
+      var a = document.createElement('a');
+      a.className = 'dish';
+      a.href = link(d);
+      a.innerHTML = '<img alt="" loading="lazy" src="' + esc(d.thumbUrl || d.imageUrl) + '" /><span class="plus">+</span>' +
+        '<span class="bd" style="display:block"><span class="nm">' + esc(d.name) + '</span>' +
+        '<span class="rs" style="display:block">' + esc(d.restaurantName) + '</span>' +
+        '<span class="pr" style="display:block">' + rand(d.price) + '</span></span>';
+      grid.appendChild(a);
+    });
+  }).catch(function () {});
+
+  // The categories that have stores in them.
+  fetch('/api/restaurants/categories').then(function (r) { return r.json(); }).then(function (data) {
+    var box = document.getElementById('cats');
+    ((data && data.categories) || []).forEach(function (c) {
+      var a = document.createElement('a');
+      a.className = 'cat';
+      a.href = '/order/';
+      a.innerHTML = '<span class="e">' + esc(c.emoji) + '</span>' + esc(c.label);
+      box.appendChild(a);
+    });
+  }).catch(function () {});
+})();
 </script>
 </body>
 </html>

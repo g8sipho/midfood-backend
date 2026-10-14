@@ -56,12 +56,13 @@ export default function RegisterScreen({ navigation }: Props) {
         </>
       }
     >
-      <SocialButtons onError={setError} />
-      <View style={styles.or}>
-        <View style={styles.orLine} />
-        <Txt variant="small">or with your email</Txt>
-        <View style={styles.orLine} />
-      </View>
+      <SocialButtons onError={setError}>
+        <View style={styles.or}>
+          <View style={styles.orLine} />
+          <Txt variant="small">or with your email</Txt>
+          <View style={styles.orLine} />
+        </View>
+      </SocialButtons>
       {error ? (
         <Txt variant="small" color={colors.berry}>
           {error}

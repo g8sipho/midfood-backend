@@ -52,12 +52,13 @@ export default function LoginScreen({ navigation }: Props) {
         </>
       }
     >
-      <SocialButtons onError={setError} />
-      <View style={styles.or}>
-        <View style={styles.orLine} />
-        <Txt variant="small">or sign in with a password</Txt>
-        <View style={styles.orLine} />
-      </View>
+      <SocialButtons onError={setError}>
+        <View style={styles.or}>
+          <View style={styles.orLine} />
+          <Txt variant="small">or sign in with a password</Txt>
+          <View style={styles.orLine} />
+        </View>
+      </SocialButtons>
       {error ? (
         <Txt variant="small" color={colors.berry}>
           {error}

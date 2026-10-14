@@ -108,6 +108,11 @@ export type User = {
   // sign-up asked for it.
   phone?: string | null;
   createdAt: string;
+  avatarUrl?: string | null;
+  // False for an account made with "Continue with Google / Facebook" that
+  // hasn't chosen a password yet.
+  hasPassword?: boolean;
+  linked?: { google: boolean; facebook: boolean };
 };
 
 // Where a sign-in came from, when it was not a password.

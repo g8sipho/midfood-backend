@@ -15,6 +15,7 @@ type AuthContextValue = {
   // Google or Facebook: the server does the sign-in and hands back a token.
   // Resolves false if the customer closed the browser without finishing.
   socialLogin: (provider: SocialProvider) => Promise<boolean>;
+  refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -79,13 +80,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }
 
+  // Re-reads the account after something about it changed (a password set).
+  async function refreshUser() {
+    try {
+      setUser(await api.fetchMe());
+    } catch {
+      // Keep what we have; the next launch will sort it out.
+    }
+  }
+
   async function logout() {
     await api.setToken(null);
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, resetPassword, socialLogin, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, resetPassword, socialLogin, refreshUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

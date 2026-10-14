@@ -1677,6 +1677,183 @@ describe('home-screen categories', () => {
   });
 });
 
+describe('signing in with Google or Facebook', () => {
+  const social = require('../src/routes/socialAuth');
+  const realHttp = social.http;
+  // What the provider will say when asked. Set per test.
+  let provider = {};
+  let calls = [];
+  before(() => {
+    process.env.GOOGLE_CLIENT_ID = 'google-client-id';
+    process.env.GOOGLE_CLIENT_SECRET = 'google-client-secret';
+    process.env.FACEBOOK_APP_ID = 'fb-app-id';
+    process.env.FACEBOOK_APP_SECRET = 'fb-app-secret';
+    process.env.PUBLIC_URL = 'https://midfood.co.za';
+    social.http = async (method, url, opts) => {
+      calls.push({ method, url, opts });
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        if (opts.form.code !== 'good-code') throw new Error('Sign-in provider answered invalid_grant');
+        return { access_token: 'g-access' };
+      }
+      if (url.startsWith('https://openidconnect.googleapis.com/v1/userinfo')) {
+        assert.equal(opts.headers.Authorization, 'Bearer g-access');
+        return provider.google;
+      }
+      if (url.startsWith('https://graph.facebook.com/v19.0/oauth/access_token')) return { access_token: 'fb-access' };
+      if (url.startsWith('https://graph.facebook.com/v19.0/me')) return provider.facebook;
+      throw new Error(`unexpected call ${url}`);
+    };
+  });
+  after(() => {
+    social.http = realHttp;
+    delete process.env.FACEBOOK_APP_ID;
+    delete process.env.FACEBOOK_APP_SECRET;
+  });
+
+  const stateFrom = (location) => new URL(location).searchParams.get('state');
+  const landed = (location) => {
+    // midfood://auth?token=... or https://midfood.co.za/order/#social=token%3D...
+    if (location.startsWith('midfood://auth?')) return Object.fromEntries(new URLSearchParams(location.slice('midfood://auth?'.length)));
+    const hash = new URL(location).hash;
+    assert.ok(hash.startsWith('#social='), location);
+    return Object.fromEntries(new URLSearchParams(decodeURIComponent(hash.slice('#social='.length))));
+  };
+
+  it('says which providers are switched on', async () => {
+    const r = await api('GET', '/api/auth/providers');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.data, { google: true, facebook: true });
+  });
+
+  it('the app is sent to Google with a signed state and comes back signed in, with the account created', async () => {
+    const start = await api('GET', '/api/auth/google/start?platform=app');
+    assert.equal(start.status, 302);
+    const to = new URL(start.headers.get('location'));
+    assert.equal(to.origin + to.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+    assert.equal(to.searchParams.get('client_id'), 'google-client-id');
+    assert.equal(to.searchParams.get('redirect_uri'), 'https://midfood.co.za/api/auth/google/callback');
+    assert.ok(to.searchParams.get('scope').includes('email'));
+    assert.equal(start.headers.get('set-cookie'), null, 'the app flow needs no cookie');
+
+    const email = `${h.unique('goog')}@gmail.com`;
+    provider.google = { sub: 'g-' + email, email, email_verified: true, name: 'Thabo Google', picture: 'https://lh3.example/p.jpg' };
+    calls = [];
+    const back = await api('GET', `/api/auth/google/callback?code=good-code&state=${stateFrom(start.headers.get('location'))}`);
+    assert.equal(back.status, 302);
+    const result = landed(back.headers.get('location'));
+    assert.ok(back.headers.get('location').startsWith('midfood://auth?'), back.headers.get('location'));
+    assert.ok(result.token);
+    assert.equal(result.provider, 'google');
+    // The secret went to Google, not into the app.
+    assert.equal(calls[0].opts.form.client_secret, 'google-client-secret');
+    assert.equal(calls[0].opts.form.redirect_uri, 'https://midfood.co.za/api/auth/google/callback');
+
+    const me = await api('GET', '/api/auth/me', { token: result.token });
+    assert.equal(me.status, 200);
+    assert.equal(me.data.user.email, email);
+    assert.equal(me.data.user.name, 'Thabo Google');
+    assert.equal(me.data.user.hasPassword, false);
+    assert.deepEqual(me.data.user.linked, { google: true, facebook: false });
+
+    // Signing in again with the same Google account lands on the same MidFood account.
+    const again = await api('GET', '/api/auth/google/start?platform=app');
+    const back2 = await api('GET', `/api/auth/google/callback?code=good-code&state=${stateFrom(again.headers.get('location'))}`);
+    const me2 = await api('GET', '/api/auth/me', { token: landed(back2.headers.get('location')).token });
+    assert.equal(me2.data.user.id, me.data.user.id);
+
+    // A password login on that account explains itself instead of a flat "invalid".
+    const pw = await api('POST', '/api/auth/login', { body: { identifier: email, password: 'whatever1' } });
+    assert.equal(pw.status, 401);
+    assert.match(pw.data.error, /signs in with Google/);
+
+    // ...and it can set its first password without knowing a current one.
+    const set = await api('PUT', '/api/auth/password', { token: result.token, body: { newPassword: 'chosen123' } });
+    assert.equal(set.status, 200);
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: email, password: 'chosen123' } })).status, 200);
+    assert.equal((await api('GET', '/api/auth/me', { token: result.token })).data.user.hasPassword, true);
+    // From now on the current password is required again.
+    assert.equal((await api('PUT', '/api/auth/password', { token: result.token, body: { newPassword: 'other123' } })).status, 400);
+  });
+
+  it('a Facebook sign-in with the email of an existing account links to that account', async () => {
+    const existing = await h.customer('Palesa Existing');
+    provider.facebook = { id: 'fb-' + existing.email, name: 'Palesa FB', email: existing.email.toUpperCase(), picture: { data: { url: 'https://fb.example/p.jpg' } } };
+    const start = await api('GET', '/api/auth/facebook/start?platform=app');
+    assert.ok(start.headers.get('location').startsWith('https://www.facebook.com/'));
+    const back = await api('GET', `/api/auth/facebook/callback?code=good-code&state=${stateFrom(start.headers.get('location'))}`);
+    const me = await api('GET', '/api/auth/me', { token: landed(back.headers.get('location')).token });
+    assert.equal(me.data.user.id, existing.id);
+    assert.equal(me.data.user.name, 'Palesa Existing', 'the MidFood name is kept');
+    assert.equal(me.data.user.hasPassword, true);
+    assert.deepEqual(me.data.user.linked, { google: false, facebook: true });
+    // The password still works as before.
+    assert.equal((await api('POST', '/api/auth/login', { body: { identifier: existing.email, password: 'secret123' } })).status, 200);
+  });
+
+  it('a provider that shares no email cannot create an account', async () => {
+    provider.facebook = { id: 'fb-noemail', name: 'No Email' };
+    const start = await api('GET', '/api/auth/facebook/start?platform=app');
+    const back = await api('GET', `/api/auth/facebook/callback?code=good-code&state=${stateFrom(start.headers.get('location'))}`);
+    const result = landed(back.headers.get('location'));
+    assert.equal(result.token, undefined);
+    assert.match(result.error, /did not share an email/);
+  });
+
+  it('the web flow sets a cookie and only finishes in the browser that started it', async () => {
+    const start = await api('GET', '/api/auth/google/start?platform=web');
+    const cookie = start.headers.get('set-cookie');
+    assert.match(cookie, /^mf_oauth=[0-9a-f]{32}; Path=\/api\/auth; Max-Age=600; HttpOnly; SameSite=Lax; Secure$/);
+    const state = stateFrom(start.headers.get('location'));
+    provider.google = { sub: 'g-web', email: `${h.unique('web')}@gmail.com`, email_verified: true, name: 'Web Person' };
+
+    // Without the cookie (another browser) the sign-in is refused.
+    const stranger = await api('GET', `/api/auth/google/callback?code=good-code&state=${state}`);
+    assert.equal(stranger.status, 302);
+    assert.ok(stranger.headers.get('location').startsWith('https://midfood.co.za/order/#social='));
+    assert.match(landed(stranger.headers.get('location')).error, /start the sign-in again/);
+
+    // With it, the customer lands on the website signed in.
+    const nonce = cookie.match(/^mf_oauth=([0-9a-f]+)/)[1];
+    const res = await fetch(`http://localhost:${process.env.PORT}/api/auth/google/callback?code=good-code&state=${state}`, {
+      redirect: 'manual',
+      headers: { Cookie: `mf_oauth=${nonce}` },
+    });
+    assert.equal(res.status, 302);
+    const result = landed(res.headers.get('location'));
+    assert.ok(result.token);
+    assert.equal((await api('GET', '/api/auth/me', { token: result.token })).data.user.name, 'Web Person');
+  });
+
+  it('a cancelled, expired or tampered sign-in comes back with a plain reason', async () => {
+    const start = await api('GET', '/api/auth/google/start?platform=app');
+    const state = stateFrom(start.headers.get('location'));
+    const cancelled = landed((await api('GET', `/api/auth/google/callback?error=access_denied&state=${state}`)).headers.get('location'));
+    assert.match(cancelled.error, /cancelled/);
+
+    const forged = landed((await api('GET', '/api/auth/google/callback?code=good-code&state=not-a-real-state')).headers.get('location'));
+    assert.match(forged.error, /expired/);
+
+    // A Facebook state cannot be replayed against Google.
+    const fb = stateFrom((await api('GET', '/api/auth/facebook/start?platform=app')).headers.get('location'));
+    const crossed = landed((await api('GET', `/api/auth/google/callback?code=good-code&state=${fb}`)).headers.get('location'));
+    assert.match(crossed.error, /expired/);
+
+    // Google rejecting the code is reported, not crashed on.
+    const rejected = landed((await api('GET', `/api/auth/google/callback?code=bad-code&state=${state}`)).headers.get('location'));
+    assert.match(rejected.error, /Couldn't sign in with Google/);
+
+    assert.equal((await api('GET', '/api/auth/twitter/start')).status, 404);
+  });
+
+  it('a provider without keys is not offered and sends the customer back with a reason', async () => {
+    delete process.env.FACEBOOK_APP_ID;
+    assert.deepEqual((await api('GET', '/api/auth/providers')).data, { google: true, facebook: false });
+    const r = await api('GET', '/api/auth/facebook/start?platform=app');
+    assert.match(landed(r.headers.get('location')).error, /not switched on yet/);
+    process.env.FACEBOOK_APP_ID = 'fb-app-id';
+  });
+});
+
 describe('the pages themselves', () => {
   it('every front door is served', async () => {
     for (const path of ['/', '/order/', '/portal/', '/driver/', '/portal/admin.html', '/privacy/']) {

@@ -96,6 +96,20 @@
     width: 100%; background: none; border: none; padding: 12px 0 0; font-size: 14px; font-weight: 600;
     color: var(--accent); cursor: pointer; text-align: center;
   }
+  /* "Continue with Google / Facebook" */
+  .social { display: none; gap: 10px; margin-bottom: 4px; }
+  .social.on { display: flex; }
+  .social a {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px;
+    border: 1.5px solid var(--border); border-radius: 11px; background: var(--bg-surface);
+    font-size: 14px; font-weight: 700; color: var(--text-primary); text-decoration: none;
+  }
+  .social a[hidden] { display: none; }
+  .social a:hover { border-color: var(--ink); }
+  .social svg { width: 20px; height: 20px; }
+  .or { display: none; align-items: center; gap: 10px; color: var(--text-tertiary); font-size: 13px; margin: 14px 0 6px; }
+  .or.on { display: flex; }
+  .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .msg { font-size: 13px; margin-top: 12px; display: none; }
   .msg.err { color: var(--error); }
   .msg.ok { color: var(--success); }
@@ -416,6 +430,17 @@
     <h1 class="page" id="authTitle">Sign in</h1>
     <p class="page-sub" id="authSub">You need an account so we can track your order and reach you on delivery.</p>
     <div class="card">
+      <div class="social" id="socialRow">
+        <a id="socialGoogle" href="/api/auth/google/start?platform=web" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.7-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1C3.3 21.3 7.3 24 12 24z"/><path fill="#FBBC05" d="M5.3 14.3c-.5-1.5-.5-3.1 0-4.6V6.6H1.3c-1.7 3.4-1.7 7.4 0 10.8l4-3.1z"/><path fill="#EA4335" d="M12 4.7c1.8 0 3.3.6 4.6 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.6l4 3.1c.9-2.9 3.6-5 6.7-5z"/></svg>
+          Google
+        </a>
+        <a id="socialFacebook" href="/api/auth/facebook/start?platform=web" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0 0 24 12z"/></svg>
+          Facebook
+        </a>
+      </div>
+      <div class="or" id="socialOr"><span id="socialOrText">or with your email</span></div>
       <form id="authForm">
         <div id="nameWrap" style="display:none;">
           <label for="auName">Your name</label>
@@ -494,10 +519,13 @@
       <button class="ghost" id="acLogout" style="margin-top:20px;">Log out</button>
     </div>
     <div class="card">
-      <div style="font-weight:700;font-size:15px;">Change password</div>
+      <div style="font-weight:700;font-size:15px;" id="cpTitle">Change password</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:3px;display:none;" id="cpHint"></div>
       <form id="cpForm">
-        <label for="cpCurrent">Current password</label>
-        <input id="cpCurrent" type="password" autocomplete="current-password" required />
+        <div id="cpCurrentWrap">
+          <label for="cpCurrent">Current password</label>
+          <input id="cpCurrent" type="password" autocomplete="current-password" required />
+        </div>
         <label for="cpNew">New password</label>
         <input id="cpNew" type="password" autocomplete="new-password" minlength="6" required />
         <div class="msg err" id="cpError"></div>
@@ -638,6 +666,7 @@
 
   function route() {
     var h = (window.location.hash || '#').replace(/^#/, '');
+    if (h.indexOf('social=') === 0) return consumeSocialReturn();
     if (h.indexOf('r/') === 0) return openRestaurant(h.slice(2));
     if (h.indexOf('order/') === 0) return openTracking(h.slice(6));
     if (h === 'checkout') return openCheckout();
@@ -1324,9 +1353,28 @@
   var isRegister = false;
   var pendingAfterAuth = null;
 
+  // Which social sign-ins the server has keys for. Asked once.
+  var socialKnown = null;
+  function paintSocial() {
+    if (!socialKnown) return;
+    var any = socialKnown.google || socialKnown.facebook;
+    el('socialGoogle').hidden = !socialKnown.google;
+    el('socialFacebook').hidden = !socialKnown.facebook;
+    el('socialRow').className = 'social' + (any ? ' on' : '');
+    el('socialOr').className = 'or' + (any ? ' on' : '');
+    el('socialOrText').textContent = isRegister ? 'or with your email' : 'or sign in with a password';
+  }
+  function loadSocial() {
+    if (socialKnown) { paintSocial(); return; }
+    api('/api/auth/providers')
+      .then(function (p) { socialKnown = p; paintSocial(); })
+      .catch(function () { socialKnown = { google: false, facebook: false }; paintSocial(); });
+  }
+
   function openAuth(register) {
     isRegister = register;
     show('auth');
+    loadSocial();
     el('authTitle').textContent = register ? 'Create your account' : 'Sign in';
     el('authSub').textContent = register
       ? 'So we can track your order and reach you on delivery.'
@@ -1448,13 +1496,15 @@
     btn.disabled = true;
     setMsg('cpError', '');
     setMsg('cpOk', '');
+    var hadPassword = !user || user.hasPassword !== false;
     api('/api/auth/password', {
       method: 'PUT',
-      body: { currentPassword: el('cpCurrent').value, newPassword: el('cpNew').value },
+      body: hadPassword ? { currentPassword: el('cpCurrent').value, newPassword: el('cpNew').value } : { newPassword: el('cpNew').value },
     })
       .then(function () {
         el('cpForm').reset();
-        setMsg('cpOk', 'Password changed.', 'ok');
+        setMsg('cpOk', hadPassword ? 'Password changed.' : 'Password set. You can sign in with it too now.', 'ok');
+        if (user) { user.hasPassword = true; paintPasswordForm(); }
       })
       .catch(function (err) { setMsg('cpError', err.message); })
       .then(function () { btn.disabled = false; });
@@ -1478,9 +1528,23 @@
     else go('#orders');
   });
 
+  // An account made with Google or Facebook has no password yet: the form
+  // offers to add one, with no "current password" to ask for.
+  function paintPasswordForm() {
+    var has = !user || user.hasPassword !== false;
+    var via = user && user.linked ? (user.linked.google ? 'Google' : user.linked.facebook ? 'Facebook' : null) : null;
+    el('cpCurrentWrap').style.display = has ? 'block' : 'none';
+    el('cpCurrent').required = has;
+    el('cpTitle').textContent = has ? 'Change password' : 'Add a password';
+    el('cpSubmit').textContent = has ? 'Change password' : 'Save password';
+    el('cpHint').style.display = has ? 'none' : 'block';
+    el('cpHint').textContent = has ? '' : 'You sign in with ' + (via || 'a linked account') + '. A password lets you sign in that way too.';
+  }
+
   function openAccount() {
     if (!token) { go('#signin'); return; }
     show('account');
+    paintPasswordForm();
     el('acName').textContent = user ? user.name : '';
     el('acEmail').textContent = user ? user.email : '';
   }
@@ -1906,7 +1970,43 @@
   badge.id = 'cartCountBadge';
   el('ordersBtn').appendChild(badge);
 
-  if (token) {
+  // Back from "Continue with Google / Facebook": the server lands here with
+  // #social=token=...&provider=... (or error=...). Pick it up, then carry on
+  // to wherever the customer was going before they signed in.
+  var AFTER_KEY = 'midfood_after_auth';
+  // Returns true when the hash was a social return and has been dealt with.
+  function consumeSocialReturn() {
+    var hash = window.location.hash || '';
+    if (hash.indexOf('#social=') !== 0) return false;
+    var back = new URLSearchParams(decodeURIComponent(hash.slice('#social='.length)));
+    var after = null;
+    try { after = sessionStorage.getItem(AFTER_KEY); sessionStorage.removeItem(AFTER_KEY); } catch (e) {}
+    if (back.get('token')) {
+      token = back.get('token');
+      try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
+      window.history.replaceState(null, '', window.location.pathname + (after || '#'));
+      api('/api/auth/me')
+        .then(function (d) { user = d.user; paintAccount(); })
+        .catch(function () { token = null; try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} })
+        .then(route);
+    } else {
+      pendingAfterAuth = after;
+      window.history.replaceState(null, '', window.location.pathname + '#signin');
+      route();
+      setMsg('authError', back.get('error') || 'That sign-in did not finish. Please try again.');
+    }
+    return true;
+  }
+  // Remember where to go after a social sign-in, since the page reloads.
+  Array.prototype.forEach.call(document.querySelectorAll('#socialRow a'), function (a) {
+    a.addEventListener('click', function () {
+      try { if (pendingAfterAuth) sessionStorage.setItem(AFTER_KEY, pendingAfterAuth); } catch (e) {}
+    });
+  });
+
+  if (consumeSocialReturn()) {
+    // signed in (or shown why not) above
+  } else if (token) {
     api('/api/auth/me')
       .then(function (d) { user = d.user; paintAccount(); })
       .catch(function () { token = null; try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} })

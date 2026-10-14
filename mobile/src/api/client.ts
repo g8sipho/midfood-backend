@@ -95,10 +95,10 @@ export async function resetPassword(identifier: string, code: string, password: 
 }
 
 // A signed-in customer changing their own password.
-export async function changePassword(currentPassword: string, newPassword: string) {
+export async function changePassword(currentPassword: string | null, newPassword: string) {
   return request<{ ok: true }>('/api/auth/password', {
     method: 'PUT',
-    body: JSON.stringify({ currentPassword, newPassword }),
+    body: JSON.stringify(currentPassword ? { currentPassword, newPassword } : { newPassword }),
   });
 }
 
@@ -244,4 +244,9 @@ export async function sendMessage(conversationId: string, body: string) {
 // server does the whole dance and comes back to the app with a token.
 export function socialStartUrl(provider: SocialProvider) {
   return `${API_BASE_URL}/api/auth/${provider}/start?platform=app`;
+}
+
+// Which of the social sign-ins the server has keys for.
+export async function fetchSocialProviders() {
+  return request<Record<SocialProvider, boolean>>('/api/auth/providers');
 }

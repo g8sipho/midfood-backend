@@ -188,6 +188,35 @@ If someone phones in: admin page → **Customer locked out?** → type their ema
 or cellphone number → read out the temporary password it shows. Their old
 password stops working at once; ask them to change it under Account.
 
+## Customers who sign in with Google or Facebook
+
+The **Google** and **Facebook** buttons on the sign-in screens only show once
+the keys are in Render → midfood-backend → Environment: `GOOGLE_CLIENT_ID` +
+`GOOGLE_CLIENT_SECRET` (Google Cloud Console → APIs & Services → Credentials,
+OAuth client of type *Web application*, redirect URI
+`https://midfood.co.za/api/auth/google/callback`) and `FACEBOOK_APP_ID` +
+`FACEBOOK_APP_SECRET` (Meta for Developers → the MidFood app → Facebook
+Login → Settings, valid OAuth redirect URI
+`https://midfood.co.za/api/auth/facebook/callback`). Also set `PUBLIC_URL`
+to `https://midfood.co.za`. Without the keys nothing breaks; the buttons
+just stay hidden.
+
+Such an account has no password. The customer can add one under
+**Account → Add a password**, or use *Forgot your password?* like anyone
+else. If they try the password form first, it tells them which button to
+use instead of saying "invalid".
+
+## Customer chat
+
+Customers message a store from its page or from an order, or MidFood from
+the Chats tab / Account. Quick questions (where is my order, delivery fee,
+opening times, the menu) are answered on the spot by the server. Anything
+else is flagged and waits for a person: a restaurant answers under
+**Chats** in the portal (the tab shows a count and chimes); MidFood answers
+support threads on the admin page under **Chats**. Nobody has to watch it
+constantly: the customer is told "a person will reply" and gets a push
+notification when one does.
+
 ## If something looks wrong
 
 - **Site down?** Check https://midfood.co.za/health, then Render →

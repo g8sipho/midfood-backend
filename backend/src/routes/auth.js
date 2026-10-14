@@ -112,16 +112,26 @@ router.post('/login', async (req, res, next) => {
     // Several accounts may share a phone number from before numbers were
     // checked at sign-up, so every match is tried against the password.
     const { rows } = await pool.query(
-      `SELECT id, name, email, phone, password_hash AS "passwordHash", created_at AS "createdAt"
+      `SELECT id, name, email, phone, password_hash AS "passwordHash", created_at AS "createdAt",
+              google_id AS "googleId", facebook_id AS "facebookId"
        FROM users WHERE email = $1 OR ($2::text IS NOT NULL AND phone = $2)
        ORDER BY created_at`,
       [byEmail, byPhone]
     );
     let user = null;
     for (const candidate of rows) {
+      if (!candidate.passwordHash) continue; // signs in with Google or Facebook only
       if (await bcrypt.compare(password, candidate.passwordHash)) { user = candidate; break; }
     }
     if (!user) {
+      // An account made with "Continue with Google" has no password yet.
+      const social = rows.find((u) => !u.passwordHash && (u.googleId || u.facebookId));
+      if (social) {
+        const via = social.googleId ? 'Google' : 'Facebook';
+        return res.status(401).json({
+          error: `This account signs in with ${via}. Tap "${via}" above, or use "Forgot your password?" to set a password.`,
+        });
+      }
       return res.status(401).json({ error: 'Invalid email, cellphone number or password' });
     }
 
@@ -234,11 +244,15 @@ router.post('/reset', async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, name, email, phone, created_at AS "createdAt" FROM users WHERE id = $1',
+      `SELECT id, name, email, phone, created_at AS "createdAt", avatar_url AS "avatarUrl",
+              (password_hash IS NOT NULL) AS "hasPassword",
+              (google_id IS NOT NULL) AS "google", (facebook_id IS NOT NULL) AS "facebook"
+       FROM users WHERE id = $1`,
       [req.userId]
     );
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
-    res.json({ user: rows[0] });
+    const { google, facebook, ...user } = rows[0];
+    res.json({ user: { ...user, linked: { google, facebook } } });
   } catch (err) {
     next(err);
   }
@@ -250,18 +264,25 @@ router.get('/me', requireAuth, async (req, res, next) => {
 router.put('/password', requireAuth, async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Your current password and a new password are required' });
+    if (!newPassword) {
+      return res.status(400).json({ error: 'A new password is required' });
     }
     if (String(newPassword).length < 6) {
       return res.status(400).json({ error: 'password must be at least 6 characters' });
     }
     const { rows } = await pool.query('SELECT password_hash AS "passwordHash" FROM users WHERE id = $1', [req.userId]);
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
-    // 400, not 401: a 401 would make the app and the website sign the
-    // customer out, and a mistyped current password is not a lost session.
-    if (!(await bcrypt.compare(String(currentPassword), rows[0].passwordHash))) {
-      return res.status(400).json({ error: 'Your current password is not right' });
+    // An account made with Google or Facebook has no password yet, so there
+    // is no current one to check; it's simply setting its first.
+    if (rows[0].passwordHash) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Your current password and a new password are required' });
+      }
+      // 400, not 401: a 401 would make the app and the website sign the
+      // customer out, and a mistyped current password is not a lost session.
+      if (!(await bcrypt.compare(String(currentPassword), rows[0].passwordHash))) {
+        return res.status(400).json({ error: 'Your current password is not right' });
+      }
     }
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [await bcrypt.hash(String(newPassword), 10), req.userId]);
     res.json({ ok: true });

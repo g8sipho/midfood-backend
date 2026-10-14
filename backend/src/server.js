@@ -6,6 +6,7 @@ const morgan = require('morgan');
 
 const db = require('./db');
 const authRoutes = require('./routes/auth');
+const socialAuthRoutes = require('./routes/socialAuth');
 const restaurantRoutes = require('./routes/restaurants');
 const orderRoutes = require('./routes/orders');
 const restaurantAuthRoutes = require('./routes/restaurantAuth');
@@ -168,6 +169,7 @@ app.use(['/api/auth/login', '/api/auth/register', '/api/auth/forgot', '/api/auth
 app.use(['/api/restaurant-auth', '/api/driver-auth'], rateLimitAuth);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', socialAuthRoutes.router);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/restaurant-auth', restaurantAuthRoutes);

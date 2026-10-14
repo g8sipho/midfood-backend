@@ -14,7 +14,7 @@ const SUPPORT_PHONE = '0726437784';
 const SUPPORT_SHOWN = '072 643 7784';
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [showPassword, setShowPassword] = useState(false);
@@ -24,10 +24,13 @@ export default function ProfileScreen() {
   const [pwDone, setPwDone] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const hasPassword = user?.hasPassword !== false;
+  const signsInWith = user?.linked?.google ? 'Google' : user?.linked?.facebook ? 'Facebook' : null;
+
   async function changePassword() {
     setPwDone(false);
-    if (!currentPassword || !newPassword) {
-      setPwError('Enter your current password and a new one.');
+    if ((hasPassword && !currentPassword) || !newPassword) {
+      setPwError(hasPassword ? 'Enter your current password and a new one.' : 'Choose a password.');
       return;
     }
     if (newPassword.length < 6) {
@@ -37,10 +40,11 @@ export default function ProfileScreen() {
     setPwError(null);
     setSaving(true);
     try {
-      await api.changePassword(currentPassword, newPassword);
+      await api.changePassword(hasPassword ? currentPassword : null, newPassword);
       setCurrentPassword('');
       setNewPassword('');
       setPwDone(true);
+      refreshUser();
     } catch (err: any) {
       setPwError(err.message || "Couldn't change the password.");
     } finally {
@@ -84,7 +88,13 @@ export default function ProfileScreen() {
           </Card>
 
           <Card style={{ padding: 0, overflow: 'hidden', marginTop: spacing.lg }}>
-            <RowLink icon="lock-outline" title="Change password" sub={showPassword ? 'Hide' : 'Keep your account yours'} onPress={() => setShowPassword((s) => !s)} last={!showPassword} />
+            <RowLink
+              icon={hasPassword ? 'lock-outline' : 'lock-plus-outline'}
+              title={hasPassword ? 'Change password' : 'Add a password'}
+              sub={showPassword ? 'Hide' : hasPassword ? 'Keep your account yours' : `You sign in with ${signsInWith || 'a linked account'} — a password works too`}
+              onPress={() => setShowPassword((s) => !s)}
+              last={!showPassword}
+            />
             {showPassword ? (
               <View style={styles.passwordForm}>
                 {pwError ? (
@@ -94,12 +104,14 @@ export default function ProfileScreen() {
                 ) : null}
                 {pwDone ? (
                   <Txt variant="small" color={colors.mint}>
-                    Password changed.
+                    {hasPassword ? 'Password changed.' : 'Password set. You can now sign in with it too.'}
                   </Txt>
                 ) : null}
-                <Field label="Current password" secureTextEntry textContentType="password" placeholder="Your current password" value={currentPassword} onChangeText={setCurrentPassword} />
-                <Field label="New password" secureTextEntry textContentType="newPassword" placeholder="At least 6 characters" value={newPassword} onChangeText={setNewPassword} onSubmitEditing={changePassword} style={{ marginTop: spacing.sm }} />
-                <Button title="Save new password" variant="dark" onPress={changePassword} loading={saving} style={{ marginTop: spacing.md }} />
+                {hasPassword ? (
+                  <Field label="Current password" secureTextEntry textContentType="password" placeholder="Your current password" value={currentPassword} onChangeText={setCurrentPassword} />
+                ) : null}
+                <Field label={hasPassword ? 'New password' : 'Password'} secureTextEntry textContentType="newPassword" placeholder="At least 6 characters" value={newPassword} onChangeText={setNewPassword} onSubmitEditing={changePassword} style={hasPassword ? { marginTop: spacing.sm } : undefined} />
+                <Button title={hasPassword ? 'Save new password' : 'Save password'} variant="dark" onPress={changePassword} loading={saving} style={{ marginTop: spacing.md }} />
               </View>
             ) : null}
           </Card>

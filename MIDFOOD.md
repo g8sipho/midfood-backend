@@ -216,6 +216,29 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   `POST /api/admin/customers/temporary-password` for phone support. Mail is
   SMTP via `src/mailer.js`, configured with `SMTP_*` in Render; unconfigured
   means the reset route answers 503 with the support number.
+- **14 Oct: the app redesign, chat, categories and social sign-in.** Testers
+  said the app looked basic, so it was rebuilt (`mobile/`, commit `49ed31c`):
+  the "Highveld sunset" look (plum sky, ember sun, Fraunces + Poppins, plum
+  tab bar with a raised cart button), category tiles on the home screen fed
+  by `GET /api/restaurants/categories` (`src/categories.js` derives them from
+  cuisine and menu words; the admin page can pin a store's categories, so
+  pharmacies and car-spares shops fit too), an "on the way" strip, a
+  tracking timeline, and a **Chats** tab (`src/routes/chat.js`,
+  `src/chatbot.js`: the bot answers "where is my order", fees, opening
+  times and menus from the database; anything else flags `needs_human` and
+  the kitchen answers from the portal's Chats tab, MidFood from the admin
+  page). **Continue with Google / Facebook** is `src/routes/socialAuth.js`:
+  the server brokers the whole OAuth exchange and hands the app a token on
+  `midfood://auth` (the website on `/order/#social=`), so no app secret
+  ships in the APK. Env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+  `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `PUBLIC_URL`
+  (`https://midfood.co.za`); a provider without keys is simply not offered
+  (`GET /api/auth/providers`). Accounts made that way have no password
+  (`users.password_hash` is nullable now; `google_id` / `facebook_id` hold
+  the provider ids) and can add one under Account. Redirect URIs to register
+  with Google and Meta: `https://midfood.co.za/api/auth/google/callback` and
+  `https://midfood.co.za/api/auth/facebook/callback`. WhatsApp has no public
+  sign-in, so it isn't offered.
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

@@ -20,7 +20,7 @@ type MenuSection = { title: string; data: MenuItem[] };
 // sections with a row of section buttons that follows you down, a photo and
 // an add control on every dish, and a tap on a dish to see it big.
 export default function RestaurantDetailScreen({ route, navigation }: Props) {
-  const { restaurantId } = route.params;
+  const { restaurantId, dishId } = route.params;
   const insets = useSafeAreaInsets();
   const { addItem, setQuantity, lines, itemCount, subtotal, restaurant: cartRestaurant } = useCart();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -32,10 +32,15 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     fetchRestaurant(restaurantId)
-      .then(setRestaurant)
+      .then((r) => {
+        setRestaurant(r);
+        // Opened from a dish on the home screen: show that dish straight away.
+        const dish = dishId ? (r.menu || []).find((m) => m.id === dishId) : null;
+        if (dish) setSelected(dish);
+      })
       .catch((err) => setError(err.message || 'Could not load this store.'))
       .finally(() => setLoading(false));
-  }, [restaurantId]);
+  }, [restaurantId, dishId]);
 
   const sections = useMemo<MenuSection[]>(() => {
     const menu = restaurant?.menu || [];

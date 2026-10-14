@@ -9,7 +9,7 @@ export type AuthStackParamList = {
 
 export type HomeStackParamList = {
   RestaurantList: undefined;
-  RestaurantDetail: { restaurantId: string };
+  RestaurantDetail: { restaurantId: string; dishId?: string };
 };
 
 export type CartStackParamList = {

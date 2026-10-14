@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Dimensions,
   FlatList,
   Image,
   Pressable,
@@ -13,17 +14,21 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fetchCategories, fetchOrders, fetchRestaurants, imageSource } from '../api/client';
+import { fetchCategories, fetchFeaturedDishes, fetchOrders, fetchRestaurants, imageSource } from '../api/client';
 import RestaurantCard from '../components/RestaurantCard';
 import Txt from '../components/Txt';
 import { Avatar, Chip, EmptyState, Icon, SectionTitle, Skeleton } from '../components/ui';
 import Button from '../components/Button';
 import { useAuth } from '../context/AuthContext';
 import { colors, fonts, night, radius, shadow, spacing } from '../theme';
-import type { Category, Order, Restaurant } from '../types';
+import type { Category, FeaturedDish, Order, Restaurant } from '../types';
 import type { HomeStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RestaurantList'>;
+
+const SCREEN_W = Dimensions.get('window').width;
+const BANNER_W = SCREEN_W - spacing.lg * 2;
+const rand = (n: number) => `R${Number(n).toFixed(2).replace(/\.00$/, '')}`;
 
 const LIVE_STATUS: Record<string, { label: string; icon: string }> = {
   placed: { label: 'Waiting for the kitchen', icon: 'timer-sand' },
@@ -42,6 +47,9 @@ export default function RestaurantListScreen({ navigation }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [results, setResults] = useState<Restaurant[] | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [dishes, setDishes] = useState<FeaturedDish[]>([]);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const bannerRef = useRef<ScrollView>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,14 +61,16 @@ export default function RestaurantListScreen({ navigation }: Props) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, cats, mine] = await Promise.all([
+      const [list, cats, mine, food] = await Promise.all([
         fetchRestaurants(),
         fetchCategories().catch(() => []),
         fetchOrders().catch(() => []),
+        fetchFeaturedDishes(12).catch(() => []),
       ]);
       setRestaurants(list);
       setCategories(cats);
       setOrders(mine);
+      setDishes(food);
     } catch (err: any) {
       setError(err.message || 'Could not load the stores.');
     }
@@ -69,6 +79,23 @@ export default function RestaurantListScreen({ navigation }: Props) {
   useEffect(() => {
     load().finally(() => setLoading(false));
   }, [load]);
+
+  // The big food banners turn over on their own every few seconds.
+  const banners = dishes.slice(0, 4);
+  const popular = dishes.slice(4).length >= 3 ? dishes.slice(4) : dishes;
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const t = setInterval(() => {
+      setBannerIndex((i) => {
+        const next = (i + 1) % banners.length;
+        bannerRef.current?.scrollTo({ x: next * (BANNER_W + spacing.sm), animated: true });
+        return next;
+      });
+    }, 4500);
+    return () => clearInterval(t);
+  }, [banners.length]);
+
+  const openDish = (d: FeaturedDish) => navigation.navigate('RestaurantDetail', { restaurantId: d.restaurantId, dishId: d.id });
 
   // Searching asks the server (it looks inside menus too), a moment after
   // the customer stops typing.
@@ -210,8 +237,58 @@ export default function RestaurantListScreen({ navigation }: Props) {
         </Pressable>
       )}
 
+      {/* Food banners: real dishes from the stores, big */}
+      {!loading && !results && !category && banners.length > 0 && (
+        <View style={{ marginTop: spacing.lg }}>
+          <ScrollView
+            ref={bannerRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={BANNER_W + spacing.sm}
+            decelerationRate="fast"
+            contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}
+            onMomentumScrollEnd={(e) => setBannerIndex(Math.round(e.nativeEvent.contentOffset.x / (BANNER_W + spacing.sm)))}
+          >
+            {banners.map((d) => (
+              <Pressable key={d.id} onPress={() => openDish(d)} style={({ pressed }) => [styles.banner, shadow.float, pressed && { transform: [{ scale: 0.99 }] }]}>
+                <Image source={imageSource(d.imageUrl)!} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <LinearGradient colors={['rgba(23,10,31,0)', 'rgba(23,10,31,0.15)', 'rgba(23,10,31,0.88)']} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} />
+                <View style={styles.bannerTag}>
+                  <Txt variant="smallBold" color={colors.ink} style={{ fontSize: 11.5 }} numberOfLines={1}>
+                    {d.restaurantName}
+                  </Txt>
+                </View>
+                <View style={styles.bannerFoot}>
+                  <View style={{ flex: 1 }}>
+                    <Txt variant="title" color={colors.onDark} numberOfLines={2} style={styles.bannerTitle}>
+                      {d.name}
+                    </Txt>
+                    <Txt variant="smallBold" color={colors.onDarkSoft}>
+                      {d.restaurantOpen === false ? 'Closed now · order later' : `${d.etaMinutes} min · delivered`}
+                    </Txt>
+                  </View>
+                  <View style={styles.bannerPrice}>
+                    <Txt variant="subheading" color={colors.onDark}>
+                      {rand(d.price)}
+                    </Txt>
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {banners.length > 1 && (
+            <View style={styles.dots}>
+              {banners.map((d, i) => (
+                <View key={d.id} style={[styles.dot, i === bannerIndex && styles.dotOn]} />
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.pad}>
+          <Skeleton height={200} round={radius.lg} style={{ marginBottom: spacing.xl }} />
           <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl }}>
             {[0, 1, 2, 3].map((i) => (
               <Skeleton key={i} width={76} height={92} round={radius.md} />
@@ -243,6 +320,34 @@ export default function RestaurantListScreen({ navigation }: Props) {
             );
           })}
         </ScrollView>
+      )}
+
+      {/* Popular dishes, straight to the dish */}
+      {!loading && !results && !category && popular.length > 0 && (
+        <View style={styles.pad}>
+          <SectionTitle title="Popular right now" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dishRow} style={{ marginHorizontal: -spacing.lg }}>
+            {popular.map((d) => (
+              <Pressable key={d.id} onPress={() => openDish(d)} style={({ pressed }) => [styles.dishCard, shadow.card, pressed && { opacity: 0.9 }]}>
+                <Image source={imageSource(d.thumbUrl || d.imageUrl)!} style={styles.dishImg} resizeMode="cover" />
+                <View style={styles.dishAdd}>
+                  <Icon name="plus" size={18} color={colors.onDark} />
+                </View>
+                <View style={{ padding: spacing.sm + 2 }}>
+                  <Txt variant="smallBold" numberOfLines={2} style={{ minHeight: 34 }}>
+                    {d.name}
+                  </Txt>
+                  <Txt variant="small" numberOfLines={1} style={{ fontSize: 11.5 }}>
+                    {d.restaurantName}
+                  </Txt>
+                  <Txt variant="price" color={colors.ember} style={{ marginTop: 4 }}>
+                    {rand(d.price)}
+                  </Txt>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       )}
 
       {/* Order again */}
@@ -476,6 +581,85 @@ const styles = StyleSheet.create({
   tileLabel: {
     fontSize: 11,
     lineHeight: 14,
+  },
+  banner: {
+    width: BANNER_W,
+    height: 210,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: colors.plum,
+    justifyContent: 'flex-end',
+  },
+  bannerTag: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    maxWidth: BANNER_W - spacing.md * 2,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  bannerFoot: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  bannerTitle: {
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  bannerPrice: {
+    backgroundColor: colors.ember,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.sandDeep,
+  },
+  dotOn: {
+    width: 18,
+    backgroundColor: colors.ember,
+  },
+  dishRow: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 6,
+    gap: spacing.md,
+  },
+  dishCard: {
+    width: 152,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  dishImg: {
+    width: 152,
+    height: 132,
+    backgroundColor: colors.sand,
+  },
+  dishAdd: {
+    position: 'absolute',
+    top: 132 - 18,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: colors.surface,
   },
   againRow: {
     paddingHorizontal: spacing.lg,

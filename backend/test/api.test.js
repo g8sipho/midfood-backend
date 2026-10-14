@@ -1866,6 +1866,21 @@ describe('a restaurant changing its own portal password', () => {
   });
 });
 
+describe('the food showcase on the home screen', () => {
+  it('lists only available dishes that have a photo, with their store', async () => {
+    const resto = await h.restaurant({ name: 'Showcase Kitchen', menu: [['Pictured Kota', 50], ['Plain Chips', 20]] });
+    const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
+    const up = await api('PUT', `/api/admin/menu/${resto.items[0].id}/image`, { ...ADMIN, raw: { type: 'image/jpeg', data: jpeg } });
+    assert.equal(up.status, 200, JSON.stringify(up.data));
+    const r = await api('GET', '/api/restaurants/dishes/featured');
+    assert.equal(r.status, 200);
+    const mine = r.data.dishes.filter((d) => d.restaurantId === resto.id);
+    assert.deepEqual(mine.map((d) => d.name), ['Pictured Kota']);
+    assert.equal(mine[0].restaurantName, 'Showcase Kitchen');
+    assert.ok(mine[0].imageUrl && mine[0].thumbUrl);
+  });
+});
+
 describe('the pages themselves', () => {
   it('every front door is served', async () => {
     for (const path of ['/', '/order/', '/portal/', '/driver/', '/portal/admin.html', '/privacy/']) {

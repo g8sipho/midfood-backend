@@ -128,6 +128,21 @@ export type Category = {
   count: number;
 };
 
+// A dish with a photo, for the food showcase on the home screen.
+export type FeaturedDish = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+  restaurantId: string;
+  restaurantName: string;
+  restaurantOpen: boolean;
+  etaMinutes: number;
+  imageUrl: string | null;
+  thumbUrl: string | null;
+};
+
 export type ChatSender = 'customer' | 'restaurant' | 'admin' | 'bot';
 
 export type Conversation = {

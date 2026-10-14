@@ -12,7 +12,14 @@ const MIN_RATINGS = 3;
 
 const LIST_COLUMNS = `r.id, r.name, r.cuisine, r.eta_minutes AS "etaMinutes", r.delivery_fee::float8 AS "deliveryFee",
                       r.hero_color AS "heroColor", r.open, r.categories AS "setCategories",
-                      (SELECT i.id FROM images i WHERE i.restaurant_id = r.id) AS "imageId",
+                      COALESCE(
+                        (SELECT i.id FROM images i WHERE i.restaurant_id = r.id),
+                        -- No cover photo yet: borrow one of its own dishes' photos
+                        -- (the same one all day) rather than show a bare letter.
+                        (SELECT i.id FROM images i JOIN menu_items m ON m.id = i.menu_item_id
+                          WHERE m.restaurant_id = r.id AND m.available = true
+                          ORDER BY md5(m.id::text || current_date::text) LIMIT 1)
+                      ) AS "imageId",
                       (SELECT string_agg(DISTINCT lower(coalesce(m.category, '') || ' ' || m.name), ' ')
                          FROM menu_items m WHERE m.restaurant_id = r.id AND m.available = true) AS "menuText",
                       (SELECT COUNT(*)::int FROM orders o WHERE o.restaurant_id = r.id AND o.rating IS NOT NULL) AS "ratingCount",
@@ -50,6 +57,38 @@ router.get('/categories', async (req, res, next) => {
         emoji: c.emoji,
         count: counts.get(c.key),
       })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/restaurants/dishes/featured - dishes with a photo, from stores
+// that are live, for the food showcase at the top of the home screen. Open
+// stores first; within that the pick changes each day so the screen stays
+// fresh, but doesn't shuffle on every refresh.
+router.get('/dishes/featured', async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 30);
+    const { rows } = await pool.query(
+      `SELECT m.id, m.name, m.description, m.price::float8 AS price, m.category,
+              r.id AS "restaurantId", r.name AS "restaurantName", r.open AS "restaurantOpen",
+              r.eta_minutes AS "etaMinutes", i.id AS "imageId"
+       FROM menu_items m
+       JOIN restaurants r ON r.id = m.restaurant_id
+       JOIN images i ON i.menu_item_id = m.id
+       WHERE m.available = true AND r.approved = true
+       ORDER BY r.open DESC, md5(m.id::text || current_date::text)
+       LIMIT $1`,
+      [limit]
+    );
+    res.json({
+      dishes: rows.map((d) => {
+        d.imageUrl = imageUrl(d.imageId);
+        d.thumbUrl = thumbUrl(d.imageId);
+        delete d.imageId;
+        return d;
+      }),
     });
   } catch (err) {
     next(err);

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
-import type { Category, ChatMessage, Conversation, Order, Restaurant, SocialProvider, Tracking, User } from '../types';
+import type { Category, FeaturedDish, ChatMessage, Conversation, Order, Restaurant, SocialProvider, Tracking, User } from '../types';
 
 const TOKEN_KEY = 'midfood.authToken';
 
@@ -189,6 +189,11 @@ export async function registerPushToken(token: string, phone?: string) {
 export { ApiError };
 
 // --- Home-screen categories ---
+
+export async function fetchFeaturedDishes(limit = 12) {
+  const data = await request<{ dishes: FeaturedDish[] }>(`/api/restaurants/dishes/featured?limit=${limit}`);
+  return data.dishes;
+}
 
 export async function fetchCategories() {
   const data = await request<{ categories: Category[] }>('/api/restaurants/categories');

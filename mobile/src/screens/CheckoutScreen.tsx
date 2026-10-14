@@ -1,45 +1,91 @@
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
+import * as Location from 'expo-location';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { placeOrder } from '../api/client';
 import Button from '../components/Button';
-import { colors, radius, spacing } from '../theme/colors';
-import type { HomeStackParamList } from '../navigation/types';
+import Txt from '../components/Txt';
+import { Card, Divider, Field, Icon, Pill } from '../components/ui';
+import { colors, radius, rands, spacing } from '../theme';
+import type { CartStackParamList } from '../navigation/types';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'Checkout'>;
+type Props = NativeStackScreenProps<CartStackParamList, 'Checkout'>;
+
+const ADDRESS_KEY = 'midfood.lastAddress';
+
+// A pin is only kept if the phone is sure to about this many metres;
+// a vague fix would send the driver to the wrong street.
+const GOOD_FIX_METRES = 100;
 
 export default function CheckoutScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const { restaurant, lines, subtotal, clear } = useCart();
   const { user } = useAuth();
   const [address, setAddress] = useState('');
-  // The number from sign-up, already in the form the driver dials.
   const [phone, setPhone] = useState(user?.phone || '');
   const [notes, setNotes] = useState('');
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [pinning, setPinning] = useState(false);
+  const [pinNote, setPinNote] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The last address used, so a repeat order is two taps.
+  useEffect(() => {
+    AsyncStorage.getItem(ADDRESS_KEY).then((saved) => {
+      if (saved) setAddress(saved);
+    });
+  }, []);
 
   if (!restaurant || lines.length === 0) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Your cart is empty.</Text>
+        <Txt variant="body" color={colors.inkSoft}>
+          Your order is empty.
+        </Txt>
       </View>
     );
   }
 
   const total = subtotal + restaurant.deliveryFee;
 
+  async function pinLocation() {
+    setPinning(true);
+    setPinNote(null);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (!perm.granted) {
+        setPinNote("Location is off for MidFood. Your typed address still works; a pin just helps the driver find the gate.");
+        return;
+      }
+      const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      if ((fix.coords.accuracy || 999) > GOOD_FIX_METRES) {
+        setPinNote("Your phone isn't sure where you are yet. Step outside or wait a moment, then try again.");
+        return;
+      }
+      setPin({ lat: fix.coords.latitude, lng: fix.coords.longitude });
+      setPinNote(`Pinned to about ${Math.round(fix.coords.accuracy || 0)} m. The driver gets this with your address.`);
+    } catch {
+      setPinNote("Couldn't get a fix right now. Your address is enough.");
+    } finally {
+      setPinning(false);
+    }
+  }
+
   async function handlePlaceOrder() {
     if (!restaurant) return;
     if (!address.trim()) {
-      setError('Please enter a delivery address.');
+      setError('Enter the address to deliver to.');
       return;
     }
-    // The driver phones the customer on arrival, so this isn't optional.
-    if (!/^0\d{9}$/.test(phone.replace(/[\s-]/g, ''))) {
-      setError('Please enter a valid 10-digit phone number, e.g. 082 123 4567.');
+    const cleanPhone = phone.replace(/[\s-]/g, '');
+    if (!/^0\d{9}$/.test(cleanPhone)) {
+      setError('Enter a 10-digit cellphone number, like 082 123 4567.');
       return;
     }
     setError(null);
@@ -49,178 +95,159 @@ export default function CheckoutScreen({ navigation }: Props) {
         restaurantId: restaurant.id,
         items: lines.map((l) => ({ menuItemId: l.menuItem.id, quantity: l.quantity })),
         deliveryAddress: address.trim(),
-        customerPhone: phone.replace(/[\s-]/g, ''),
+        customerPhone: cleanPhone,
         notes: notes.trim() || undefined,
+        deliveryLat: pin?.lat,
+        deliveryLng: pin?.lng,
       });
+      AsyncStorage.setItem(ADDRESS_KEY, address.trim()).catch(() => {});
       clear();
-
-      // The order already exists (payment status "pending") -- if PayFast is
-      // configured, send the customer to pay for it now. Whatever happens in
-      // that browser (paid, cancelled, closed early), we land on the order
-      // screen next, which shows the real payment status and lets them retry.
       if (paymentUrl) {
         await WebBrowser.openBrowserAsync(paymentUrl);
       }
-
-      navigation.getParent()?.navigate('OrdersTab', {
-        screen: 'OrderDetail',
-        params: { orderId: order.id },
-      } as never);
+      navigation.getParent()?.navigate('OrdersTab', { screen: 'OrderDetail', params: { orderId: order.id } });
     } catch (err: any) {
-      setError(err.message || 'Could not place your order. Please try again.');
+      setError(err.message || "Couldn't place the order. Check your connection and try again.");
     } finally {
       setPlacing(false);
     }
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.sectionTitle}>Delivery address</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 41 Turquoise St, Mineralia, Middelburg"
-        placeholderTextColor={colors.textTertiary}
-        value={address}
-        onChangeText={setAddress}
-        multiline
-      />
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]} keyboardShouldPersistTaps="handled">
+        <Card>
+          <Txt variant="heading" style={{ marginBottom: spacing.md }}>
+            Where to?
+          </Txt>
+          <Field
+            label="Delivery address"
+            icon="home-map-marker"
+            placeholder="41 Turquoise St, Mineralia"
+            value={address}
+            onChangeText={setAddress}
+            multiline
+          />
+          <Pressable onPress={pinLocation} disabled={pinning} style={[styles.pinRow, pin && styles.pinRowDone]}>
+            <Icon name={pin ? 'map-marker-check' : 'crosshairs-gps'} size={20} color={pin ? colors.mint : colors.ember} />
+            <View style={{ flex: 1 }}>
+              <Txt variant="smallBold" color={pin ? colors.mint : colors.ember}>
+                {pinning ? 'Finding you…' : pin ? 'Location pinned' : 'Pin my location for the driver'}
+              </Txt>
+              {pinNote ? <Txt variant="small">{pinNote}</Txt> : null}
+            </View>
+          </Pressable>
+          <Field
+            label="Cellphone number"
+            icon="phone-outline"
+            placeholder="082 123 4567"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            hint="The driver calls this number at the gate."
+            style={{ marginTop: spacing.md }}
+          />
+          <Field
+            label="Note for the kitchen"
+            icon="note-text-outline"
+            placeholder="No chilli, extra napkins, gate code…"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            style={{ marginTop: spacing.md }}
+          />
+        </Card>
 
-      <Text style={styles.sectionTitle}>Contact number</Text>
-      <TextInput
-        style={[styles.input, styles.inputSingle]}
-        placeholder="082 123 4567"
-        placeholderTextColor={colors.textTertiary}
-        value={phone}
-        onChangeText={setPhone}
-        keyboardType="phone-pad"
-        autoComplete="tel"
-      />
-      <Text style={styles.inputHint}>Your driver calls this number when they arrive.</Text>
-
-      <Text style={styles.sectionTitle}>Note for the restaurant (optional)</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. no chilli, extra napkins, gate code 1234"
-        placeholderTextColor={colors.textTertiary}
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-      />
-
-      <Text style={styles.sectionTitle}>Order summary</Text>
-      <View style={styles.card}>
-        {lines.map((l) => (
-          <View key={l.menuItem.id} style={styles.summaryLine}>
-            <Text style={styles.summaryLineText}>
-              {l.quantity}× {l.menuItem.name}
-            </Text>
-            <Text style={styles.summaryLineText}>R{l.menuItem.price * l.quantity}</Text>
+        <Card style={{ marginTop: spacing.lg }}>
+          <View style={styles.summaryHead}>
+            <Txt variant="heading">{restaurant.name}</Txt>
+            <Pill label={`${restaurant.etaMinutes} min`} icon="clock-outline" />
           </View>
-        ))}
-        <View style={styles.divider} />
-        <View style={styles.summaryLine}>
-          <Text style={styles.summaryLineText}>Delivery fee</Text>
-          <Text style={styles.summaryLineText}>R{restaurant.deliveryFee}</Text>
+          {lines.map((l) => (
+            <View key={l.menuItem.id} style={styles.summaryLine}>
+              <Txt variant="body" style={{ flex: 1 }}>
+                {l.quantity} × {l.menuItem.name}
+              </Txt>
+              <Txt variant="bodyMedium">{rands(l.menuItem.price * l.quantity)}</Txt>
+            </View>
+          ))}
+          <Divider />
+          <View style={styles.summaryLine}>
+            <Txt variant="body" color={colors.inkSoft}>
+              Delivery
+            </Txt>
+            <Txt variant="bodyMedium">{restaurant.deliveryFee === 0 ? 'Free' : rands(restaurant.deliveryFee)}</Txt>
+          </View>
+          <View style={styles.summaryLine}>
+            <Txt variant="subheading">Total</Txt>
+            <Txt variant="priceBig" color={colors.emberDeep} style={{ fontSize: 22 }}>
+              {rands(total)}
+            </Txt>
+          </View>
+        </Card>
+
+        <View style={styles.secure}>
+          <Icon name="shield-check-outline" size={18} color={colors.mint} />
+          <Txt variant="small" style={{ flex: 1 }}>
+            You pay on PayFast's secure page (card, Instant EFT, SnapScan). The kitchen only sees the order once it's paid.
+          </Txt>
         </View>
-        <View style={styles.summaryLine}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>R{total}</Text>
-        </View>
-      </View>
 
-      <Text style={styles.note}>
-        You'll be taken to PayFast to complete payment securely. Your order only reaches the
-        restaurant once payment goes through.
-      </Text>
+        {error ? (
+          <Txt variant="bodyMedium" color={colors.berry} center style={{ marginBottom: spacing.md }}>
+            {error}
+          </Txt>
+        ) : null}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <Button title={`Place order · R${total}`} icon="moped" onPress={handlePlaceOrder} loading={placing} />
-    </ScrollView>
+        <Button title="Pay and place order" trailing={rands(total)} icon="moped" onPress={handlePlaceOrder} loading={placing} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgApp,
+    backgroundColor: colors.paper,
   },
   content: {
     padding: spacing.lg,
-    gap: spacing.sm,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyText: {
-    color: colors.textSecondary,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  inputSingle: {
-    minHeight: 0,
-  },
-  inputHint: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: spacing.xs,
-  },
-  input: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+  pinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
     padding: spacing.md,
-    fontSize: 15,
-    color: colors.textPrimary,
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  card: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 6,
+    backgroundColor: colors.emberSoft,
+  },
+  pinRowDone: {
+    backgroundColor: colors.mintSoft,
+  },
+  summaryHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   summaryLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: 4,
   },
-  summaryLineText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 6,
-  },
-  totalLabel: {
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  totalValue: {
-    fontWeight: '800',
-    color: colors.accentPrimary,
-  },
-  note: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    fontStyle: 'italic',
-  },
-  error: {
-    color: colors.accentError,
-    textAlign: 'center',
+  secure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
   },
 });

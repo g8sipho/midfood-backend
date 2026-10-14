@@ -1,45 +1,27 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius } from '../theme/colors';
-import type { OrderStatus } from '../types';
+import { Pill } from './ui';
+import type { OrderStatus, PaymentStatus } from '../types';
 
 const LABELS: Record<OrderStatus, string> = {
-  placed: 'Placed',
-  confirmed: 'Confirmed',
-  preparing: 'Preparing',
-  out_for_delivery: 'Out for delivery',
+  placed: 'Waiting for kitchen',
+  confirmed: 'Accepted',
+  preparing: 'Cooking',
+  out_for_delivery: 'On the way',
   delivered: 'Delivered',
   rejected: 'Declined',
 };
 
-const COLORS: Record<OrderStatus, string> = {
-  placed: colors.accentWarning,
-  confirmed: colors.accentBlue,
-  preparing: colors.accentBlue,
-  out_for_delivery: colors.accentPrimary,
-  delivered: colors.accentSuccess,
-  rejected: colors.accentError,
+const TONES: Record<OrderStatus, 'mango' | 'mint' | 'ember' | 'berry' | 'neutral'> = {
+  placed: 'mango',
+  confirmed: 'mint',
+  preparing: 'mint',
+  out_for_delivery: 'ember',
+  delivered: 'neutral',
+  rejected: 'berry',
 };
 
-export default function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  const color = COLORS[status];
-  return (
-    <View style={[styles.badge, { backgroundColor: `${color}22`, borderColor: color }]}>
-      <Text style={[styles.text, { color }]}>{LABELS[status]}</Text>
-    </View>
-  );
+export default function OrderStatusBadge({ status, paymentStatus }: { status: OrderStatus; paymentStatus?: PaymentStatus }) {
+  if (paymentStatus === 'pending') return <Pill label="Payment pending" tone="mango" icon="credit-card-clock-outline" />;
+  if (paymentStatus === 'failed') return <Pill label="Not paid" tone="berry" icon="credit-card-off-outline" />;
+  return <Pill label={LABELS[status]} tone={TONES[status]} />;
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  text: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-});

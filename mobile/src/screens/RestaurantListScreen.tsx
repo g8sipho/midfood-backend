@@ -1,40 +1,49 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fetchOrders, fetchRestaurants, imageSource } from '../api/client';
+import { fetchCategories, fetchOrders, fetchRestaurants, imageSource } from '../api/client';
 import RestaurantCard from '../components/RestaurantCard';
+import Txt from '../components/Txt';
+import { Avatar, Chip, EmptyState, Icon, SectionTitle, Skeleton } from '../components/ui';
+import Button from '../components/Button';
 import { useAuth } from '../context/AuthContext';
-import { useCart } from '../context/CartContext';
-import { colors, radius, spacing } from '../theme/colors';
-import type { Order, Restaurant } from '../types';
+import { colors, fonts, night, radius, shadow, spacing } from '../theme';
+import type { Category, Order, Restaurant } from '../types';
 import type { HomeStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RestaurantList'>;
 
-// The home feed: a greeting, a search box, shortcuts by kind of food, the
-// places you've ordered from before, then every restaurant that's open
-// (closed ones sink to the bottom rather than vanish).
+const LIVE_STATUS: Record<string, { label: string; icon: string }> = {
+  placed: { label: 'Waiting for the kitchen', icon: 'timer-sand' },
+  confirmed: { label: 'Kitchen accepted it', icon: 'check-circle-outline' },
+  preparing: { label: 'Being cooked now', icon: 'stove' },
+  out_for_delivery: { label: 'On the way to you', icon: 'moped' },
+};
+
+// Home. A plum sky with an ember sun, the search floating off its edge, the
+// category tiles, the places you've ordered from, then every store in town
+// (open ones first; closed ones sink rather than vanish).
 export default function RestaurantListScreen({ navigation }: Props) {
   const { user } = useAuth();
-  const { itemCount } = useCart();
   const insets = useSafeAreaInsets();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [results, setResults] = useState<Restaurant[] | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [query, setQuery] = useState('');
-  const [cuisine, setCuisine] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,11 +53,16 @@ export default function RestaurantListScreen({ navigation }: Props) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, mine] = await Promise.all([fetchRestaurants(), fetchOrders().catch(() => [])]);
+      const [list, cats, mine] = await Promise.all([
+        fetchRestaurants(),
+        fetchCategories().catch(() => []),
+        fetchOrders().catch(() => []),
+      ]);
       setRestaurants(list);
+      setCategories(cats);
       setOrders(mine);
     } catch (err: any) {
-      setError(err.message || 'Could not load restaurants.');
+      setError(err.message || 'Could not load the stores.');
     }
   }, []);
 
@@ -87,15 +101,6 @@ export default function RestaurantListScreen({ navigation }: Props) {
     setRefreshing(false);
   }
 
-  const cuisines = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const r of restaurants) {
-      const key = (r.cuisine || '').trim();
-      if (key) seen.set(key, (seen.get(key) || 0) + 1);
-    }
-    return [...seen.keys()].sort((a, b) => a.localeCompare(b));
-  }, [restaurants]);
-
   // Places ordered from before, most recent first, that are still listed.
   const orderAgain = useMemo(() => {
     const byId = new Map(restaurants.map((r) => [r.id, r]));
@@ -103,15 +108,14 @@ export default function RestaurantListScreen({ navigation }: Props) {
     for (const o of [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
       const r = byId.get(o.restaurantId);
       if (r && !out.includes(r)) out.push(r);
-      if (out.length === 6) break;
+      if (out.length === 8) break;
     }
     return out;
   }, [orders, restaurants]);
 
   const feed = useMemo(() => {
     const base = results ?? restaurants;
-    const filtered = cuisine && !results ? base.filter((r) => r.cuisine === cuisine) : base;
-    // Open restaurants first, then by rating, then by name.
+    const filtered = category && !results ? base.filter((r) => (r.categories || []).includes(category)) : base;
     return [...filtered].sort((a, b) => {
       const ao = a.open === false ? 1 : 0;
       const bo = b.open === false ? 1 : 0;
@@ -119,338 +123,368 @@ export default function RestaurantListScreen({ navigation }: Props) {
       if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
       return a.name.localeCompare(b.name);
     });
-  }, [results, restaurants, cuisine]);
+  }, [results, restaurants, category]);
+
+  // The order that's cooking or on its way right now, if there is one.
+  const liveOrder = useMemo(
+    () =>
+      [...orders]
+        .filter((o) => o.paymentStatus === 'paid' && LIVE_STATUS[o.status])
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null,
+    [orders]
+  );
 
   const openCount = restaurants.filter((r) => r.open !== false).length;
   const firstName = user?.name?.split(' ')[0] || 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const activeCategory = categories.find((c) => c.key === category);
 
   const goTo = (r: Restaurant) => navigation.navigate('RestaurantDetail', { restaurantId: r.id });
 
   const header = (
     <View>
-      <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+      {/* The sky */}
+      <LinearGradient colors={[...night]} start={{ x: 0, y: 0 }} end={{ x: 0.2, y: 1 }} style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.sun} />
+        <View style={styles.sunGlow} />
         <View style={styles.brandRow}>
           <Image source={require('../../assets/logo-white.png')} style={styles.brandLogo} resizeMode="contain" />
-          {itemCount > 0 && (
-            <Pressable style={styles.cartPill} onPress={() => navigation.navigate('Cart')}>
-              <Text style={styles.cartPillText}>🛒 {itemCount}</Text>
-            </Pressable>
-          )}
-        </View>
-        <View style={styles.heroTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>
-              {greeting}, {firstName}
-            </Text>
-            <Text style={styles.title}>What are you craving?</Text>
-            <Text style={styles.place}>📍 Delivering in Middelburg</Text>
+          <View style={styles.placePill}>
+            <Icon name="map-marker" size={14} color={colors.ember} />
+            <Txt variant="smallBold" color={colors.onDark} style={{ fontSize: 11.5 }}>
+              Middelburg
+            </Txt>
           </View>
         </View>
+        <Txt variant="smallBold" color={colors.onDarkSoft} style={{ marginTop: spacing.lg }}>
+          {greeting}, {firstName}
+        </Txt>
+        <Txt variant="hero" color={colors.onDark} style={styles.headline}>
+          What are we{'\n'}bringing you?
+        </Txt>
+      </LinearGradient>
 
-        <View style={styles.search}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search kotas, pizza, cakes, a restaurant…"
-            placeholderTextColor={colors.textTertiary}
-            value={query}
-            onChangeText={setQuery}
-            returnKeyType="search"
-            autoCorrect={false}
-          />
-          {query ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={10}>
-              <Text style={styles.searchClear}>✕</Text>
-            </Pressable>
-          ) : null}
-        </View>
+      {/* The search, floating off the sky's edge */}
+      <View style={[styles.search, shadow.float]}>
+        <Icon name="magnify" size={22} color={colors.inkFaint} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Kotas, pizza, medicine, a shop…"
+          placeholderTextColor={colors.inkFaint}
+          value={query}
+          onChangeText={setQuery}
+          returnKeyType="search"
+          autoCorrect={false}
+        />
+        {query ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={10} style={styles.searchClear}>
+            <Icon name="close" size={16} color={colors.ink} />
+          </Pressable>
+        ) : null}
       </View>
 
-      {!results && cuisines.length > 1 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chips}
+      {/* Your order, while it's live */}
+      {!loading && !results && liveOrder && (
+        <Pressable
+          onPress={() => navigation.getParent()?.navigate('OrdersTab', { screen: 'OrderDetail', params: { orderId: liveOrder.id } })}
+          style={({ pressed }) => [styles.live, shadow.card, pressed && { opacity: 0.92 }]}
         >
-          <Chip label="All" active={cuisine === null} onPress={() => setCuisine(null)} />
-          {cuisines.map((c) => (
-            <Chip key={c} label={c} active={cuisine === c} onPress={() => setCuisine(cuisine === c ? null : c)} />
-          ))}
+          <View style={styles.liveIcon}>
+            <MaterialCommunityIcons name={LIVE_STATUS[liveOrder.status].icon as any} size={22} color={colors.onDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt variant="subheading" color={colors.onDark} numberOfLines={1}>
+              {LIVE_STATUS[liveOrder.status].label}
+            </Txt>
+            <Txt variant="small" color={colors.onDarkSoft} numberOfLines={1}>
+              {liveOrder.restaurantName} · R{Number(liveOrder.total).toFixed(0)}
+            </Txt>
+          </View>
+          <View style={styles.liveTrack}>
+            <Txt variant="smallBold" color={colors.onDark}>
+              Track
+            </Txt>
+            <Icon name="chevron-right" size={16} color={colors.onDark} />
+          </View>
+        </Pressable>
+      )}
+
+      {loading ? (
+        <View style={styles.pad}>
+          <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl }}>
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} width={76} height={92} round={radius.md} />
+            ))}
+          </View>
+          <Skeleton height={220} round={radius.lg} style={{ marginBottom: spacing.lg }} />
+          <Skeleton height={220} round={radius.lg} />
+        </View>
+      ) : null}
+
+      {/* Category tiles */}
+      {!loading && !results && categories.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
+          {categories.map((c) => {
+            const active = category === c.key;
+            return (
+              <Pressable
+                key={c.key}
+                onPress={() => setCategory(active ? null : c.key)}
+                style={({ pressed }) => [styles.tile, active && styles.tileActive, pressed && { opacity: 0.85 }]}
+              >
+                <View style={[styles.tileIcon, active && styles.tileIconActive]}>
+                  <MaterialCommunityIcons name={c.icon as any} size={26} color={active ? colors.onDark : colors.ember} />
+                </View>
+                <Txt variant="smallBold" center color={active ? colors.onDark : colors.ink} style={styles.tileLabel} numberOfLines={2}>
+                  {c.label}
+                </Txt>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
 
-      {!results && !cuisine && orderAgain.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Order again</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.againRow}>
-            {orderAgain.map((r) => {
-              const img = imageSource(r.thumbUrl || r.imageUrl);
-              return (
-                <Pressable key={r.id} style={styles.againCard} onPress={() => goTo(r)}>
-                  <View style={[styles.againImage, { backgroundColor: r.heroColor }]}>
-                    {img ? (
-                      <Image source={img} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                    ) : (
-                      <Text style={styles.againInitial}>{r.name.charAt(0)}</Text>
-                    )}
-                  </View>
-                  <Text style={styles.againName} numberOfLines={1}>
-                    {r.name}
-                  </Text>
-                  <Text style={styles.againMeta}>{r.open === false ? 'Closed' : `${r.etaMinutes} min`}</Text>
-                </Pressable>
-              );
-            })}
+      {/* Order again */}
+      {!loading && !results && !category && orderAgain.length > 0 && (
+        <View style={styles.pad}>
+          <SectionTitle title="Order again" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.againRow} style={{ marginHorizontal: -spacing.lg }}>
+            {orderAgain.map((r) => (
+              <Pressable key={r.id} style={styles.againCard} onPress={() => goTo(r)}>
+                <Avatar uri={imageSource(r.thumbUrl || r.imageUrl)?.uri} name={r.name} color={r.heroColor} size={64} square />
+                <Txt variant="smallBold" numberOfLines={1} style={{ marginTop: 6 }}>
+                  {r.name}
+                </Txt>
+                <Txt variant="small" style={{ fontSize: 11.5 }}>
+                  {r.open === false ? 'Closed' : `${r.etaMinutes} min`}
+                </Txt>
+              </Pressable>
+            ))}
           </ScrollView>
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {results
-            ? searching
-              ? 'Searching…'
-              : results.length
-                ? `${results.length} ${results.length === 1 ? 'match' : 'matches'} for “${query.trim()}”`
-                : `Nothing found for “${query.trim()}”`
-            : cuisine
-              ? cuisine
-              : openCount
-                ? `${openCount} open now`
-                : 'All restaurants'}
-        </Text>
-      </View>
+      {!loading && (
+        <View style={[styles.pad, { paddingBottom: 0 }]}>
+          <SectionTitle
+            title={
+              results
+                ? searching
+                  ? 'Searching…'
+                  : results.length
+                    ? `${results.length} ${results.length === 1 ? 'match' : 'matches'}`
+                    : 'No matches'
+                : activeCategory
+                  ? activeCategory.label
+                  : openCount
+                    ? `Open now`
+                    : 'All stores'
+            }
+            action={category ? 'Show all' : undefined}
+            onAction={category ? () => setCategory(null) : undefined}
+          />
+        </View>
+      )}
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {loading ? (
-        <ActivityIndicator style={styles.loading} color={colors.accentPrimary} />
-      ) : error ? (
-        <View style={styles.centered}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable style={styles.retry} onPress={() => load()}>
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
+      {error && !loading ? (
+        <View style={{ paddingTop: insets.top + spacing.xxl }}>
+          <EmptyState
+            icon="wifi-off"
+            title="Can't reach MidFood"
+            body={error}
+            action={<Button title="Try again" variant="dark" onPress={() => load()} />}
+          />
         </View>
       ) : (
         <FlatList
-          data={feed}
+          data={loading ? [] : feed}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={header}
           ListEmptyComponent={
-            <View style={styles.centered}>
-              <Text style={styles.emptyTitle}>{results ? 'No luck with that one' : 'No restaurants yet'}</Text>
-              <Text style={styles.emptyText}>
-                {results ? 'Try another word, or clear the search to browse.' : 'New places are joining MidFood every week.'}
-              </Text>
-            </View>
+            loading ? null : (
+              <EmptyState
+                icon={results ? 'magnify-close' : 'storefront-outline'}
+                title={results ? 'Nothing by that name' : activeCategory ? `No ${activeCategory.label.toLowerCase()} yet` : 'No stores yet'}
+                body={
+                  results
+                    ? 'Try another word, or clear the search to browse.'
+                    : 'New stores are joining MidFood every week. Know one? Tell them about us.'
+                }
+              />
+            )
           }
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item }) => <RestaurantCard restaurant={item} onPress={() => goTo(item)} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ember} />}
+          renderItem={({ item }) => (
+            <View style={styles.pad}>
+              <RestaurantCard restaurant={item} onPress={() => goTo(item)} />
+            </View>
+          )}
         />
       )}
     </View>
   );
 }
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgApp,
+    backgroundColor: colors.paper,
   },
   hero: {
-    backgroundColor: colors.accentPrimary,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    marginHorizontal: -spacing.lg,
-    marginBottom: spacing.md,
+    paddingBottom: spacing.xxl + spacing.lg,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
   },
-  // The MidFood lockup (scooter + wordmark, white) at the top of every visit.
+  sun: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: colors.ember,
+    opacity: 0.9,
+  },
+  sunGlow: {
+    position: 'absolute',
+    top: -90,
+    right: -80,
+    width: 290,
+    height: 290,
+    borderRadius: 145,
+    backgroundColor: colors.flameStart,
+    opacity: 0.18,
+  },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
   },
   brandLogo: {
     width: 128,
     height: 32,
   },
-  heroTop: {
+  placePill: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  greeting: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: -0.5,
-    marginTop: 2,
-  },
-  place: {
-    marginTop: 6,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
-  },
-  cartPill: {
-    backgroundColor: '#fff',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
-  cartPillText: {
-    color: colors.textPrimary,
-    fontWeight: '800',
-    fontSize: 13,
+  headline: {
+    marginTop: 4,
+    fontSize: 32,
+    lineHeight: 36,
   },
   search: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    height: 48,
+    height: 56,
+    marginHorizontal: spacing.lg,
+    marginTop: -28,
     gap: spacing.sm,
-  },
-  searchIcon: {
-    fontSize: 15,
   },
   searchInput: {
     flex: 1,
+    fontFamily: fonts.medium,
     fontSize: 15,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   searchClear: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    paddingHorizontal: 4,
-  },
-  chips: {
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  chip: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-  },
-  chipActive: {
-    backgroundColor: colors.textPrimary,
-    borderColor: colors.textPrimary,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  chipTextActive: {
-    color: '#fff',
-  },
-  section: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  againRow: {
-    gap: spacing.md,
-    paddingRight: spacing.lg,
-  },
-  againCard: {
-    width: 120,
-  },
-  againImage: {
-    width: 120,
-    height: 84,
-    borderRadius: radius.md,
-    overflow: 'hidden',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.sand,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  againInitial: {
-    color: '#fff',
-    fontSize: 30,
-    fontWeight: '800',
+  pad: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
   },
-  againName: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
+  live: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+    backgroundColor: colors.plum,
+    borderRadius: radius.lg,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    padding: spacing.sm + 2,
+    paddingRight: spacing.md,
   },
-  againMeta: {
+  liveIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.ember,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingLeft: 12,
+    paddingRight: 6,
+  },
+  tiles: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    gap: spacing.sm,
+  },
+  tile: {
+    width: 80,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 4,
+    borderRadius: radius.md,
+  },
+  tileActive: {
+    backgroundColor: colors.plum,
+  },
+  tileIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    ...(shadow.card as object),
+  },
+  tileIconActive: {
+    backgroundColor: colors.ember,
+  },
+  tileLabel: {
     fontSize: 11,
-    color: colors.textSecondary,
+    lineHeight: 14,
+  },
+  againRow: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  againCard: {
+    width: 76,
   },
   list: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  loading: {
-    marginTop: spacing.xxl,
-  },
-  centered: {
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  emptyText: {
-    marginTop: 4,
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  error: {
-    color: colors.accentError,
-    textAlign: 'center',
-  },
-  retry: {
-    marginTop: spacing.md,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-  },
-  retryText: {
-    fontWeight: '700',
-    color: colors.textPrimary,
+    paddingBottom: spacing.xxxl * 2,
   },
 });

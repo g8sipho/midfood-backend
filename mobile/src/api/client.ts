@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
-import type { Order, Restaurant, Tracking, User } from '../types';
+import type { Category, ChatMessage, Conversation, Order, Restaurant, SocialProvider, Tracking, User } from '../types';
 
 const TOKEN_KEY = 'midfood.authToken';
 
@@ -139,6 +139,9 @@ export async function placeOrder(params: {
   deliveryAddress: string;
   customerPhone?: string;
   notes?: string;
+  // The customer's GPS pin, if their phone gave a good one.
+  deliveryLat?: number;
+  deliveryLng?: number;
 }) {
   // paymentUrl is null if PayFast isn't configured on the backend -- callers
   // should handle that by skipping straight to the order screen.
@@ -184,3 +187,61 @@ export async function registerPushToken(token: string, phone?: string) {
 }
 
 export { ApiError };
+
+// --- Home-screen categories ---
+
+export async function fetchCategories() {
+  const data = await request<{ categories: Category[] }>('/api/restaurants/categories');
+  return data.categories;
+}
+
+// --- Ratings ---
+
+export async function rateOrder(orderId: string, rating: number) {
+  return request<{ ok: true }>(`/api/orders/${orderId}/rating`, {
+    method: 'POST',
+    body: JSON.stringify({ rating }),
+  });
+}
+
+// --- Chat ---
+
+export async function fetchConversations() {
+  const data = await request<{ conversations: Conversation[] }>('/api/chat/conversations');
+  return data.conversations;
+}
+
+export async function fetchChatUnread() {
+  const data = await request<{ unread: number }>('/api/chat/unread');
+  return data.unread;
+}
+
+// Opens (or finds) the thread with a kitchen; no restaurantId means MidFood.
+export async function openConversation(params: { restaurantId?: string; orderId?: string }) {
+  const data = await request<{ conversation: Conversation }>('/api/chat/conversations', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return data.conversation;
+}
+
+export async function fetchMessages(conversationId: string, after?: string | null) {
+  const q = after ? `?after=${encodeURIComponent(after)}` : '';
+  const data = await request<{ messages: ChatMessage[] }>(`/api/chat/conversations/${conversationId}/messages${q}`);
+  return data.messages;
+}
+
+export async function sendMessage(conversationId: string, body: string) {
+  return request<{ message: ChatMessage; reply: ChatMessage | null }>(`/api/chat/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
+}
+
+// --- Social sign-in ---
+
+// Where the phone sends the customer to sign in with Google or Facebook. The
+// server does the whole dance and comes back to the app with a token.
+export function socialStartUrl(provider: SocialProvider) {
+  return `${API_BASE_URL}/api/auth/${provider}/start?platform=app`;
+}

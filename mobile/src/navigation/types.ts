@@ -1,3 +1,5 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -8,6 +10,9 @@ export type AuthStackParamList = {
 export type HomeStackParamList = {
   RestaurantList: undefined;
   RestaurantDetail: { restaurantId: string };
+};
+
+export type CartStackParamList = {
   Cart: undefined;
   Checkout: undefined;
 };
@@ -17,8 +22,17 @@ export type OrdersStackParamList = {
   OrderDetail: { orderId: string };
 };
 
+export type ChatsStackParamList = {
+  ChatList: undefined;
+  // Open by thread id, or by what the thread is about (the screen opens or
+  // finds the thread itself).
+  ChatThread: { conversationId?: string; restaurantId?: string; orderId?: string; title?: string };
+};
+
 export type RootTabParamList = {
-  HomeTab: undefined;
-  OrdersTab: undefined;
+  HomeTab: NavigatorScreenParams<HomeStackParamList>;
+  OrdersTab: NavigatorScreenParams<OrdersStackParamList>;
+  CartTab: NavigatorScreenParams<CartStackParamList>;
+  ChatsTab: NavigatorScreenParams<ChatsStackParamList>;
   ProfileTab: undefined;
 };

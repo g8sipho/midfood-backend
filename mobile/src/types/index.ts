@@ -30,6 +30,8 @@ export type Restaurant = {
   menu?: MenuItem[];
   // Up to three dish names that matched a search, when the list was searched.
   matches?: string[];
+  // Home-screen category keys this store sits under.
+  categories?: string[];
 };
 
 export type CartLine = {
@@ -74,6 +76,8 @@ export type Order = {
   driverId: string | null;
   notes: string | null;
   rejectedReason: string | null;
+  // The customer's own 1-5 stars, once given.
+  rating?: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -103,5 +107,43 @@ export type User = {
   // Ten-digit local form, 0821234567, or null for accounts made before
   // sign-up asked for it.
   phone?: string | null;
+  createdAt: string;
+};
+
+// Where a sign-in came from, when it was not a password.
+export type SocialProvider = 'google' | 'facebook';
+
+// A tile on the home screen (see the server's src/categories.js).
+export type Category = {
+  key: string;
+  label: string;
+  // A MaterialCommunityIcons glyph name.
+  icon: string;
+  emoji: string;
+  count: number;
+};
+
+export type ChatSender = 'customer' | 'restaurant' | 'admin' | 'bot';
+
+export type Conversation = {
+  id: string;
+  restaurantId: string | null;
+  orderId: string | null;
+  title: string;
+  heroColor: string | null;
+  open: boolean | null;
+  thumbUrl: string | null;
+  needsHuman: boolean;
+  unread: number;
+  lastMessage: string | null;
+  lastSender: ChatSender | null;
+  lastMessageAt: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  sender: ChatSender;
+  body: string;
+  quickReplies: string[] | null;
   createdAt: string;
 };

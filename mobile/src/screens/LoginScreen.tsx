@@ -1,19 +1,13 @@
 import React, { useState } from 'react';
-import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import AuthShell from '../components/AuthShell';
 import Button from '../components/Button';
-import { colors, radius, spacing } from '../theme/colors';
+import SocialButtons from '../components/SocialButtons';
+import Txt from '../components/Txt';
+import { Field } from '../components/ui';
+import { colors, spacing } from '../theme';
 import type { AuthStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
@@ -35,151 +29,80 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       await login(identifier.trim(), password);
     } catch (err: any) {
-      setError(err.message || 'Something went wrong logging in.');
+      setError(err.message || "Couldn't sign you in. Check the details and try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.brand}>
-          <Image source={require('../../assets/logo-terracotta.png')} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.subtitle}>Middelburg's food, delivered to your door.</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.title}>Sign in</Text>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <Text style={styles.label}>Email or cellphone number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="you@example.com or 082 123 4567"
-            placeholderTextColor={colors.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="username"
-            value={identifier}
-            onChangeText={setIdentifier}
-          />
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Your password"
-            placeholderTextColor={colors.textTertiary}
-            secureTextEntry
-            textContentType="password"
-            value={password}
-            onChangeText={setPassword}
-            onSubmitEditing={handleLogin}
-          />
-
-          <Button title="Sign in" onPress={handleLogin} loading={loading} />
-          <Pressable
-            onPress={() => navigation.navigate('ForgotPassword', { identifier: identifier.trim() })}
-            hitSlop={8}
-            style={styles.forgot}
-          >
-            <Text style={styles.forgotText}>Forgot your password?</Text>
+    <AuthShell
+      title={'Hungry?\nWe deliver.'}
+      lead="Middelburg's restaurants and shops, to your door."
+      footer={
+        <>
+          <Txt variant="small" color={colors.onDarkSoft}>
+            New to MidFood?
+          </Txt>
+          <Pressable onPress={() => navigation.navigate('Register')} hitSlop={8}>
+            <Txt variant="subheading" color={colors.onDark}>
+              Create an account
+            </Txt>
           </Pressable>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>New to MidFood?</Text>
-          <Button
-            title="Create an account"
-            variant="secondary"
-            onPress={() => navigation.navigate('Register')}
-          />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </>
+      }
+    >
+      <SocialButtons onError={setError} />
+      <View style={styles.or}>
+        <View style={styles.orLine} />
+        <Txt variant="small">or sign in with a password</Txt>
+        <View style={styles.orLine} />
+      </View>
+      {error ? (
+        <Txt variant="small" color={colors.berry}>
+          {error}
+        </Txt>
+      ) : null}
+      <Field
+        label="Email or cellphone number"
+        icon="account-outline"
+        placeholder="you@example.com or 082 123 4567"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="username"
+        value={identifier}
+        onChangeText={setIdentifier}
+      />
+      <Field
+        label="Password"
+        icon="lock-outline"
+        placeholder="Your password"
+        secureTextEntry
+        textContentType="password"
+        value={password}
+        onChangeText={setPassword}
+        onSubmitEditing={handleLogin}
+      />
+      <Button title="Sign in" onPress={handleLogin} loading={loading} />
+      <Pressable onPress={() => navigation.navigate('ForgotPassword', { identifier: identifier.trim() })} hitSlop={8} style={{ alignSelf: 'center' }}>
+        <Txt variant="smallBold" color={colors.ember}>
+          Forgot your password?
+        </Txt>
+      </Pressable>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  or: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  orLine: {
     flex: 1,
-    backgroundColor: colors.bgApp,
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
-  },
-  brand: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  // The MidFood lockup: scooter + wordmark in the brand terracotta.
-  logo: {
-    width: 240,
-    height: 60,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  card: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  input: {
-    backgroundColor: colors.bgApp,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  error: {
-    color: colors.accentError,
-    fontSize: 13,
-  },
-  forgot: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-  },
-  forgotText: {
-    color: colors.accentPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  footer: {
-    marginTop: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  footerText: {
-    color: colors.textSecondary,
-    fontSize: 13,
+    height: 1,
+    backgroundColor: colors.line,
   },
 });

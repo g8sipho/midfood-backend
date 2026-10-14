@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import * as api from '../api/client';
 import { registerForPushNotifications } from '../push';
-import type { User } from '../types';
+import type { SocialProvider, User } from '../types';
 
 type AuthContextValue = {
   user: User | null;
@@ -11,6 +12,9 @@ type AuthContextValue = {
   register: (name: string, email: string, phone: string, password: string) => Promise<void>;
   // Finishes "forgot password": the emailed code plus the new password.
   resetPassword: (identifier: string, code: string, password: string) => Promise<void>;
+  // Google or Facebook: the server does the sign-in and hands back a token.
+  // Resolves false if the customer closed the browser without finishing.
+  socialLogin: (provider: SocialProvider) => Promise<boolean>;
   logout: () => Promise<void>;
 };
 
@@ -60,13 +64,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerForPushNotifications();
   }
 
+  async function socialLogin(provider: SocialProvider) {
+    const result = await WebBrowser.openAuthSessionAsync(api.socialStartUrl(provider), 'midfood://auth');
+    if (result.type !== 'success' || !result.url) return false;
+    const params = new URL(result.url.replace('midfood://', 'https://midfood.co.za/')).searchParams;
+    const token = params.get('token');
+    const problem = params.get('error');
+    if (problem) throw new Error(problem);
+    if (!token) return false;
+    await api.setToken(token);
+    const restored = await api.fetchMe();
+    setUser(restored);
+    registerForPushNotifications();
+    return true;
+  }
+
   async function logout() {
     await api.setToken(null);
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, resetPassword, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, resetPassword, socialLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,31 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { fetchOrder, fetchTracking, requestPayfastCheckout } from '../api/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fetchOrder, fetchTracking, rateOrder, requestPayfastCheckout } from '../api/client';
 import OrderStatusBadge from '../components/OrderStatusBadge';
 import Button from '../components/Button';
-import { colors, radius, spacing } from '../theme/colors';
+import Txt from '../components/Txt';
+import { Card, Divider, Icon, Skeleton } from '../components/ui';
+import { colors, radius, rands, spacing } from '../theme';
 import type { Order, Tracking } from '../types';
 import type { OrdersStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<OrdersStackParamList, 'OrderDetail'>;
 
-const STEPS: { key: Order['status']; label: string }[] = [
-  { key: 'placed', label: 'Order placed' },
-  { key: 'confirmed', label: 'Restaurant accepted' },
-  { key: 'preparing', label: 'Preparing your food' },
-  { key: 'out_for_delivery', label: 'Out for delivery' },
-  { key: 'delivered', label: 'Delivered' },
+const STEPS: { key: Order['status']; label: string; detail: string; icon: any }[] = [
+  { key: 'placed', label: 'Order placed', detail: 'Waiting for the kitchen to accept', icon: 'receipt-text-check-outline' },
+  { key: 'confirmed', label: 'Kitchen accepted', detail: 'They have it and are starting', icon: 'chef-hat' },
+  { key: 'preparing', label: 'Cooking', detail: 'Your food is being made', icon: 'pot-steam-outline' },
+  { key: 'out_for_delivery', label: 'On the way', detail: 'Your driver has it', icon: 'moped' },
+  { key: 'delivered', label: 'Delivered', detail: 'Enjoy!', icon: 'check-circle-outline' },
 ];
 
-// How often to refresh live tracking while an order is still on its way.
 const TRACK_INTERVAL_MS = 8000;
-
-// While payment is still "pending", PayFast's confirmation (the ITN) usually
-// arrives within a couple of seconds of the customer finishing on their
-// site -- poll a few times so the screen catches up on its own without the
-// customer needing to do anything.
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLLS = 15;
 
@@ -35,22 +33,29 @@ function minutesAgo(iso: string | null): number | null {
   return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 60000)) : null;
 }
 
-export default function OrderDetailScreen({ route }: Props) {
+export default function OrderDetailScreen({ route, navigation }: Props) {
   const { orderId } = route.params;
+  const insets = useSafeAreaInsets();
   const [order, setOrder] = useState<Order | null>(null);
   const [tracking, setTracking] = useState<Tracking | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stars, setStars] = useState(0);
+  const [rated, setRated] = useState(false);
   const pollCount = useRef(0);
 
   const load = useCallback(async () => {
     try {
       const fresh = await fetchOrder(orderId);
       setOrder(fresh);
+      if (fresh.rating) {
+        setStars(fresh.rating);
+        setRated(true);
+      }
       return fresh;
     } catch (err: any) {
-      setError(err.message || 'Could not load this order.');
+      setError(err.message || "Couldn't load this order.");
       return null;
     }
   }, [orderId]);
@@ -59,12 +64,11 @@ export default function OrderDetailScreen({ route }: Props) {
     load().finally(() => setLoading(false));
   }, [load]);
 
-  // Poll while payment is still pending, so a successful payment shows up
-  // automatically instead of requiring the customer to back out and back in.
+  // While payment is pending, PayFast's confirmation usually lands within
+  // seconds; poll a few times so the screen catches up on its own.
   useEffect(() => {
     if (!order || order.paymentStatus !== 'pending') return;
     if (pollCount.current >= MAX_POLLS) return;
-
     const timer = setTimeout(async () => {
       pollCount.current += 1;
       await load();
@@ -72,31 +76,24 @@ export default function OrderDetailScreen({ route }: Props) {
     return () => clearTimeout(timer);
   }, [order, load]);
 
-  // Live tracking: statuses are set for real by the restaurant portal and the
-  // driver app, so this just keeps polling until the order is finished.
+  // Live tracking until the order is finished.
   useEffect(() => {
     if (!order || order.paymentStatus !== 'paid') return;
     if (order.status === 'delivered' || order.status === 'rejected') return;
-
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
-
     const tick = async () => {
       try {
         const t = await fetchTracking(orderId);
         if (cancelled) return;
         setTracking(t);
-        // Keep the order card's own status badge in step with tracking.
         setOrder((prev) => (prev && prev.status !== t.status ? { ...prev, status: t.status } : prev));
-        if (t.status !== 'delivered' && t.status !== 'rejected') {
-          timer = setTimeout(tick, TRACK_INTERVAL_MS);
-        }
+        if (t.status !== 'delivered' && t.status !== 'rejected') timer = setTimeout(tick, TRACK_INTERVAL_MS);
       } catch {
         if (!cancelled) timer = setTimeout(tick, TRACK_INTERVAL_MS);
       }
     };
     tick();
-
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -112,137 +109,227 @@ export default function OrderDetailScreen({ route }: Props) {
       pollCount.current = 0;
       await load();
     } catch (err: any) {
-      setError(err.message || 'Could not start payment. Please try again.');
+      setError(err.message || "Couldn't start the payment. Try again.");
     } finally {
       setRetrying(false);
     }
   }
 
-  if (loading) {
-    return <ActivityIndicator style={styles.loading} color={colors.accentPrimary} />;
+  async function rate(n: number) {
+    setStars(n);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    try {
+      await rateOrder(orderId, n);
+      setRated(true);
+    } catch (err: any) {
+      setError(err.message || "Couldn't save your rating.");
+    }
   }
 
-  if (error || !order) {
+  const openChat = () => {
+    if (!order) return;
+    navigation.getParent()?.navigate('ChatsTab', {
+      screen: 'ChatThread',
+      params: { orderId: order.id, restaurantId: order.restaurantId, title: order.restaurantName },
+    });
+  };
+
+  if (loading) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.error}>{error || 'Order not found.'}</Text>
+      <View style={[styles.container, { padding: spacing.lg, gap: spacing.md }]}>
+        <Skeleton height={40} width="70%" />
+        <Skeleton height={260} round={radius.lg} />
+        <Skeleton height={160} round={radius.lg} />
       </View>
     );
   }
+
+  if (error && !order) {
+    return (
+      <View style={styles.centered}>
+        <Txt variant="body" color={colors.berry}>
+          {error}
+        </Txt>
+      </View>
+    );
+  }
+  if (!order) return null;
 
   const status = tracking?.status ?? order.status;
   const currentIndex = STEPS.findIndex((s) => s.key === status);
   const isPaid = order.paymentStatus === 'paid';
   const driverSeen = minutesAgo(tracking?.driverSeenAt ?? null);
+  const finished = status === 'delivered' || status === 'rejected';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.restaurantName}>{order.restaurantName}</Text>
-        <OrderStatusBadge status={status} />
+        <View style={{ flex: 1 }}>
+          <Txt variant="title">{order.restaurantName}</Txt>
+          <Txt variant="small" numberOfLines={2}>
+            To {order.deliveryAddress}
+          </Txt>
+        </View>
+        <OrderStatusBadge status={status} paymentStatus={order.paymentStatus} />
       </View>
-      <Text style={styles.address}>Delivering to: {order.deliveryAddress}</Text>
 
       {order.paymentStatus === 'pending' && (
-        <View style={[styles.paymentCard, styles.paymentPending]}>
-          <ActivityIndicator color={colors.accentWarning} style={{ marginBottom: spacing.sm }} />
-          <Text style={styles.paymentTitle}>Waiting for payment confirmation</Text>
-          <Text style={styles.paymentBody}>
-            If you finished paying on PayFast, this updates automatically within a few seconds. If
-            you closed the payment page without paying, tap below to try again.
-          </Text>
-          <Button title="Retry payment" onPress={handleRetryPayment} loading={retrying} />
-        </View>
+        <Card style={[styles.notice, { backgroundColor: colors.mangoSoft }]}>
+          <Txt variant="subheading">Waiting for your payment</Txt>
+          <Txt variant="small">
+            If you finished on PayFast, this updates by itself in a few seconds. If you closed the payment page, pay now to send the order to the kitchen.
+          </Txt>
+          <Button title="Pay now" onPress={handleRetryPayment} loading={retrying} trailing={rands(order.total)} />
+        </Card>
       )}
 
       {order.paymentStatus === 'failed' && (
-        <View style={[styles.paymentCard, styles.paymentFailed]}>
-          <Text style={styles.paymentTitle}>Payment didn't go through</Text>
-          <Text style={styles.paymentBody}>Your order is saved — try paying again to confirm it.</Text>
-          <Button title="Retry payment" onPress={handleRetryPayment} loading={retrying} />
-        </View>
+        <Card style={[styles.notice, { backgroundColor: colors.berrySoft }]}>
+          <Txt variant="subheading">The payment didn't go through</Txt>
+          <Txt variant="small">Your order is saved. Pay again to send it to the kitchen.</Txt>
+          <Button title="Try the payment again" onPress={handleRetryPayment} loading={retrying} />
+        </Card>
       )}
 
       {status === 'rejected' && (
-        <View style={[styles.paymentCard, styles.paymentFailed]}>
-          <Text style={styles.paymentTitle}>The restaurant couldn't take this order</Text>
-          <Text style={styles.paymentBody}>
-            {tracking?.rejectedReason || order.rejectedReason || 'No reason was given.'} You'll be
-            refunded — contact MidFood on 013 000 0000 if you don't see it within 3 working days.
-          </Text>
-        </View>
+        <Card style={[styles.notice, { backgroundColor: colors.berrySoft }]}>
+          <Txt variant="subheading">The kitchen couldn't take this order</Txt>
+          <Txt variant="small">
+            {tracking?.rejectedReason || order.rejectedReason || 'No reason was given.'} You'll be refunded to the card you paid with within 3 working days.
+          </Txt>
+          <Button title="Ask MidFood about the refund" variant="dark" icon="chat-outline" onPress={() => navigation.getParent()?.navigate('ChatsTab', { screen: 'ChatThread', params: { orderId: order.id, title: 'MidFood support' } })} />
+        </Card>
       )}
 
       {isPaid && status !== 'rejected' && (
-        <>
-          <View style={styles.timeline}>
-            {STEPS.map((step, i) => (
-              <View key={step.key} style={styles.timelineRow}>
-                <View style={[styles.dot, i <= currentIndex && styles.dotActive]} />
-                <Text style={[styles.timelineLabel, i <= currentIndex && styles.timelineLabelActive]}>
-                  {step.label}
-                </Text>
+        <Card style={{ padding: spacing.lg }}>
+          {STEPS.map((step, i) => {
+            const done = i < currentIndex;
+            const now = i === currentIndex;
+            return (
+              <View key={step.key} style={styles.step}>
+                <View style={styles.stepRail}>
+                  <View style={[styles.stepDot, (done || now) && styles.stepDotOn, now && styles.stepDotNow]}>
+                    <Icon name={done ? 'check' : step.icon} size={now ? 18 : 14} color={done || now ? colors.onDark : colors.inkFaint} />
+                  </View>
+                  {i < STEPS.length - 1 ? <View style={[styles.stepLine, done && styles.stepLineOn]} /> : null}
+                </View>
+                <View style={styles.stepText}>
+                  <Txt variant={now ? 'subheading' : 'bodyMedium'} color={done || now ? colors.ink : colors.inkFaint}>
+                    {step.label}
+                  </Txt>
+                  {now && !finished ? <Txt variant="small">{step.detail}</Txt> : null}
+                </View>
               </View>
-            ))}
-          </View>
-
-          {tracking?.driverName && (
-            <View style={styles.driverCard}>
-              <Text style={styles.driverLabel}>
-                {status === 'out_for_delivery' ? 'Your driver is on the way' : 'Your driver'}
-              </Text>
-              <Text style={styles.driverName}>{tracking.driverName}</Text>
-              {tracking.driverPhone && (
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${tracking.driverPhone}`)}>
-                  <Text style={styles.driverPhone}>Call {tracking.driverPhone}</Text>
-                </TouchableOpacity>
-              )}
-              {tracking.driverLat != null && tracking.driverLng != null && (
-                <>
-                  <TouchableOpacity
-                    onPress={() =>
-                      Linking.openURL(
-                        `https://www.google.com/maps/search/?api=1&query=${tracking.driverLat},${tracking.driverLng}`
-                      )
-                    }
-                  >
-                    <Text style={styles.driverMapLink}>See where the driver is on a map</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.driverSeen}>
-                    {driverSeen === 0
-                      ? 'Location updated just now'
-                      : driverSeen != null
-                        ? `Location updated ${driverSeen} min ago`
-                        : ''}
-                  </Text>
-                </>
-              )}
-            </View>
-          )}
-        </>
+            );
+          })}
+        </Card>
       )}
 
-      <View style={styles.card}>
+      {isPaid && tracking?.driverName && status !== 'delivered' && (
+        <Card style={styles.driverCard}>
+          <View style={styles.driverHead}>
+            <View style={styles.driverAvatar}>
+              <Icon name="moped" size={24} color={colors.onDark} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt variant="small" color={colors.ember}>
+                {status === 'out_for_delivery' ? 'Your driver is on the way' : 'Your driver'}
+              </Txt>
+              <Txt variant="heading">{tracking.driverName}</Txt>
+              {tracking.driverLat != null ? (
+                <Txt variant="small">
+                  {driverSeen === 0 ? 'Location updated just now' : driverSeen != null ? `Location updated ${driverSeen} min ago` : ''}
+                </Txt>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.driverActions}>
+            {tracking.driverPhone ? (
+              <Button title="Call" variant="dark" size="sm" icon="phone" onPress={() => Linking.openURL(`tel:${tracking.driverPhone}`)} style={{ flex: 1 }} />
+            ) : null}
+            {tracking.driverLat != null && tracking.driverLng != null ? (
+              <Button
+                title="See on map"
+                variant="secondary"
+                size="sm"
+                icon="map-marker-radius-outline"
+                onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${tracking.driverLat},${tracking.driverLng}`)}
+                style={{ flex: 1 }}
+              />
+            ) : null}
+          </View>
+        </Card>
+      )}
+
+      {isPaid && status === 'delivered' && (
+        <Card style={styles.rateCard}>
+          <Txt variant="heading" center>
+            {rated ? 'Thanks for rating!' : 'How was it?'}
+          </Txt>
+          <View style={styles.stars}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable key={n} onPress={() => (rated ? null : rate(n))} hitSlop={6}>
+                <Icon name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? colors.mango : colors.sandDeep} />
+              </Pressable>
+            ))}
+          </View>
+          <Txt variant="small" center>
+            {rated ? 'Your rating helps the next hungry person choose.' : 'Tap a star. Only you and MidFood see who rated.'}
+          </Txt>
+        </Card>
+      )}
+
+      <Card onPress={openChat} style={styles.chatRow}>
+        <View style={styles.chatIcon}>
+          <Icon name="chat-processing-outline" size={20} color={colors.ember} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt variant="subheading">Chat about this order</Txt>
+          <Txt variant="small">Ask the kitchen anything. "Where is my order?" is answered instantly.</Txt>
+        </View>
+        <Icon name="chevron-right" size={20} color={colors.inkFaint} />
+      </Card>
+
+      <Card>
         {order.items.map((item) => (
           <View key={item.menuItemId} style={styles.line}>
-            <Text style={styles.lineText}>
-              {item.quantity}× {item.name}
-            </Text>
-            <Text style={styles.lineText}>R{item.price * item.quantity}</Text>
+            <Txt variant="body" style={{ flex: 1 }}>
+              {item.quantity} × {item.name}
+            </Txt>
+            <Txt variant="bodyMedium">{rands(item.price * item.quantity)}</Txt>
           </View>
         ))}
-        <View style={styles.divider} />
+        <Divider />
         <View style={styles.line}>
-          <Text style={styles.lineText}>Delivery fee</Text>
-          <Text style={styles.lineText}>R{order.deliveryFee}</Text>
+          <Txt variant="body" color={colors.inkSoft}>
+            Delivery
+          </Txt>
+          <Txt variant="bodyMedium">{order.deliveryFee === 0 ? 'Free' : rands(order.deliveryFee)}</Txt>
         </View>
         <View style={styles.line}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>R{order.total}</Text>
+          <Txt variant="subheading">Total</Txt>
+          <Txt variant="price" color={colors.emberDeep}>
+            {rands(order.total)}
+          </Txt>
         </View>
-      </View>
+        {order.notes ? (
+          <Txt variant="small" style={{ marginTop: spacing.sm, fontStyle: 'italic' }}>
+            Your note: {order.notes}
+          </Txt>
+        ) : null}
+        {order.paymentReference ? (
+          <Txt variant="small" style={{ marginTop: 4 }}>
+            Payment reference {order.paymentReference}
+          </Txt>
+        ) : null}
+      </Card>
 
-      {order.notes ? <Text style={styles.orderNote}>Your note: {order.notes}</Text> : null}
+      {error ? (
+        <Txt variant="small" color={colors.berry} center>
+          {error}
+        </Txt>
+      ) : null}
     </ScrollView>
   );
 }
@@ -250,159 +337,118 @@ export default function OrderDetailScreen({ route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgApp,
+    backgroundColor: colors.paper,
   },
   content: {
     padding: spacing.lg,
     gap: spacing.md,
   },
-  loading: {
-    flex: 1,
-  },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  error: {
-    color: colors.accentError,
+    padding: spacing.xl,
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  notice: {
+    gap: spacing.sm,
+  },
+  step: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  stepRail: {
     alignItems: 'center',
+    width: 32,
   },
-  restaurantName: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.sand,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  address: {
-    fontSize: 13,
-    color: colors.textSecondary,
+  stepDotOn: {
+    backgroundColor: colors.plum,
   },
-  paymentCard: {
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    gap: spacing.sm,
+  stepDotNow: {
+    backgroundColor: colors.ember,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
-  paymentPending: {
-    backgroundColor: `${colors.accentWarning}14`,
-    borderColor: colors.accentWarning,
+  stepLine: {
+    width: 3,
+    flex: 1,
+    minHeight: 22,
+    backgroundColor: colors.sand,
+    marginVertical: 3,
+    borderRadius: 2,
   },
-  paymentFailed: {
-    backgroundColor: `${colors.accentError}14`,
-    borderColor: colors.accentError,
+  stepLineOn: {
+    backgroundColor: colors.plum,
   },
-  paymentTitle: {
-    fontWeight: '800',
-    color: colors.textPrimary,
-    fontSize: 15,
+  stepText: {
+    flex: 1,
+    paddingBottom: spacing.md,
+    paddingTop: 4,
   },
-  paymentBody: {
-    color: colors.textSecondary,
-    fontSize: 13,
+  driverCard: {
+    borderWidth: 1.5,
+    borderColor: colors.ember,
+    gap: spacing.md,
   },
-  timeline: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  timelineRow: {
+  driverHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.md,
+  },
+  driverAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.ember,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverActions: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.border,
+  rateCard: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  dotActive: {
-    backgroundColor: colors.accentPrimary,
-  },
-  timelineLabel: {
-    color: colors.textTertiary,
-    fontSize: 13,
-  },
-  timelineLabelActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
-  card: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
+  stars: {
+    flexDirection: 'row',
     gap: 6,
+    marginVertical: spacing.xs,
+  },
+  chatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  chatIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.emberSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   line: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  lineText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 6,
-  },
-  totalLabel: {
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  totalValue: {
-    fontWeight: '800',
-    color: colors.accentPrimary,
-  },
-  driverCard: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.accentPrimary,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 2,
-  },
-  driverLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.accentPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  driverName: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  driverPhone: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.accentBlue,
-    marginTop: spacing.xs,
-  },
-  driverMapLink: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.accentBlue,
-    marginTop: spacing.xs,
-  },
-  driverSeen: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: 2,
-  },
-  orderNote: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: 4,
   },
 });

@@ -1,64 +1,58 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { imageSource } from '../api/client';
-import { colors, radius, spacing } from '../theme/colors';
+import Txt from './Txt';
+import { Icon, Pill } from './ui';
+import { colors, radius, shadow, spacing, tint } from '../theme';
 import type { Restaurant } from '../types';
 
-// A restaurant on the home feed: a wide cover photo with the name over it,
-// then the facts a hungry person decides on — rating, time, delivery fee —
-// and whether it is taking orders right now.
-export default function RestaurantCard({
-  restaurant,
-  onPress,
-}: {
-  restaurant: Restaurant;
-  onPress: () => void;
-}) {
+// A store on the home feed: its cover photo with the name set on it, the
+// facts a hungry person decides on along the bottom.
+export default function RestaurantCard({ restaurant, onPress }: { restaurant: Restaurant; onPress: () => void }) {
   const closed = restaurant.open === false;
   const cover = imageSource(restaurant.thumbUrl || restaurant.imageUrl);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      <View style={[styles.cover, { backgroundColor: restaurant.heroColor }]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, shadow.card, pressed && styles.pressed]}>
+      <View style={[styles.cover, { backgroundColor: tint(restaurant.heroColor, 0.35) }]}>
         {cover ? (
-          <Image source={cover} style={styles.coverImage} resizeMode="cover" />
+          <Image source={cover} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
-          <Text style={styles.coverInitial}>{restaurant.name.charAt(0)}</Text>
+          <Txt variant="hero" color={restaurant.heroColor || colors.ember} style={styles.initial}>
+            {restaurant.name.charAt(0)}
+          </Txt>
         )}
-        <View style={styles.coverShade} />
-        {closed ? (
-          <View style={styles.closedPill}>
-            <Text style={styles.closedPillText}>Closed now</Text>
-          </View>
-        ) : (
-          <View style={styles.etaPill}>
-            <Text style={styles.etaPillText}>{restaurant.etaMinutes} min</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.info}>
-        <View style={styles.titleRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {restaurant.name}
-          </Text>
-          <View style={styles.rating}>
-            <Text style={styles.ratingText}>
-              {restaurant.rating == null ? 'New' : `★ ${restaurant.rating.toFixed(1)}`}
-            </Text>
-          </View>
+        <LinearGradient colors={['rgba(23,10,31,0)', 'rgba(23,10,31,0.72)']} style={styles.shade} />
+        <View style={styles.topRow}>
+          <Pill label={restaurant.rating == null ? 'New' : `${restaurant.rating.toFixed(1)}`} icon={restaurant.rating == null ? undefined : 'star'} tone="light" />
+          {closed ? <Pill label="Closed now" tone="dark" /> : <Pill label={`${restaurant.etaMinutes} min`} icon="clock-outline" tone="light" />}
         </View>
-        <Text style={styles.meta} numberOfLines={1}>
-          {restaurant.cuisine} · {restaurant.deliveryFee === 0 ? 'Free delivery' : `R${restaurant.deliveryFee} delivery`}
-        </Text>
+        <View style={styles.titleBlock}>
+          <Txt variant="title" color={colors.onDark} numberOfLines={1} style={styles.name}>
+            {restaurant.name}
+          </Txt>
+          <Txt variant="smallBold" color={colors.onDarkSoft} numberOfLines={1}>
+            {restaurant.cuisine}
+          </Txt>
+        </View>
+        {closed ? <View style={styles.closedWash} /> : null}
+      </View>
+      <View style={styles.foot}>
+        <View style={styles.fact}>
+          <Icon name="moped" size={16} color={colors.ember} />
+          <Txt variant="smallBold">{restaurant.deliveryFee === 0 ? 'Free delivery' : `R${restaurant.deliveryFee} delivery`}</Txt>
+        </View>
         {restaurant.matches && restaurant.matches.length > 0 ? (
-          <Text style={styles.matches} numberOfLines={1}>
+          <Txt variant="small" color={colors.ember} numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>
             {restaurant.matches.join(' · ')}
-          </Text>
-        ) : null}
+          </Txt>
+        ) : (
+          <View style={styles.fact}>
+            <Txt variant="small">{closed ? 'Browse the menu' : 'Taking orders'}</Txt>
+            <Icon name="chevron-right" size={18} color={colors.inkFaint} />
+          </View>
+        )}
       </View>
     </Pressable>
   );
@@ -66,105 +60,67 @@ export default function RestaurantCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.bgSurface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     marginBottom: spacing.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadowCard,
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
   pressed: {
-    opacity: 0.85,
+    transform: [{ scale: 0.99 }],
   },
   cover: {
-    height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 176,
+    justifyContent: 'flex-end',
   },
-  coverImage: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    width: '100%',
-    height: '100%',
-  },
-  coverShade: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-  },
-  coverInitial: {
-    color: '#fff',
-    fontSize: 56,
-    fontWeight: '800',
-    opacity: 0.9,
-  },
-  etaPill: {
+  shade: {
     position: 'absolute',
-    right: spacing.md,
-    bottom: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: radius.pill,
-    paddingVertical: 5,
-    paddingHorizontal: 12,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  etaPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  closedPill: {
+  initial: {
     position: 'absolute',
+    alignSelf: 'center',
+    top: 48,
+    fontSize: 72,
+    lineHeight: 80,
+    opacity: 0.55,
+  },
+  topRow: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
     right: spacing.md,
-    bottom: spacing.md,
-    backgroundColor: 'rgba(15,12,8,0.78)',
-    borderRadius: radius.pill,
-    paddingVertical: 5,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  closedPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#fff',
+  titleBlock: {
+    padding: spacing.md,
   },
-  info: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+  name: {
+    fontSize: 23,
+    lineHeight: 27,
   },
-  titleRow: {
+  closedWash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,247,240,0.35)',
+  },
+  foot: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
     gap: spacing.sm,
   },
-  name: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  rating: {
-    backgroundColor: colors.bgMuted,
-    borderRadius: radius.pill,
-    paddingVertical: 3,
-    paddingHorizontal: 9,
-  },
-  ratingText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  meta: {
-    marginTop: 3,
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  matches: {
-    marginTop: 4,
-    fontSize: 12,
-    color: colors.accentPrimary,
-    fontWeight: '700',
+  fact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
 });

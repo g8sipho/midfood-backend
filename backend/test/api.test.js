@@ -1550,6 +1550,112 @@ describe("the admin page's pasted price list reader", () => {
   });
 });
 
+describe('chatting with the kitchen', () => {
+  let cust, resto, order, convo;
+  before(async () => {
+    cust = await h.customer('Naledi Chat');
+    resto = await h.restaurant({ name: 'Chat Kitchen', deliveryFee: 25 });
+    order = (await h.placeOrder(cust, resto, [[resto.items[0], 1]])).data.order;
+    await h.pay(order);
+  });
+
+  const send = (text) => api('POST', `/api/chat/conversations/${convo.id}/messages`, { token: cust.token, body: { body: text } });
+
+  it('opening a thread about an order greets the customer and points the thread at the order', async () => {
+    const r = await api('POST', '/api/chat/conversations', { token: cust.token, body: { orderId: order.id } });
+    assert.equal(r.status, 201);
+    convo = r.data.conversation;
+    assert.equal(convo.restaurantId, resto.id);
+    assert.equal(convo.orderId, order.id);
+    assert.equal(convo.title, 'Chat Kitchen');
+    const msgs = (await api('GET', `/api/chat/conversations/${convo.id}/messages`, { token: cust.token })).data.messages;
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0].sender, 'bot');
+    assert.ok(msgs[0].quickReplies.includes('Where is my order?'));
+    // Opening it again finds the same thread rather than a second one.
+    const again = await api('POST', '/api/chat/conversations', { token: cust.token, body: { restaurantId: resto.id } });
+    assert.equal(again.status, 200);
+    assert.equal(again.data.conversation.id, convo.id);
+  });
+
+  it('the bot answers the plain questions from what it knows', async () => {
+    let r = await send('Where is my order?');
+    assert.equal(r.status, 201);
+    assert.equal(r.data.message.sender, 'customer');
+    assert.equal(r.data.reply.sender, 'bot');
+    assert.match(r.data.reply.body, /waiting for the kitchen to accept/);
+
+    await api('POST', `/api/portal/orders/${order.id}/accept`, { token: resto.token });
+    r = await send('how long will my food take');
+    assert.match(r.data.reply.body, /accepted your order/);
+
+    r = await send('are you open?');
+    assert.match(r.data.reply.body, /open and taking orders/);
+
+    r = await send('how much is delivery');
+    assert.match(r.data.reply.body, /R25/);
+
+    r = await send(`do you have ${resto.items[0].name.split(' ')[0]}`);
+    assert.match(r.data.reply.body, new RegExp(resto.items[0].name));
+  });
+
+  it('asking for a person flags the thread for the kitchen, who replies and clears it', async () => {
+    const r = await send('I want to talk to the owner please');
+    assert.match(r.data.reply.body, /A person will reply/);
+
+    const list = (await api('GET', '/api/portal/chats', { token: resto.token })).data.conversations;
+    const mine = list.find((c) => c.id === convo.id);
+    assert.ok(mine, 'the kitchen sees the thread');
+    assert.equal(mine.needsHuman, true);
+    assert.ok(mine.unread >= 1);
+    assert.equal(mine.customerName, 'Naledi Chat');
+    const unread = (await api('GET', '/api/portal/chats/unread', { token: resto.token })).data;
+    assert.ok(unread.unread >= 1 && unread.needsHuman >= 1);
+
+    // Reading clears the unread count; replying clears the flag and reaches the customer.
+    await api('GET', `/api/portal/chats/${convo.id}/messages`, { token: resto.token });
+    const reply = await api('POST', `/api/portal/chats/${convo.id}/messages`, { token: resto.token, body: { body: 'Hi Naledi, Thabo here, your order is on the grill now.' } });
+    assert.equal(reply.status, 201);
+    const after = (await api('GET', '/api/portal/chats', { token: resto.token })).data.conversations.find((c) => c.id === convo.id);
+    assert.equal(after.needsHuman, false);
+    assert.equal(after.unread, 0);
+
+    const forCustomer = (await api('GET', '/api/chat/conversations', { token: cust.token })).data.conversations[0];
+    assert.equal(forCustomer.unread, 1);
+    assert.equal(forCustomer.lastSender, 'restaurant');
+    const msgs = (await api('GET', `/api/chat/conversations/${convo.id}/messages`, { token: cust.token })).data.messages;
+    assert.equal(msgs[msgs.length - 1].body, 'Hi Naledi, Thabo here, your order is on the grill now.');
+
+    // With a person active, the bot stays out of a free-text follow-up.
+    const quiet = await send('ok thanks Thabo, please no onions');
+    assert.equal(quiet.data.reply, null);
+  });
+
+  it('threads are private to their customer and kitchen', async () => {
+    const other = await h.customer('Nosy Neighbour');
+    assert.equal((await api('GET', `/api/chat/conversations/${convo.id}/messages`, { token: other.token })).status, 404);
+    const rival = await h.restaurant({ name: 'Rival Kitchen' });
+    assert.equal((await api('GET', `/api/portal/chats/${convo.id}/messages`, { token: rival.token })).status, 404);
+    assert.equal((await api('POST', `/api/portal/chats/${convo.id}/messages`, { token: rival.token, body: { body: 'hi' } })).status, 404);
+  });
+
+  it('MidFood support is a thread of its own, answered from the admin page', async () => {
+    const r = await api('POST', '/api/chat/conversations', { token: cust.token, body: {} });
+    assert.equal(r.status, 201);
+    const support = r.data.conversation;
+    assert.equal(support.restaurantId, null);
+    assert.equal(support.title, 'MidFood support');
+    const asked = await api('POST', `/api/chat/conversations/${support.id}/messages`, { token: cust.token, body: { body: 'I was charged twice' } });
+    assert.match(asked.data.reply.body, /Refunds/);
+    const threads = (await api('GET', '/api/admin/chats', ADMIN)).data.conversations;
+    assert.ok(threads.some((c) => c.id === support.id && c.needsHuman));
+    const reply = await api('POST', `/api/admin/chats/${support.id}/messages`, { ...ADMIN, body: { body: 'Checking now, Naledi.' } });
+    assert.equal(reply.status, 201);
+    const msgs = (await api('GET', `/api/chat/conversations/${support.id}/messages`, { token: cust.token })).data.messages;
+    assert.equal(msgs[msgs.length - 1].sender, 'admin');
+  });
+});
+
 describe('the pages themselves', () => {
   it('every front door is served', async () => {
     for (const path of ['/', '/order/', '/portal/', '/driver/', '/portal/admin.html', '/privacy/']) {

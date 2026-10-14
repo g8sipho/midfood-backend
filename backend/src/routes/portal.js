@@ -4,7 +4,8 @@
 const express = require('express');
 const { pool, uuid } = require('../db');
 const { requireRestaurantAuth } = require('../middleware/auth');
-const { notifyOrderStatus } = require('../notify');
+const { notifyOrderStatus, notifyChatMessage } = require('../notify');
+const chat = require('./chat');
 const money = require('../money');
 
 const router = express.Router();
@@ -346,6 +347,102 @@ router.patch('/open', async (req, res, next) => {
     res.json({ open });
   } catch (err) {
     next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Customer chat, kitchen side. Threads the bot could not finish (needs_human)
+// come first; the portal polls /chats/unread beside the order board.
+// ---------------------------------------------------------------------------
+
+const PORTAL_CHAT_COLS = `c.id, c.order_id AS "orderId", c.needs_human AS "needsHuman",
+  c.restaurant_unread AS "unread", c.last_message AS "lastMessage", c.last_sender AS "lastSender",
+  c.last_message_at AS "lastMessageAt", u.name AS "customerName",
+  o.status AS "orderStatus", o.total::float8 AS "orderTotal", o.created_at AS "orderCreatedAt"`;
+const PORTAL_CHAT_FROM = `FROM conversations c JOIN users u ON u.id = c.user_id LEFT JOIN orders o ON o.id = c.order_id`;
+
+router.get('/chats', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${PORTAL_CHAT_COLS} ${PORTAL_CHAT_FROM}
+       WHERE c.restaurant_id = $1
+       ORDER BY c.needs_human DESC, (c.restaurant_unread > 0) DESC, c.last_message_at DESC
+       LIMIT 100`,
+      [req.restaurantId]
+    );
+    res.json({ conversations: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/chats/unread', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COALESCE(SUM(restaurant_unread), 0)::int AS unread,
+              COUNT(*) FILTER (WHERE needs_human)::int AS "needsHuman"
+       FROM conversations WHERE restaurant_id = $1`,
+      [req.restaurantId]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function ownChat(req, res) {
+  const { rows } = await pool.query('SELECT id FROM conversations WHERE id = $1 AND restaurant_id = $2', [
+    req.params.id,
+    req.restaurantId,
+  ]);
+  if (!rows[0]) {
+    res.status(404).json({ error: 'Conversation not found' });
+    return false;
+  }
+  return true;
+}
+
+router.get('/chats/:id/messages', async (req, res, next) => {
+  try {
+    if (!(await ownChat(req, res))) return;
+    const after = req.query.after ? new Date(String(req.query.after)) : null;
+    const params = [req.params.id];
+    let where = 'conversation_id = $1';
+    if (after && !Number.isNaN(after.getTime())) {
+      params.push(after.toISOString());
+      where += ' AND created_at > $2';
+    }
+    const { rows } = await pool.query(
+      `SELECT id, sender, body, quick_replies, created_at FROM messages WHERE ${where} ORDER BY created_at ASC LIMIT 200`,
+      params
+    );
+    await pool.query('UPDATE conversations SET restaurant_unread = 0 WHERE id = $1 AND restaurant_unread > 0', [req.params.id]);
+    res.json({ messages: rows.map(chat.shapeMessage) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/portal/chats/:id/messages { body } - a person at the kitchen replies.
+router.post('/chats/:id/messages', async (req, res, next) => {
+  const body = String((req.body || {}).body || '').trim();
+  if (!body) return res.status(400).json({ error: 'Type a message first' });
+  if (body.length > 1000) return res.status(400).json({ error: 'Keep it under 1000 characters' });
+  const client = await pool.connect();
+  try {
+    if (!(await ownChat(req, res))) return;
+    await client.query('BEGIN');
+    const saved = await chat.insertMessage(client, req.params.id, 'restaurant', body, null);
+    await chat.touchConversation(client, req.params.id, 'restaurant', body, { needsHuman: false });
+    await client.query('COMMIT');
+    const { rows } = await pool.query('SELECT name FROM restaurants WHERE id = $1', [req.restaurantId]);
+    notifyChatMessage(req.params.id, rows[0] ? rows[0].name : 'MidFood', body);
+    res.status(201).json({ message: chat.shapeMessage(saved) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
   }
 });
 

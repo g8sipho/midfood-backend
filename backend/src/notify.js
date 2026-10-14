@@ -38,4 +38,30 @@ async function notifyOrderStatus(orderId, key) {
   }
 }
 
-module.exports = { notifyOrderStatus };
+// A kitchen (or MidFood) replied in chat: tell the customer's phone. The
+// payload carries the conversation so the app can open straight to it.
+async function notifyChatMessage(conversationId, fromName, body) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.push_token AS token FROM conversations c JOIN users u ON u.id = c.user_id WHERE c.id = $1`,
+      [conversationId]
+    );
+    const row = rows[0];
+    if (!row || !row.token || !/^Expo(nent)?PushToken\[/.test(row.token)) return;
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        to: row.token,
+        title: fromName,
+        body: String(body).slice(0, 140),
+        data: { conversationId },
+        sound: 'default',
+      }),
+    });
+  } catch (err) {
+    console.error('Chat push failed:', err.message);
+  }
+}
+
+module.exports = { notifyOrderStatus, notifyChatMessage };

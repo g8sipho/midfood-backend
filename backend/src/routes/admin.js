@@ -10,7 +10,8 @@ const bcrypt = require('bcryptjs');
 const { pool, uuid } = require('../db');
 const { requireAdmin } = require('../middleware/auth');
 const { normalizePhone, looksLikePhone } = require('../phone');
-const { notifyOrderStatus } = require('../notify');
+const { notifyOrderStatus, notifyChatMessage } = require('../notify');
+const chat = require('./chat');
 const money = require('../money');
 const images = require('./images');
 
@@ -738,6 +739,73 @@ router.post('/extra-payments/:pfPaymentId/refunded', async (req, res, next) => {
     res.json({ ok: true, refundedAt: rows[0].refundedAt });
   } catch (err) {
     next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Chat. MidFood answers the support threads (no restaurant) and can read, and
+// step into, any kitchen's thread when a customer is stuck.
+// ---------------------------------------------------------------------------
+
+const ADMIN_CHAT_COLS = `c.id, c.restaurant_id AS "restaurantId", COALESCE(r.name, 'MidFood support') AS "title",
+  c.order_id AS "orderId", c.needs_human AS "needsHuman", c.restaurant_unread AS "unread",
+  c.last_message AS "lastMessage", c.last_sender AS "lastSender", c.last_message_at AS "lastMessageAt",
+  u.name AS "customerName", u.phone AS "customerPhone", o.status AS "orderStatus", o.total::float8 AS "orderTotal"`;
+const ADMIN_CHAT_FROM = `FROM conversations c JOIN users u ON u.id = c.user_id
+  LEFT JOIN restaurants r ON r.id = c.restaurant_id LEFT JOIN orders o ON o.id = c.order_id`;
+
+// GET /api/admin/chats?all=1 - support threads by default; all threads with ?all=1.
+router.get('/chats', async (req, res, next) => {
+  try {
+    const all = String(req.query.all || '') === '1';
+    const { rows } = await pool.query(
+      `SELECT ${ADMIN_CHAT_COLS} ${ADMIN_CHAT_FROM}
+       ${all ? '' : 'WHERE c.restaurant_id IS NULL'}
+       ORDER BY c.needs_human DESC, c.last_message_at DESC LIMIT 200`
+    );
+    res.json({ conversations: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/chats/:id/messages', async (req, res, next) => {
+  try {
+    if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Conversation not found' });
+    const { rows } = await pool.query(
+      'SELECT id, sender, body, quick_replies, created_at FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 300',
+      [req.params.id]
+    );
+    await pool.query(
+      'UPDATE conversations SET restaurant_unread = 0 WHERE id = $1 AND restaurant_id IS NULL AND restaurant_unread > 0',
+      [req.params.id]
+    );
+    res.json({ messages: rows.map(chat.shapeMessage) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/chats/:id/messages', async (req, res, next) => {
+  const body = String((req.body || {}).body || '').trim();
+  if (!body) return res.status(400).json({ error: 'Type a message first' });
+  if (body.length > 1000) return res.status(400).json({ error: 'Keep it under 1000 characters' });
+  const client = await pool.connect();
+  try {
+    if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Conversation not found' });
+    const { rows } = await pool.query('SELECT id FROM conversations WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Conversation not found' });
+    await client.query('BEGIN');
+    const saved = await chat.insertMessage(client, req.params.id, 'admin', body, null);
+    await chat.touchConversation(client, req.params.id, 'admin', body, { needsHuman: false });
+    await client.query('COMMIT');
+    notifyChatMessage(req.params.id, 'MidFood', body);
+    res.status(201).json({ message: chat.shapeMessage(saved) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
   }
 });
 

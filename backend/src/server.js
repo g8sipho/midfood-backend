@@ -16,6 +16,7 @@ const driverAuthRoutes = require('./routes/driverAuth');
 const driverRoutes = require('./routes/driver');
 const payoutRoutes = require('./routes/payouts');
 const images = require('./routes/images');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -177,6 +178,7 @@ app.use('/api/driver-auth', driverAuthRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/images', images.router);
+app.use('/api/chat', chatRoutes.router);
 
 // Fallback 404 for anything unmatched under /api
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

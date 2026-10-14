@@ -125,6 +125,33 @@
   .appl .btns button { border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .appl .btns .yes-btn { background: var(--success); color: #fff; }
   .appl .btns .no-btn { background: none; border: 1px solid var(--error); color: var(--error); }
+
+  /* Customer chat (support threads + a window into every kitchen's threads) */
+  .chat-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; }
+  @media (max-width: 720px) { .chat-layout { grid-template-columns: 1fr; } }
+  .chat-list { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; align-self: start; max-height: 70vh; overflow-y: auto; }
+  .chat-row { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .chat-row:hover, .chat-row.active { background: var(--bg-app); }
+  .chat-row .who { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+  .chat-row .who time { font-weight: 500; font-size: 11px; color: var(--text-secondary); }
+  .chat-row .preview { font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-row .flag { font-size: 11px; font-weight: 700; color: var(--error); margin-top: 4px; }
+  .chat-thread { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; min-height: 420px; max-height: 70vh; }
+  .chat-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .chat-head .t { font-weight: 700; } .chat-head .m { font-size: 12px; color: var(--text-secondary); }
+  .chat-msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-app); }
+  .bubble { max-width: 78%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .bubble.customer { align-self: flex-start; background: #fff; border: 1px solid var(--border); }
+  .bubble.restaurant { align-self: flex-end; background: #e8f1e4; }
+  .bubble.admin { align-self: flex-end; background: var(--accent); color: #fff; }
+  .bubble.bot { align-self: flex-start; background: #eef0f6; color: var(--text-secondary); font-size: 13px; }
+  .bubble .tag { display: block; font-size: 10px; font-weight: 700; margin-bottom: 2px; opacity: .7; }
+  .chat-compose { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
+  .chat-compose textarea { flex: 1; resize: none; height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; }
+  .chat-compose button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 0 16px; font-weight: 700; cursor: pointer; }
+  .chat-filter { display: flex; gap: 8px; margin-bottom: 10px; }
+  .chat-filter button { background: none; border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  .chat-filter button.active { background: var(--text-primary); color: #fff; border-color: var(--text-primary); }
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
   .tabs button {
     flex: 1; background: none; border: 1px solid var(--border); border-radius: 10px;
@@ -247,8 +274,27 @@
     <div class="tabs">
       <button id="tabOps" class="active">Operations</button>
       <button id="tabPay">Payouts<span id="payBadge" style="display:none"></span></button>
+      <button id="tabChat">Chats<span id="chatBadge" style="display:none"></span></button>
     </div>
 
+
+    <div id="pane-chat" style="display:none;">
+      <div class="chat-filter">
+        <button id="chatFilterSupport" class="active">MidFood support</button>
+        <button id="chatFilterAll">Every kitchen's chats</button>
+      </div>
+      <div class="chat-layout">
+        <div class="chat-list" id="chatList"><div style="padding:24px;color:var(--text-secondary);font-size:14px;">No conversations yet.</div></div>
+        <div class="chat-thread">
+          <div class="chat-head"><div class="t" id="chatTitle">Pick a conversation</div><div class="m" id="chatMeta"></div></div>
+          <div class="chat-msgs" id="chatMsgs"></div>
+          <form class="chat-compose" id="chatForm">
+            <textarea id="chatInput" placeholder="Reply as MidFood…" maxlength="1000"></textarea>
+            <button type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
     <div id="pane-pay" style="display:none;">
       <div class="stats">
         <div><div class="v" id="pOweR">R0</div><div class="k">Owed to restaurants</div></div>
@@ -1516,16 +1562,73 @@
     }
   });
 
+
+  // ---- Chat ---------------------------------------------------------------
+  let chatAll = false, chatCurrent = null, chatThreads = [];
+  const escChat = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function loadChats() {
+    const data = await adminFetch('/api/admin/chats' + (chatAll ? '?all=1' : ''));
+    chatThreads = data.conversations;
+    const box = el('chatList');
+    const waiting = chatThreads.filter((c) => c.needsHuman && !c.restaurantId).length;
+    el('chatBadge').textContent = waiting ? ' ' + waiting : '';
+    el('chatBadge').style.display = waiting ? 'inline' : 'none';
+    if (!chatThreads.length) { box.innerHTML = '<div style="padding:24px;color:var(--text-secondary);font-size:14px;">No conversations yet.</div>'; return; }
+    box.innerHTML = '';
+    chatThreads.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'chat-row' + (c.id === chatCurrent ? ' active' : '');
+      row.innerHTML = '<div class="who"><span>' + escChat(c.customerName) + '</span><time>' + new Date(c.lastMessageAt).toLocaleString() + '</time></div>' +
+        '<div class="preview">' + escChat(c.title) + (c.orderStatus ? ' · order R' + c.orderTotal + ' (' + escChat(c.orderStatus.replace(/_/g, ' ')) + ')' : '') + '</div>' +
+        '<div class="preview">' + escChat(c.lastSender) + ': ' + escChat(c.lastMessage || '') + '</div>' +
+        (c.needsHuman ? '<div class="flag">Needs a reply</div>' : '');
+      row.addEventListener('click', () => openChat(c.id));
+      box.appendChild(row);
+    });
+  }
+  async function openChat(id) {
+    chatCurrent = id;
+    const c = chatThreads.find((x) => x.id === id);
+    el('chatTitle').textContent = c ? c.customerName + ' — ' + c.title : 'Conversation';
+    el('chatMeta').textContent = c && c.customerPhone ? 'Phone ' + c.customerPhone : '';
+    const data = await adminFetch('/api/admin/chats/' + id + '/messages');
+    const box = el('chatMsgs'); box.innerHTML = '';
+    data.messages.forEach((m) => {
+      const d = document.createElement('div'); d.className = 'bubble ' + m.sender;
+      const tag = m.sender === 'bot' ? '<span class="tag">AUTO</span>' : m.sender === 'restaurant' ? '<span class="tag">KITCHEN</span>' : m.sender === 'admin' ? '<span class="tag">MIDFOOD</span>' : '';
+      d.innerHTML = tag + escChat(m.body);
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+    loadChats().catch(() => {});
+  }
+  el('chatForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = el('chatInput').value.trim();
+    if (!body || !chatCurrent) return;
+    el('chatInput').value = '';
+    try { await adminFetch('/api/admin/chats/' + chatCurrent + '/messages', { method: 'POST', body: JSON.stringify({ body }) }); await openChat(chatCurrent); }
+    catch (err) { alert(err.message); }
+  });
+  el('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('chatForm').requestSubmit(); } });
+  el('chatFilterSupport').addEventListener('click', () => { chatAll = false; el('chatFilterSupport').className = 'active'; el('chatFilterAll').className = ''; loadChats().catch(() => {}); });
+  el('chatFilterAll').addEventListener('click', () => { chatAll = true; el('chatFilterAll').className = 'active'; el('chatFilterSupport').className = ''; loadChats().catch(() => {}); });
+
   function adminTab(which) {
     el('tabOps').className = which === 'ops' ? 'active' : '';
     el('tabPay').className = which === 'pay' ? 'active' : '';
+    el('tabChat').className = which === 'chat' ? 'active' : '';
     el('pane-ops').style.display = which === 'ops' ? 'block' : 'none';
     el('pane-pay').style.display = which === 'pay' ? 'block' : 'none';
+    el('pane-chat').style.display = which === 'chat' ? 'block' : 'none';
     if (which === 'pay') loadPayouts().catch((e) => alert(e.message));
+    else if (which === 'chat') loadChats().catch((e) => alert(e.message));
     else loadAll().catch(() => {});
   }
   el('tabOps').addEventListener('click', () => adminTab('ops'));
   el('tabPay').addEventListener('click', () => adminTab('pay'));
+  el('tabChat').addEventListener('click', () => adminTab('chat'));
+
 
   if (adminKey) {
     loadAll().then(() => showView('admin')).catch(() => showView('lock'));
@@ -1537,7 +1640,8 @@
   setInterval(() => {
     if (!adminKey || el('view-admin').style.display !== 'block' || document.hidden) return;
     if (el('pane-pay').style.display === 'block') loadPayouts().catch(() => {});
-    else loadAll().catch(() => {});
+    else if (el('pane-chat').style.display === 'block') { loadChats().catch(() => {}); if (chatCurrent) openChat(chatCurrent).catch(() => {}); }
+    else { loadAll().catch(() => {}); adminFetch('/api/admin/chats').then((d) => { const w = d.conversations.filter((c) => c.needsHuman).length; el('chatBadge').textContent = w ? ' ' + w : ''; el('chatBadge').style.display = w ? 'inline' : 'none'; }).catch(() => {}); }
   }, 15000);
 </script>
 </body>

@@ -147,6 +147,39 @@
     font-size: 11px; padding: 1px 6px; margin-left: 6px;
   }
   .tabs button .count.show { display: inline-block; }
+
+  /* Customer chat */
+  .chat-layout { display: grid; grid-template-columns: 280px 1fr; gap: 14px; min-height: 420px; }
+  @media (max-width: 720px) { .chat-layout { grid-template-columns: 1fr; } .chat-layout.in-thread .chat-list { display: none; } .chat-layout:not(.in-thread) .chat-thread { display: none; } }
+  .chat-list { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; align-self: start; }
+  .chat-row { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .chat-row:hover, .chat-row.active { background: var(--bg-app); }
+  .chat-row .who { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+  .chat-row .who time { font-weight: 500; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .chat-row .preview { font-size: 12px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-row .preview b { color: var(--text-primary); font-weight: 600; }
+  .chat-row .flag { font-size: 11px; font-weight: 700; color: var(--error); margin-top: 4px; }
+  .chat-row .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex: none; visibility: hidden; }
+  .chat-row.unread .dot { visibility: visible; }
+  .chat-row > div { min-width: 0; flex: 1; }
+  .chat-thread { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; min-height: 420px; max-height: 70vh; }
+  .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .chat-head .back { display: none; background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  @media (max-width: 720px) { .chat-head .back { display: inline-block; } }
+  .chat-head .t { font-weight: 700; } .chat-head .m { font-size: 12px; color: var(--text-secondary); }
+  .chat-msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-app); }
+  .bubble { max-width: 78%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .bubble.customer { align-self: flex-start; background: #fff; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble.restaurant, .bubble.admin { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble.bot { align-self: flex-start; background: #eef0f6; color: var(--text-secondary); border-bottom-left-radius: 4px; font-size: 13px; }
+  .bubble .tag { display: block; font-size: 10px; font-weight: 700; letter-spacing: .4px; margin-bottom: 2px; opacity: .7; }
+  .bubble time { display: block; font-size: 10px; opacity: .6; margin-top: 3px; }
+  .chat-compose { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
+  .chat-compose textarea { flex: 1; resize: none; height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; }
+  .chat-compose button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 0 16px; font-weight: 700; cursor: pointer; }
+  .chat-quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 10px 8px; }
+  .chat-quick button { background: none; border: 1px solid var(--border); border-radius: 999px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+  .chat-empty { padding: 30px; text-align: center; color: var(--text-secondary); font-size: 14px; }
   .open-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px;
@@ -285,6 +318,7 @@
 
     <div class="tabs">
       <button id="tabOrders" class="active">Orders<span class="count" id="newCount"></span></button>
+      <button id="tabChats">Chats<span class="count" id="chatCount"></span></button>
       <button id="tabMenu">Menu</button>
       <button id="tabDay">Today</button>
       <button id="tabMoney">Money</button>
@@ -299,6 +333,24 @@
       <div id="readyList"><div class="empty">Nothing waiting for collection.</div></div>
     </div>
 
+
+    <div id="pane-chats" style="display:none;">
+      <div class="chat-layout" id="chatLayout">
+        <div class="chat-list" id="chatList"><div class="chat-empty">No customer messages yet. When a customer writes to you from the app, it shows up here. Quick questions (where's my order, are you open, delivery fee) are answered automatically; anything marked <b>needs a reply</b> is waiting for you.</div></div>
+        <div class="chat-thread">
+          <div class="chat-head">
+            <button class="back" id="chatBack">‹ Back</button>
+            <div><div class="t" id="chatTitle">Pick a conversation</div><div class="m" id="chatMeta"></div></div>
+          </div>
+          <div class="chat-msgs" id="chatMsgs"></div>
+          <div class="chat-quick" id="chatQuick"></div>
+          <form class="chat-compose" id="chatForm">
+            <textarea id="chatInput" placeholder="Reply to the customer…" maxlength="1000"></textarea>
+            <button type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
     <div id="pane-day" style="display:none;">
       <div class="stats">
         <div><div class="v" id="dayCount">0</div><div class="k">Delivered today</div></div>
@@ -802,8 +854,106 @@
     }
   }
 
+
+  // ---- Customer chat ------------------------------------------------------
+  let chatCurrent = null;      // id of the open thread
+  let chatLastAt = null;       // created_at of the newest message shown
+  let chatThreads = [];
+  let chatSeenUnread = 0;
+
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function ago(iso) {
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return 'now'; if (m < 60) return m + ' min'; const h = Math.round(m / 60);
+    if (h < 24) return h + ' h'; return new Date(iso).toLocaleDateString();
+  }
+  function clock(iso) { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+
+  async function loadChats() {
+    try {
+      const data = await apiFetch('/api/portal/chats');
+      chatThreads = data.conversations;
+      const box = el('chatList');
+      if (!chatThreads.length) return;
+      box.innerHTML = '';
+      chatThreads.forEach((c) => {
+        const row = document.createElement('div');
+        row.className = 'chat-row' + (c.unread ? ' unread' : '') + (c.id === chatCurrent ? ' active' : '');
+        const who = c.lastSender === 'customer' ? '' : c.lastSender === 'bot' ? '<b>Auto:</b> ' : '<b>You:</b> ';
+        row.innerHTML = '<span class="dot"></span><div><div class="who"><span>' + esc(c.customerName) + '</span><time>' + ago(c.lastMessageAt) + '</time></div>' +
+          '<div class="preview">' + who + esc(c.lastMessage || '') + '</div>' +
+          (c.needsHuman ? '<div class="flag">Needs a reply</div>' : '') +
+          (c.orderStatus ? '<div class="preview">Order R' + c.orderTotal + ' · ' + esc(c.orderStatus.replace(/_/g, ' ')) + '</div>' : '') + '</div>';
+        row.addEventListener('click', () => openChat(c.id));
+        box.appendChild(row);
+      });
+    } catch (err) { /* next poll */ }
+  }
+
+  async function pollChatBadge() {
+    try {
+      const d = await apiFetch('/api/portal/chats/unread');
+      const badge = el('chatCount');
+      const n = d.unread + (d.needsHuman ? 0 : 0);
+      badge.textContent = n || '';
+      badge.className = 'count' + (n ? ' show' : '');
+      if (n > chatSeenUnread && document.visibilityState === 'visible') chime();
+      chatSeenUnread = n;
+      if (el('pane-chats').style.display !== 'none') { await loadChats(); if (chatCurrent) await pullMessages(); }
+    } catch (err) { /* next poll */ }
+  }
+
+  function renderMessage(m) {
+    const div = document.createElement('div');
+    div.className = 'bubble ' + m.sender;
+    const tag = m.sender === 'bot' ? '<span class="tag">AUTOMATIC REPLY</span>' : m.sender === 'admin' ? '<span class="tag">MIDFOOD</span>' : '';
+    div.innerHTML = tag + esc(m.body) + '<time>' + clock(m.createdAt) + '</time>';
+    return div;
+  }
+
+  async function openChat(id) {
+    chatCurrent = id; chatLastAt = null;
+    const c = chatThreads.find((x) => x.id === id);
+    el('chatTitle').textContent = c ? c.customerName : 'Conversation';
+    el('chatMeta').textContent = c && c.orderStatus ? 'Order R' + c.orderTotal + ' · ' + c.orderStatus.replace(/_/g, ' ') + (c.orderCreatedAt ? ' · ' + new Date(c.orderCreatedAt).toLocaleString() : '') : '';
+    el('chatMsgs').innerHTML = '';
+    el('chatLayout').classList.add('in-thread');
+    el('chatQuick').innerHTML = '';
+    ['On it now 👍', 'Your order is on its way', 'Sorry, we are sold out of that', 'We are closed right now'].forEach((t) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = t;
+      b.addEventListener('click', () => { el('chatInput').value = t; el('chatInput').focus(); });
+      el('chatQuick').appendChild(b);
+    });
+    await pullMessages();
+    await loadChats();
+  }
+
+  async function pullMessages() {
+    if (!chatCurrent) return;
+    const q = chatLastAt ? '?after=' + encodeURIComponent(chatLastAt) : '';
+    const data = await apiFetch('/api/portal/chats/' + chatCurrent + '/messages' + q);
+    if (!data.messages.length) return;
+    const box = el('chatMsgs');
+    data.messages.forEach((m) => { box.appendChild(renderMessage(m)); chatLastAt = m.createdAt; });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  el('chatForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = el('chatInput').value.trim();
+    if (!body || !chatCurrent) return;
+    el('chatInput').value = '';
+    try {
+      await apiFetch('/api/portal/chats/' + chatCurrent + '/messages', { method: 'POST', body: JSON.stringify({ body }) });
+      await pullMessages();
+      await loadChats();
+    } catch (err) { alert(err.message); }
+  });
+  el('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('chatForm').requestSubmit(); } });
+  el('chatBack').addEventListener('click', () => { chatCurrent = null; el('chatLayout').classList.remove('in-thread'); loadChats(); });
+
   function tab(active) {
-    ['Orders', 'Menu', 'Day', 'Money'].forEach((k) => {
+    ['Orders', 'Chats', 'Menu', 'Day', 'Money'].forEach((k) => {
       el('tab' + k).className = k === active ? 'active' : '';
       el('pane-' + k.toLowerCase()).style.display = k === active ? 'block' : 'none';
     });
@@ -811,15 +961,17 @@
     if (active === 'Day') loadDay();
     if (active === 'Money') loadMoney();
     if (active === 'Orders') loadOrders();
+    if (active === 'Chats') loadChats();
   }
   el('tabOrders').addEventListener('click', () => tab('Orders'));
+  el('tabChats').addEventListener('click', () => tab('Chats'));
   el('tabMenu').addEventListener('click', () => tab('Menu'));
   el('tabDay').addEventListener('click', () => tab('Day'));
   el('tabMoney').addEventListener('click', () => tab('Money'));
 
   function startPolling() {
     stopPolling();
-    pollTimer = setInterval(loadOrders, 8000);
+    pollTimer = setInterval(() => { loadOrders(); pollChatBadge(); }, 8000);
   }
   function stopPolling() {
     if (pollTimer) clearInterval(pollTimer);
@@ -842,6 +994,7 @@
         : 'Closed — customers cannot order';
       showView('dashboard');
       await loadOrders();
+      pollChatBadge();
       startPolling();
     } catch (err) {
       showView('login');

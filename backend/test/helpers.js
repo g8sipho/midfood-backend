@@ -100,11 +100,11 @@ async function customer(name = 'Thandi Customer') {
 }
 
 // A live restaurant with a login and a small menu.
-async function restaurant({ name = 'Test Kitchen', deliveryFee = 30, menu = [['Kota', 45], ['Chips', 25]] } = {}) {
+async function restaurant({ name = 'Test Kitchen', cuisine = 'Test food', deliveryFee = 30, menu = [['Kota', 45], ['Chips', 25]] } = {}) {
   const username = unique('r');
   const made = await api('POST', '/api/admin/restaurants', {
     ...ADMIN,
-    body: { name, cuisine: 'Test food', etaMinutes: 30, deliveryFee, heroColor: '#d97757', username, password: 'secret123' },
+    body: { name, cuisine, etaMinutes: 30, deliveryFee, heroColor: '#d97757', username, password: 'secret123' },
   });
   if (made.status !== 201) throw new Error(`restaurant create failed: ${JSON.stringify(made.data)}`);
   const login = await api('POST', '/api/restaurant-auth/login', { body: { username, password: 'secret123' } });

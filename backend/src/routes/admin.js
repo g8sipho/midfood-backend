@@ -14,6 +14,7 @@ const { notifyOrderStatus, notifyChatMessage } = require('../notify');
 const chat = require('./chat');
 const money = require('../money');
 const images = require('./images');
+const categoryKeys = require('../categories');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -30,7 +31,7 @@ router.get('/restaurants', async (req, res, next) => {
       `SELECT id, name, cuisine, eta_minutes AS "etaMinutes", delivery_fee::float8 AS "deliveryFee",
               hero_color AS "heroColor", username, approved, open,
               phone, address, free_until::text AS "freeUntil", commission_rate::float8 AS "commissionRate",
-              (password_hash IS NOT NULL) AS "hasAccount",
+              categories, (password_hash IS NOT NULL) AS "hasAccount",
               (SELECT COUNT(*)::int FROM menu_items m WHERE m.restaurant_id = restaurants.id) AS "menuCount",
               (SELECT COUNT(*)::int FROM menu_items m JOIN images i ON i.menu_item_id = m.id
                 WHERE m.restaurant_id = restaurants.id) AS "photoCount",
@@ -164,13 +165,22 @@ router.patch('/restaurants/:id', async (req, res, next) => {
       }
       set('commission_rate', none ? null : rate);
     }
+    if (body.categories !== undefined) {
+      // The home-screen tiles this store sits under; empty means "work it
+      // out from the menu" again.
+      const list = body.categories === null ? [] : body.categories;
+      if (!Array.isArray(list) || !list.every(categoryKeys.isCategory)) {
+        return res.status(400).json({ error: `categories must be a list of: ${categoryKeys.CATEGORIES.map((c) => c.key).join(', ')}` });
+      }
+      set('categories', list.length ? [...new Set(list)] : null);
+    }
     if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
 
     values.push(req.params.id);
     const { rows } = await pool.query(
       `UPDATE restaurants SET ${sets.join(', ')} WHERE id = $${values.length}
        RETURNING id, name, delivery_fee::float8 AS "deliveryFee", eta_minutes AS "etaMinutes",
-                 free_until::text AS "freeUntil", commission_rate::float8 AS "commissionRate"`,
+                 free_until::text AS "freeUntil", commission_rate::float8 AS "commissionRate", categories`,
       values
     );
     if (!rows[0]) return res.status(404).json({ error: 'Restaurant not found' });

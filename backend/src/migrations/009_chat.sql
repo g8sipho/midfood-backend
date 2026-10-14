@@ -45,3 +45,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+
+-- What a store sells, as home-screen categories (see src/categories.js).
+-- NULL means "work it out from the menu"; the admin page can set it.
+ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS categories TEXT[];

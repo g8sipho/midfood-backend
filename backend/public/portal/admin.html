@@ -184,6 +184,10 @@
     font-size: 14px; font-family: inherit; background: var(--bg-app); color: var(--text-primary);
   }
   .table-scroll { overflow-x: auto; }
+  .cat-picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .cat-pick { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; background: var(--bg-surface); }
+  .cat-pick:has(input:checked) { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .cat-pick input { margin: 0; }
   .terms { font-size: 12px; color: var(--text-secondary); }
   .terms strong { color: var(--text-primary); font-weight: 700; }
   .edit-row td { background: var(--bg-app); padding: 14px 12px 16px; }
@@ -540,6 +544,14 @@
     return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ESC[c]);
   }
 
+
+  // Mirrors src/categories.js on the server: the tiles on the app's home screen.
+  const STORE_CATEGORIES = [
+    ['burgers', 'Burgers', '🍔'], ['pizza', 'Pizza', '🍕'], ['chicken', 'Chicken', '🍗'], ['grills', 'Grills & braai', '🔥'],
+    ['local', 'Local kitchen', '🍲'], ['fish', 'Fish & seafood', '🐟'], ['asian', 'Asian', '🍜'], ['healthy', 'Healthy', '🥗'],
+    ['bakery', 'Bakery', '🥐'], ['desserts', 'Desserts', '🍦'], ['drinks', 'Drinks & coffee', '🥤'], ['groceries', 'Groceries', '🛒'],
+    ['pharmacy', 'Pharmacy', '💊'], ['car', 'Car spares', '🔧'], ['shops', 'Other shops', '🏪'],
+  ].map(([key, label, emoji]) => ({ key, label, emoji }));
   let defaultRate = 0.15;      // platform commission, for showing a restaurant's terms
   let editingRestaurant = null; // id of the restaurant whose terms form is open
   let menuOpenFor = null;       // id of the restaurant whose menu is open
@@ -576,6 +588,9 @@
         <div><label>Special commission %</label><input data-f="rate" type="number" min="0" max="100" step="0.5" value="${r.commissionRate != null ? +(r.commissionRate * 100).toFixed(2) : ''}" placeholder="${pct(defaultRate)} (standard)" />
           <div class="tip">Leave empty to use your standard rate.</div></div>
       </div>
+      <div style="margin-top:12px"><label>Shows under these home-screen categories</label>
+        <div class="cat-picks" data-f="cats">${STORE_CATEGORIES.map((c) => `<label class="cat-pick"><input type="checkbox" value="${c.key}" ${(r.categories || []).includes(c.key) ? 'checked' : ''}/> ${c.emoji} ${c.label}</label>`).join('')}</div>
+        <div class="tip">Tick none and MidFood works it out from the menu (${(r.categories || []).length ? 'currently set by hand' : 'currently automatic'}).</div></div>
       <div class="acts">
         <button class="btn go" data-a="save">Save terms</button>
         <button class="btn plain" data-a="cancel">Cancel</button>
@@ -599,6 +614,8 @@
         const was = { deliveryFee: r.deliveryFee, etaMinutes: r.etaMinutes, freeUntil: r.freeUntil || null, commissionRate: r.commissionRate };
         const changed = {};
         Object.keys(now).forEach((k) => { if (now[k] !== was[k]) changed[k] = now[k]; });
+        const picked = [...td.querySelectorAll('[data-f="cats"] input:checked')].map((i) => i.value);
+        if (picked.join(',') !== (r.categories || []).join(',')) changed.categories = picked;
         if (Object.keys(changed).length) {
           await adminFetch(`/api/admin/restaurants/${r.id}`, { method: 'PATCH', body: JSON.stringify(changed) });
         }

@@ -756,6 +756,7 @@ describe('how the money splits', () => {
     assert.equal(ok.status, 200);
     assert.deepEqual(ok.data.restaurant, {
       id: resto.id, name: 'Test Kitchen', deliveryFee: 35, etaMinutes: 40, freeUntil: '2027-01-08', commissionRate: 0.12,
+      categories: null,
     });
     // Customers see the new fee straight away, and are charged it.
     const pub = await api('GET', `/api/restaurants/${resto.id}`);
@@ -1653,6 +1654,26 @@ describe('chatting with the kitchen', () => {
     assert.equal(reply.status, 201);
     const msgs = (await api('GET', `/api/chat/conversations/${support.id}/messages`, { token: cust.token })).data.messages;
     assert.equal(msgs[msgs.length - 1].sender, 'admin');
+  });
+});
+
+describe('home-screen categories', () => {
+  it('stores are grouped by what they sell, and the admin can override it', async () => {
+    const resto = await h.restaurant({ name: 'Highveld Pharmacy', cuisine: 'Pharmacy · Chemist', menu: [['Paracetamol 500mg', 35], ['Vitamin C', 60]] });
+    const list = (await api('GET', '/api/restaurants')).data.restaurants;
+    const mine = list.find((r) => r.id === resto.id);
+    assert.deepEqual(mine.categories, ['pharmacy']);
+    const tiles = (await api('GET', '/api/restaurants/categories')).data.categories;
+    const tile = tiles.find((c) => c.key === 'pharmacy');
+    assert.ok(tile && tile.count >= 1 && tile.icon === 'pill');
+
+    const bad = await api('PATCH', `/api/admin/restaurants/${resto.id}`, { ...ADMIN, body: { categories: ['rockets'] } });
+    assert.equal(bad.status, 400);
+    const ok = await api('PATCH', `/api/admin/restaurants/${resto.id}`, { ...ADMIN, body: { categories: ['pharmacy', 'groceries'] } });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(ok.data.restaurant.categories, ['pharmacy', 'groceries']);
+    const after = (await api('GET', '/api/restaurants')).data.restaurants.find((r) => r.id === resto.id);
+    assert.deepEqual(after.categories, ['pharmacy', 'groceries']);
   });
 });
 

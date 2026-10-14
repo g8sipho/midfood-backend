@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { imageUrl, thumbUrl } = require('./images');
+const categories = require('../categories');
 
 const router = express.Router();
 
@@ -10,8 +11,10 @@ const router = express.Router();
 const MIN_RATINGS = 3;
 
 const LIST_COLUMNS = `r.id, r.name, r.cuisine, r.eta_minutes AS "etaMinutes", r.delivery_fee::float8 AS "deliveryFee",
-                      r.hero_color AS "heroColor", r.open,
+                      r.hero_color AS "heroColor", r.open, r.categories AS "setCategories",
                       (SELECT i.id FROM images i WHERE i.restaurant_id = r.id) AS "imageId",
+                      (SELECT string_agg(DISTINCT lower(coalesce(m.category, '') || ' ' || m.name), ' ')
+                         FROM menu_items m WHERE m.restaurant_id = r.id AND m.available = true) AS "menuText",
                       (SELECT COUNT(*)::int FROM orders o WHERE o.restaurant_id = r.id AND o.rating IS NOT NULL) AS "ratingCount",
                       (SELECT ROUND(AVG(o.rating)::numeric, 1)::float8 FROM orders o
                         WHERE o.restaurant_id = r.id AND o.rating IS NOT NULL) AS "ratingAverage"`;
@@ -24,8 +27,34 @@ function present(r) {
   r.imageUrl = imageUrl(r.imageId);
   r.thumbUrl = thumbUrl(r.imageId);
   delete r.imageId;
+  r.categories = categories.forStore(r.setCategories, [r.cuisine, r.menuText]);
+  delete r.setCategories;
+  delete r.menuText;
   return r;
 }
+
+// GET /api/restaurants/categories - the tiles on the home screen, with how
+// many open stores sit under each (only categories with a store are sent).
+router.get('/categories', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM restaurants r WHERE r.approved = true`);
+    const counts = new Map();
+    for (const r of rows.map(present)) {
+      for (const key of r.categories) counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    res.json({
+      categories: categories.CATEGORIES.filter((c) => counts.has(c.key)).map((c) => ({
+        key: c.key,
+        label: c.label,
+        icon: c.icon,
+        emoji: c.emoji,
+        count: counts.get(c.key),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/restaurants - list all restaurants (without full menu, for the home feed)
 // GET /api/restaurants?q=cake - only those whose name, kind of food or menu

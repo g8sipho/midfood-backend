@@ -184,19 +184,20 @@ router.post('/conversations', async (req, res, next) => {
 });
 
 async function ownConversation(req, res) {
-  const { rows } = await pool.query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+  const { rows } = await pool.query('SELECT id, needs_human AS "needsHuman" FROM conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
   if (!rows[0]) {
     res.status(404).json({ error: 'Conversation not found' });
-    return false;
+    return null;
   }
-  return true;
+  return rows[0];
 }
 
 // GET /api/chat/conversations/:id/messages?after=<iso>
 // Reading the thread clears the customer's unread count.
 router.get('/conversations/:id/messages', async (req, res, next) => {
   try {
-    if (!(await ownConversation(req, res))) return;
+    const own = await ownConversation(req, res);
+    if (!own) return;
     const after = req.query.after ? new Date(String(req.query.after)) : null;
     const params = [req.params.id];
     let where = 'conversation_id = $1';
@@ -209,7 +210,7 @@ router.get('/conversations/:id/messages', async (req, res, next) => {
       params
     );
     await pool.query('UPDATE conversations SET customer_unread = 0 WHERE id = $1 AND customer_unread > 0', [req.params.id]);
-    res.json({ messages: rows.map(shapeMessage) });
+    res.json({ messages: rows.map(shapeMessage), needsHuman: own.needsHuman });
   } catch (err) {
     next(err);
   }
@@ -246,7 +247,11 @@ router.post('/conversations/:id/messages', async (req, res, next) => {
       );
     }
     await client.query('COMMIT');
-    res.status(201).json({ message: shapeMessage(mine), reply: reply ? shapeMessage(reply) : null });
+    res.status(201).json({
+      message: shapeMessage(mine),
+      reply: reply ? shapeMessage(reply) : null,
+      needsHuman: Boolean(convo.needs_human || (answer && answer.needsHuman)),
+    });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     next(err);

@@ -3,36 +3,44 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#d97757" />
+<meta name="theme-color" content="#24122F" />
 <title>Order — MidFood</title>
 <meta name="description" content="Order food from Middelburg's restaurants and takeaways. Pay securely and track your driver to the door." />
 <link rel="icon" href="/favicon.ico" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
 <link rel="manifest" href="/order/manifest.webmanifest" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,800&family=Poppins:wght@400;500;600;700;800&display=swap" />
 <style>
+  /* The same palette as the phone app: plum sky, ember sun, paper and sand. */
   :root {
-    --bg-app: #faf9f5;
+    --bg-app: #FFF7F0;
     --bg-surface: #ffffff;
-    --bg-muted: #f0eee6;
-    --border: rgba(15, 12, 8, 0.12);
-    --text-primary: rgba(15, 12, 8, 0.92);
-    --text-secondary: rgba(15, 12, 8, 0.64);
-    --text-tertiary: rgba(15, 12, 8, 0.6);
-    --accent: #d97757;
-    --accent-hover: #c46a4d;
-    --ink: #191915;
-    --success: #558a42;
-    --warning: #c9a82d;
-    --error: #a63244;
+    --bg-muted: #F6E9DE;
+    --border: rgba(36, 18, 47, 0.1);
+    --text-primary: #1C1020;
+    --text-secondary: #5E4D66;
+    --text-tertiary: #8F7E98;
+    --accent: #FF5A2D;
+    --accent-hover: #E8431C;
+    --accent-soft: #FFE9E0;
+    --ink: #24122F;
+    --ink-deep: #170A1F;
+    --success: #16A86B;
+    --warning: #FFB020;
+    --error: #D9256B;
     --blue: #2a78d6;
-    --shadow: rgba(20, 20, 19, 0.1);
+    --shadow: rgba(36, 18, 47, 0.08);
+    --flame: linear-gradient(100deg, #FF7A3C, #FF3D5E);
+    --display: "Fraunces", Georgia, serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0;
     background: var(--bg-app);
     color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     line-height: 1.5;
   }
@@ -40,23 +48,22 @@
 
   /* Header */
   header {
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border);
+    background: var(--ink);
     position: sticky; top: 0; z-index: 20;
     padding-top: env(safe-area-inset-top);
   }
-  .hdr { max-width: 720px; margin: 0 auto; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .brand { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; text-decoration: none; color: inherit; }
+  .hdr { max-width: 720px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; text-decoration: none; color: #fff; display: inline-flex; align-items: center; }
   .brand span { color: var(--accent); }
   .hdr-right { display: flex; align-items: center; gap: 8px; }
   .icon-btn {
-    background: none; border: 1px solid var(--border); border-radius: 9px;
-    padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px;
+    padding: 8px 13px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer;
     position: relative; white-space: nowrap;
   }
   .icon-btn.solid { background: var(--accent); border-color: var(--accent); color: #fff; }
   .cart-count {
-    position: absolute; top: -7px; right: -7px; background: var(--error); color: #fff;
+    position: absolute; top: -7px; right: -7px; background: var(--accent); color: #fff;
     border-radius: 999px; font-size: 11px; font-weight: 800; min-width: 19px; padding: 1px 5px; display: none;
   }
   .cart-count.show { display: block; }
@@ -66,30 +73,32 @@
   }
 
   main { max-width: 720px; margin: 0 auto; padding: 20px 16px 96px; }
-  h1.page { font-size: 25px; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 4px; }
+  h1.page { font-family: var(--display); font-size: 28px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.15; margin: 0 0 4px; }
   p.page-sub { font-size: 14px; color: var(--text-secondary); margin: 0 0 22px; }
-  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-tertiary); margin: 26px 0 10px; font-weight: 800; }
+  h2.sec { font-size: 15px; color: var(--text-primary); margin: 26px 0 10px; font-weight: 700; }
 
   .card {
-    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 15px;
-    padding: 20px; box-shadow: 0 1px 3px var(--shadow); margin-bottom: 14px;
+    background: var(--bg-surface); border-radius: 20px;
+    padding: 20px; box-shadow: 0 2px 12px var(--shadow); margin-bottom: 14px;
   }
   label { display: block; font-size: 13px; font-weight: 700; margin: 15px 0 6px; }
   form label:first-of-type, .card > label:first-of-type { margin-top: 0; }
   input, textarea {
-    width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+    width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 14px;
     font-size: 16px; background: var(--bg-app); color: var(--text-primary);
   }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); background: var(--bg-surface); }
   textarea { min-height: 62px; resize: vertical; }
   .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 5px; }
   button.primary {
-    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 11px;
+    width: 100%; background: var(--flame); color: #fff; border: none; border-radius: 999px;
     padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 18px;
+    box-shadow: 0 8px 20px rgba(255, 90, 45, 0.28);
   }
-  button.primary:hover { background: var(--accent-hover); }
+  button.primary:hover { filter: brightness(0.96); }
   button.primary:disabled { opacity: 0.5; cursor: default; }
   button.ghost {
-    width: 100%; background: none; border: 1px solid var(--border); border-radius: 11px;
+    width: 100%; background: none; border: 1.5px solid var(--border); border-radius: 999px;
     padding: 13px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; margin-top: 10px;
   }
   button.link {
@@ -101,7 +110,7 @@
   .social.on { display: flex; }
   .social a {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px;
-    border: 1.5px solid var(--border); border-radius: 11px; background: var(--bg-surface);
+    border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg-surface);
     font-size: 14px; font-weight: 700; color: var(--text-primary); text-decoration: none;
   }
   .social a[hidden] { display: none; }
@@ -114,9 +123,23 @@
   .msg.err { color: var(--error); }
   .msg.ok { color: var(--success); }
 
+  /* Home: the plum sky with the ember sun, like the app */
+  .sky {
+    position: relative; overflow: hidden; color: #fff;
+    background: linear-gradient(165deg, var(--ink) 0%, var(--ink-deep) 100%);
+    margin: -20px -16px 0; padding: 26px 16px 54px; border-radius: 0 0 30px 30px;
+  }
+  .sky .sun { position: absolute; top: -54px; right: -36px; width: 200px; height: 200px; border-radius: 50%; background: var(--accent); opacity: 0.9; }
+  .sky .glow { position: absolute; top: -110px; right: -90px; width: 320px; height: 320px; border-radius: 50%; background: #FF7A3C; opacity: 0.18; }
+  .sky .hello { position: relative; font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,0.72); }
+  .sky h1 { position: relative; font-family: var(--display); font-weight: 800; font-size: 34px; line-height: 1.08; letter-spacing: -0.3px; margin: 4px 0 0; max-width: 420px; }
+  @media (min-width: 620px) { .sky { padding: 34px 24px 62px; } .sky h1 { font-size: 42px; } }
+
   /* Search */
   .search { position: relative; margin: 0 0 18px; }
-  .search input { padding-left: 42px; padding-right: 44px; background: var(--bg-surface); border-radius: 12px; }
+  .search.float { margin: -28px 0 0; z-index: 2; }
+  .search input { padding-left: 44px; padding-right: 44px; background: var(--bg-surface); border: none; border-radius: 18px; height: 56px; box-shadow: 0 10px 30px rgba(36,18,47,0.14); }
+  .search input:focus { box-shadow: 0 10px 30px rgba(255,90,45,0.22); }
   .search input::-webkit-search-cancel-button { display: none; }
   .search > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); pointer-events: none; }
   .search .clear {
@@ -125,47 +148,74 @@
   }
   .search.has .clear { display: block; }
 
+  /* Category tiles: tap one to see only those stores */
+  .tiles { display: flex; gap: 8px; overflow-x: auto; margin: 22px -16px 0; padding: 0 16px 4px; scrollbar-width: none; }
+  .tiles::-webkit-scrollbar { display: none; }
+  .tiles:empty { display: none; }
+  .tile { flex: none; width: 82px; background: none; border: none; cursor: pointer; padding: 8px 2px 6px; border-radius: 16px; font: inherit; color: var(--text-primary); }
+  .tile .ic { width: 56px; height: 56px; border-radius: 18px; background: var(--bg-surface); box-shadow: 0 2px 10px var(--shadow); display: flex; align-items: center; justify-content: center; font-size: 27px; margin: 0 auto 6px; }
+  .tile .lb { font-size: 11.5px; font-weight: 700; line-height: 1.2; display: block; }
+  .tile.on { background: var(--ink); color: #fff; }
+  .tile.on .ic { background: var(--accent); }
+
+  /* Your order, while it's cooking or on its way */
+  .live {
+    display: none; align-items: center; gap: 12px; background: var(--ink); color: #fff; border-radius: 18px;
+    padding: 11px 12px 11px 11px; margin-top: 18px; text-decoration: none; box-shadow: 0 6px 18px rgba(36,18,47,0.18);
+  }
+  .live.on { display: flex; }
+  .live .ic { flex: none; width: 42px; height: 42px; border-radius: 14px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 21px; }
+  .live .tx { min-width: 0; flex: 1; }
+  .live .t { display: block; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live .s { display: block; font-size: 12.5px; color: rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tiles { align-items: flex-start; }
+  .live .go { flex: none; background: rgba(255,255,255,0.14); border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 700; }
+
+  h2.feed { font-family: var(--display); font-size: 23px; font-weight: 800; letter-spacing: -0.2px; margin: 24px 0 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  h2.feed button { background: none; border: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; padding: 0; }
+
   /* Restaurant list */
-  .resto-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .resto-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
   @media (min-width: 620px) { .resto-grid { grid-template-columns: 1fr 1fr; } }
   .resto {
     display: block; text-decoration: none; color: inherit;
-    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 15px;
-    overflow: hidden; cursor: pointer; box-shadow: 0 1px 3px var(--shadow);
+    background: var(--bg-surface); border-radius: 20px;
+    overflow: hidden; cursor: pointer; box-shadow: 0 2px 12px var(--shadow);
     transition: transform 0.12s;
   }
   .resto:hover { transform: translateY(-1px); }
-  .resto .hero { height: 150px; display: flex; align-items: center; justify-content: center; position: relative; }
-  .resto .hero.plain { height: 96px; }
+  .resto .hero { height: 170px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .resto .hero.plain { height: 170px; }
   .resto .hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .resto .hero .ltr { color: #fff; font-size: 30px; font-weight: 800; opacity: 0.92; letter-spacing: -0.5px; }
-  .resto .body { padding: 13px 16px 14px; }
-  .resto .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-  .resto .nm { font-weight: 800; font-size: 16px; min-width: 0; }
-  .resto .mt { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
-  .resto .ft { font-size: 12px; color: var(--text-tertiary); margin-top: 7px; }
-  .resto .hit { font-size: 12px; color: var(--text-secondary); margin-top: 7px; padding-top: 8px; border-top: 1px solid var(--border); }
-  .resto .hit strong { color: var(--text-primary); }
-  .resto.shut .hero img, .resto.shut .hero { filter: grayscale(0.85); opacity: 0.8; }
-  .shut-tag {
-    position: absolute; left: 10px; top: 10px; z-index: 1; font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
-    color: #fff; background: rgba(25, 25, 21, 0.86); border-radius: 999px; padding: 4px 10px;
-  }
+  .resto .hero .ltr { color: #fff; font-family: var(--display); font-size: 64px; font-weight: 800; opacity: 0.45; margin-top: -30px; }
+  .resto .shade { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: linear-gradient(rgba(23,10,31,0) 35%, rgba(23,10,31,0.74)); }
+  .resto .tags { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
+  .resto .cap { position: absolute; left: 14px; right: 14px; bottom: 12px; color: #fff; min-width: 0; }
+  .resto .nm { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .resto .mt { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.78); margin-top: 2px; }
+  .resto .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px 11px; font-size: 13px; font-weight: 600; }
+  .resto .foot .fee { color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px; }
+  .resto .foot .fee svg { color: var(--accent); }
+  .resto .foot .go { color: var(--text-secondary); }
+  .resto .hit { font-size: 12.5px; color: var(--accent); font-weight: 600; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .resto.shut .hero img, .resto.shut .hero .ltr { filter: grayscale(0.85); opacity: 0.7; }
+  .resto.shut .hero { background: #8d8591 !important; }
+  .tag { font-size: 12px; font-weight: 700; color: var(--ink); background: rgba(255,255,255,0.92); border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+  .tag.dark { background: rgba(23,10,31,0.78); color: #fff; }
   /* A rating is only ever what customers gave: stars and how many rated. */
   .rate { font-size: 13px; font-weight: 800; white-space: nowrap; flex: none; }
-  .rate .st { color: #b7791f; }
+  .rate .st { color: #E09A1B; }
   .rate .ct { font-weight: 600; color: var(--text-tertiary); }
-  .new-tag {
-    font-size: 11px; font-weight: 800; color: var(--success); border: 1px solid var(--success);
-    border-radius: 999px; padding: 1px 8px; white-space: nowrap; flex: none;
-  }
+  .tag .rate { font-size: 12px; }
+  .tag .rate .ct { color: var(--text-secondary); }
+  .new-tag { font-size: 12px; font-weight: 700; white-space: nowrap; flex: none; }
 
   /* Menu */
-  .menu-hero { border-radius: 15px; height: 96px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; position: relative; overflow: hidden; }
+  .menu-hero { border-radius: 20px; height: 120px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; position: relative; overflow: hidden; }
   .menu-hero.pic { height: 190px; }
   @media (min-width: 620px) { .menu-hero.pic { height: 250px; } }
   .menu-hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .menu-hero .ltr { color: #fff; font-size: 30px; font-weight: 800; letter-spacing: -0.6px; }
+  .menu-hero .ltr { color: #fff; font-family: var(--display); font-size: 48px; font-weight: 800; opacity: 0.6; }
   #v-menu p.page-sub { margin-bottom: 14px; }
   .menu-closed { background: rgba(166,50,68,0.08); border: 1px solid var(--error); border-radius: 11px; padding: 10px 13px; font-size: 13px; font-weight: 700; color: var(--error); margin-bottom: 14px; display: none; }
 
@@ -182,7 +232,7 @@
     border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
   }
   .chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
-  h2.menu-sec { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; margin: 22px 0 10px; scroll-margin-top: calc(var(--hdr-h, 58px) + 62px); }
+  h2.menu-sec { font-family: var(--display); font-size: 21px; font-weight: 800; letter-spacing: -0.2px; margin: 22px 0 10px; scroll-margin-top: calc(var(--hdr-h, 58px) + 62px); }
   h2.menu-sec .n { font-size: 13px; font-weight: 600; color: var(--text-tertiary); margin-left: 6px; }
   .menu-card { padding: 2px 16px; }
 
@@ -214,7 +264,7 @@
     background: var(--bg-app); font-size: 18px; font-weight: 700; cursor: pointer; color: var(--text-primary);
     display: flex; align-items: center; justify-content: center; line-height: 1;
   }
-  .qty button.add { background: var(--accent); border-color: var(--accent); color: #fff; width: auto; padding: 0 15px; font-size: 13px; }
+  .qty button.add { background: var(--ink); border-color: var(--ink); color: #fff; width: auto; padding: 0 15px; font-size: 13px; border-radius: 999px; }
   .qty .n { font-weight: 800; min-width: 17px; text-align: center; }
   .closed-note { font-size: 12px; color: var(--text-tertiary); }
 
@@ -243,16 +293,62 @@
     font-size: 22px; line-height: 1; cursor: pointer; color: var(--text-primary);
   }
   .sheet-body { padding: 18px 20px 6px; }
-  .sheet-body h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.4px; padding-right: 40px; }
+  .sheet-body h2 { margin: 0; font-family: var(--display); font-size: 24px; font-weight: 800; padding-right: 40px; }
   .sheet-body .pr { font-weight: 800; color: var(--accent); font-size: 16px; margin-top: 4px; }
   .sheet-body p { font-size: 14px; color: var(--text-secondary); margin: 10px 0 0; white-space: pre-line; }
   .sheet-foot {
     display: flex; align-items: center; gap: 14px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border); background: var(--bg-surface);
   }
-  .sheet-foot .qty button { width: 42px; height: 42px; border-radius: 50%; font-size: 21px; }
+  .sheet-foot .qty { background: var(--ink); border-radius: 999px; padding: 4px; gap: 4px; }
+  .sheet-foot .qty button { width: 40px; height: 40px; border-radius: 50%; font-size: 21px; border: none; background: rgba(255,255,255,0.12); color: #fff; }
+  .sheet-foot .qty .n { color: #fff; }
   .sheet-foot .qty .n { font-size: 17px; min-width: 22px; }
   .sheet-foot button.primary { margin-top: 0; flex: 1; }
+
+  /* Chat with the kitchen or MidFood: a sheet like the dish one, with
+     bubbles. Quick questions are answered on the spot; the rest waits for
+     a person. */
+  .chat-open {
+    display: inline-flex; align-items: center; gap: 8px; background: var(--bg-surface); border: 1.5px solid var(--border);
+    border-radius: 999px; padding: 9px 14px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--text-primary); cursor: pointer;
+  }
+  .chat-open:hover { border-color: var(--ink); }
+  .chat-open .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: none; }
+  .chat-open.unread .dot { display: block; }
+  .chat-card { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+  .chat-card .ic { flex: none; width: 46px; height: 46px; border-radius: 16px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .chat-card .t { font-weight: 700; font-size: 15px; }
+  .chat-card .b { font-size: 13px; color: var(--text-secondary); margin-top: 1px; }
+  .chat-card .ar { margin-left: auto; color: var(--text-tertiary); font-size: 20px; }
+  .chat-sheet { height: 92vh; height: 92dvh; max-height: 92vh; }
+  @media (min-width: 620px) { .chat-sheet { height: 80vh; max-height: 80vh; } }
+  .chat-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .chat-head .av { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex: none; overflow: hidden; }
+  .chat-head .av img { width: 100%; height: 100%; object-fit: cover; }
+  .chat-head .t { font-family: var(--display); font-size: 19px; font-weight: 800; line-height: 1.1; }
+  .chat-head .s { font-size: 12.5px; color: var(--text-secondary); }
+  .chat-head .x { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--bg-muted); font-size: 20px; line-height: 1; cursor: pointer; color: var(--text-primary); flex: none; }
+  .chat-log { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; background: var(--bg-app); }
+  .chat-intro { text-align: center; font-size: 13px; color: var(--text-secondary); margin: 0 auto 16px; max-width: 300px; }
+  .bub { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-size: 14.5px; line-height: 1.4; margin-bottom: 8px; white-space: pre-line; word-wrap: break-word; }
+  .bub .who { display: block; font-size: 11px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .bub .at { display: block; font-size: 10.5px; color: var(--text-tertiary); text-align: right; margin-top: 3px; }
+  .bub.me { margin-left: auto; background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
+  .bub.me .at { color: rgba(255,255,255,0.72); }
+  .bub.bot { background: var(--bg-muted); border-bottom-left-radius: 6px; }
+  .bub.them { background: var(--bg-surface); border-bottom-left-radius: 6px; box-shadow: 0 1px 4px var(--shadow); }
+  .bub.them .who { color: var(--accent-hover); }
+  .chat-quick { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; scrollbar-width: none; background: var(--bg-app); }
+  .chat-quick::-webkit-scrollbar { display: none; }
+  .chat-quick:empty { display: none; }
+  .chat-quick button { flex: none; border: 1.5px solid var(--accent); background: var(--bg-surface); color: var(--accent-hover); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .chat-compose { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--bg-surface); }
+  .chat-compose textarea { flex: 1; min-height: 46px; max-height: 120px; border-radius: 23px; padding: 12px 16px; resize: none; font-size: 15px; }
+  .chat-compose button { flex: none; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .chat-compose button:disabled { opacity: 0.4; cursor: default; }
+  .chat-wait { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 6px 16px 0; background: var(--bg-app); display: none; }
+  .chat-wait.on { display: block; }
 
   /* Rating a delivered order */
   .rate-card { text-align: center; }
@@ -274,7 +370,7 @@
   }
   .cartbar .inner { max-width: 720px; margin: 0 auto; }
   .cartbar button {
-    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 11px;
+    width: 100%; background: var(--flame); color: #fff; border: none; border-radius: 999px;
     padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer;
     display: flex; justify-content: space-between; align-items: center;
   }
@@ -291,8 +387,8 @@
 
   /* Tracking */
   .track-step { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
-  .track-step .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--border); flex: none; }
-  .track-step.on .dot { background: var(--accent); }
+  .track-step .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-muted); flex: none; box-shadow: 0 0 0 3px var(--bg-muted); }
+  .track-step.on .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .track-step .lb { font-size: 14px; color: var(--text-tertiary); }
   .track-step.on .lb { color: var(--text-primary); font-weight: 700; }
   .banner { border-radius: 13px; padding: 15px; border: 1px solid; margin-bottom: 14px; }
@@ -348,7 +444,7 @@
   .view { display: none; }
   .view.on { display: block; }
   /* The delivery scooter from the app icon, beside the wordmark. */
-  .brand-mark, .logo-mark { color: #d97757; vertical-align: -6px; margin-right: 6px; }
+  .brand-mark, .logo-mark { color: var(--accent); vertical-align: -6px; margin-right: 6px; }
 </style>
 </head>
 <body>
@@ -368,14 +464,24 @@
 
   <!-- Restaurants -->
   <div class="view" id="v-home">
-    <h1 class="page">Order in Middelburg</h1>
-    <p class="page-sub">Pick a restaurant, pay securely, and track your driver to the door.</p>
-    <div class="search" id="searchBox">
+    <div class="sky">
+      <div class="glow"></div><div class="sun"></div>
+      <div class="hello" id="homeHello">Middelburg, delivered</div>
+      <h1>What are we<br>bringing you?</h1>
+    </div>
+    <div class="search float" id="searchBox">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
-      <input id="search" type="search" placeholder="Search for a dish or a restaurant" aria-label="Search for a dish or a restaurant" autocomplete="off" enterkeyhint="search" maxlength="60" />
+      <input id="search" type="search" placeholder="Kotas, pizza, medicine, a shop…" aria-label="Search for a dish, a shop or a restaurant" autocomplete="off" enterkeyhint="search" maxlength="60" />
       <button type="button" class="clear" id="searchClear" aria-label="Clear search">×</button>
     </div>
-    <div id="restoList"><div class="spin">Loading restaurants…</div></div>
+    <a class="live" id="homeLive" href="#orders">
+      <span class="ic" id="homeLiveIcon">🛵</span>
+      <span class="tx"><span class="t" id="homeLiveT"></span><span class="s" id="homeLiveS"></span></span>
+      <span class="go">Track ›</span>
+    </a>
+    <div class="tiles" id="homeTiles" role="group" aria-label="Categories"></div>
+    <h2 class="feed" id="feedTitle"><span id="feedTitleText">Open now</span><button type="button" id="feedAll" style="display:none;">Show all</button></h2>
+    <div id="restoList"><div class="spin">Loading…</div></div>
   </div>
 
   <!-- One restaurant's menu -->
@@ -383,6 +489,7 @@
     <div class="menu-hero" id="menuHero"></div>
     <h1 class="page" id="menuName"></h1>
     <p class="page-sub" id="menuMeta"></p>
+    <p style="margin:-10px 0 16px;"><button type="button" class="chat-open" id="menuChat"><span>💬</span> Ask the kitchen <span class="dot"></span></button></p>
     <div class="menu-closed" id="menuClosed">Closed right now. You can look at the menu, but not order yet.</div>
     <div class="chips" id="menuChips" role="navigation" aria-label="Menu sections"></div>
     <div id="menuList"></div>
@@ -505,9 +612,14 @@
       <div id="trMap" role="img" aria-label="Map showing where your driver is"></div>
       <div class="map-foot"><span id="trMapNote"></span><span id="trMapSeen"></span></div>
     </div>
+    <div class="card chat-card" id="trChat" role="button" tabindex="0">
+      <span class="ic">💬</span>
+      <span><span class="t">Chat about this order</span><span class="b" style="display:block;">Ask the kitchen anything. “Where is my order?” is answered instantly.</span></span>
+      <span class="ar">›</span>
+    </div>
     <div class="card" id="trItems"></div>
     <div id="trAgain"></div>
-    <p class="help-line">Problem with this order? Call MidFood on <a href="tel:0726437784">072 643 7784</a>.</p>
+    <p class="help-line">Problem with this order? <a href="#" id="trSupport">Chat with MidFood</a> or call <a href="tel:0726437784">072 643 7784</a>.</p>
   </div>
 
   <!-- Account -->
@@ -533,10 +645,15 @@
         <button class="primary" type="submit" id="cpSubmit">Change password</button>
       </form>
     </div>
+    <div class="card chat-card" id="acChat" role="button" tabindex="0">
+      <span class="ic">💬</span>
+      <span><span class="t">Chat with MidFood</span><span class="b" style="display:block;">Orders, refunds, anything. Quick questions are answered on the spot.</span></span>
+      <span class="ar">›</span>
+    </div>
     <div class="card">
-      <div style="font-weight:700;font-size:15px;">Need help?</div>
+      <div style="font-weight:700;font-size:15px;">Rather talk?</div>
       <div style="font-size:14px;color:var(--text-secondary);margin-top:3px;">
-        Call MidFood on <a href="tel:0726437784" style="color:var(--accent);font-weight:700;text-decoration:none;">072 643 7784</a>.
+        WhatsApp or call MidFood on <a href="https://wa.me/27726437784" style="color:var(--accent);font-weight:700;text-decoration:none;">072 643 7784</a>.
       </div>
     </div>
     <div class="card">
@@ -570,6 +687,25 @@
       </div>
       <button type="button" class="primary" id="shAdd"></button>
     </div>
+  </div>
+</div>
+
+<!-- Chat with the kitchen or with MidFood -->
+<div class="sheet-wrap" id="chat">
+  <div class="sheet-back" id="chatBack"></div>
+  <div class="sheet chat-sheet" role="dialog" aria-modal="true" aria-labelledby="chatTitle">
+    <div class="chat-head">
+      <span class="av" id="chatAv"></span>
+      <span><span class="t" id="chatTitle"></span><span class="s" id="chatSub" style="display:block;"></span></span>
+      <button type="button" class="x" id="chatClose" aria-label="Close">×</button>
+    </div>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="chat-wait" id="chatWait">A person will reply here. Come back any time from the store's page or Account.</div>
+    <div class="chat-quick" id="chatQuick"></div>
+    <form class="chat-compose" id="chatForm">
+      <textarea id="chatText" rows="1" placeholder="Type a message…" maxlength="1000"></textarea>
+      <button type="submit" id="chatSend" aria-label="Send" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+    </form>
   </div>
 </div>
 
@@ -726,55 +862,143 @@
   }
 
   var searchSeq = 0;
+  // --- categories ---------------------------------------------------------
+  // Burgers, pizza, pharmacy, car spares... from the server; tapping one
+  // narrows the list to stores in it. Loaded once.
+  var categories = null;
+  var homeCategory = null;
+  var MOPED_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>';
+
+  function loadCategories() {
+    if (categories) { paintTiles(); return; }
+    api('/api/restaurants/categories')
+      .then(function (d) { categories = d.categories || []; paintTiles(); })
+      .catch(function () { categories = []; paintTiles(); });
+  }
+
+  function paintTiles() {
+    var box = el('homeTiles');
+    box.innerHTML = '';
+    (categories || []).forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tile' + (homeCategory === c.key ? ' on' : '');
+      b.innerHTML = '<span class="ic">' + esc(c.emoji || '🍽️') + '</span><span class="lb">' + esc(c.label) + '</span>';
+      b.addEventListener('click', function () {
+        homeCategory = homeCategory === c.key ? null : c.key;
+        el('search').value = '';
+        paintTiles();
+        loadRestaurants();
+      });
+      box.appendChild(b);
+    });
+  }
+  el('feedAll').addEventListener('click', function () { homeCategory = null; paintTiles(); loadRestaurants(); });
+
+  // --- the order that's cooking or on its way, if there is one -----------
+  var LIVE_WORDS = {
+    placed: ['⏳', 'Waiting for the kitchen'],
+    confirmed: ['✅', 'Kitchen accepted it'],
+    preparing: ['🍳', 'Being cooked now'],
+    out_for_delivery: ['🛵', 'On the way to you'],
+  };
+  function paintLive() {
+    var strip = el('homeLive');
+    if (!token) { strip.className = 'live'; return; }
+    api('/api/orders').then(function (d) {
+      var live = (d.orders || []).filter(function (o) { return o.paymentStatus === 'paid' && LIVE_WORDS[o.status]; })
+        .sort(function (a, b) { return b.createdAt < a.createdAt ? -1 : 1; })[0];
+      if (!live) { strip.className = 'live'; return; }
+      strip.href = '#order/' + live.id;
+      el('homeLiveIcon').textContent = LIVE_WORDS[live.status][0];
+      el('homeLiveT').textContent = LIVE_WORDS[live.status][1];
+      el('homeLiveS').textContent = live.restaurantName + ' · ' + rand(live.total);
+      strip.className = 'live on';
+    }).catch(function () { strip.className = 'live'; });
+  }
+
+  function paintHello() {
+    var h = new Date().getHours();
+    var word = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    el('homeHello').textContent = user && user.name ? word + ', ' + user.name.split(' ')[0] : 'Middelburg, delivered';
+  }
+
   function loadRestaurants() {
     var q = el('search').value.trim();
     var seq = ++searchSeq;
-    el('searchBox').className = 'search' + (q ? ' has' : '');
+    el('searchBox').className = 'search float' + (q ? ' has' : '');
+    loadCategories();
+    paintLive();
+    paintHello();
     api('/api/restaurants' + (q ? '?q=' + encodeURIComponent(q) : '')).then(function (data) {
       // A slower answer to an older search must not replace a newer one.
       if (seq !== searchSeq) return;
       restaurants = data.restaurants;
+      var list = restaurants;
+      var cat = null;
+      if (!q && homeCategory) {
+        list = restaurants.filter(function (r) { return (r.categories || []).indexOf(homeCategory) !== -1; });
+        cat = (categories || []).filter(function (c) { return c.key === homeCategory; })[0];
+      }
+      // Open places first; closed ones sink rather than vanish.
+      list = list.slice().sort(function (a, b) {
+        var ao = a.open === false ? 1 : 0, bo = b.open === false ? 1 : 0;
+        if (ao !== bo) return ao - bo;
+        return (b.rating || 0) - (a.rating || 0) || a.name.localeCompare(b.name);
+      });
+      el('feedTitleText').textContent = q
+        ? (list.length ? list.length + (list.length === 1 ? ' match' : ' matches') : 'No matches')
+        : cat ? cat.label : 'Open now';
+      el('feedAll').style.display = !q && homeCategory ? 'inline' : 'none';
+      el('homeTiles').style.display = q ? 'none' : 'flex';
+      el('homeLive').style.display = q || homeCategory ? 'none' : '';
+
       var box = el('restoList');
       box.innerHTML = '';
-      if (!restaurants.length) {
+      if (!list.length) {
         var none = document.createElement('div');
         none.className = 'empty';
         none.textContent = q
-          ? 'Nothing matches “' + q + '”. Try another dish or a restaurant name.'
-          : 'No restaurants are listed yet. Check back soon.';
+          ? 'Nothing matches “' + q + '”. Try another word, or clear the search to browse.'
+          : cat ? 'No ' + cat.label.toLowerCase() + ' on MidFood yet. Know a place? Tell them about us.'
+          : 'No stores are listed yet. Check back soon.';
         box.appendChild(none);
         return;
       }
       var grid = document.createElement('div');
       grid.className = 'resto-grid';
-      restaurants.forEach(function (r) {
+      list.forEach(function (r) {
         var shut = r.open === false;
         var a = document.createElement('a');
         a.className = 'resto' + (shut ? ' shut' : '');
         a.href = '#r/' + r.id;
         a.innerHTML =
           '<div class="hero"></div>' +
-          '<div class="body"><div class="top"><div class="nm">' + esc(r.name) + '</div>' + ratingHtml(r) + '</div>' +
-          '<div class="mt">' + esc(r.cuisine) + '</div>' +
-          '<div class="ft">' + esc(r.etaMinutes) + ' min · ' + rand(r.deliveryFee) + ' delivery</div>' +
+          '<div class="foot"><span class="fee">' + MOPED_SVG + (r.deliveryFee === 0 ? 'Free delivery' : rand(r.deliveryFee) + ' delivery') + '</span>' +
           (q && r.matches && r.matches.length
-            ? '<div class="hit">On the menu: <strong>' + r.matches.map(esc).join('</strong>, <strong>') + '</strong></div>'
-            : '') +
+            ? '<span class="hit">' + r.matches.map(esc).join(' · ') + '</span>'
+            : '<span class="go">' + (shut ? 'Browse the menu' : 'Taking orders') + ' ›</span>') +
           '</div>';
         var hero = a.querySelector('.hero');
         heroInto(hero, r, 'plain', true);
-        if (shut) {
-          var tag = document.createElement('span');
-          tag.className = 'shut-tag';
-          tag.textContent = 'CLOSED';
-          hero.appendChild(tag);
-        }
+        var over = document.createElement('div');
+        over.className = 'shade';
+        hero.appendChild(over);
+        var tags = document.createElement('div');
+        tags.className = 'tags';
+        tags.innerHTML = '<span class="tag">' + ratingHtml(r) + '</span>' +
+          (shut ? '<span class="tag dark">Closed now</span>' : '<span class="tag">' + esc(r.etaMinutes) + ' min</span>');
+        hero.appendChild(tags);
+        var cap = document.createElement('div');
+        cap.className = 'cap';
+        cap.innerHTML = '<div class="nm">' + esc(r.name) + '</div><div class="mt">' + esc(r.cuisine) + '</div>';
+        hero.appendChild(cap);
         grid.appendChild(a);
       });
       box.appendChild(grid);
     }).catch(function () {
       if (seq !== searchSeq) return;
-      el('restoList').innerHTML = '<div class="empty">Could not load restaurants. Check your connection and refresh.</div>';
+      el('restoList').innerHTML = '<div class="empty">Could not load the stores. Check your connection and refresh.</div>';
     });
   }
 
@@ -1962,6 +2186,138 @@
     if (document.hidden && trackTimer) { clearTimeout(trackTimer); trackTimer = null; }
     else if (!document.hidden && (window.location.hash || '').indexOf('#order/') === 0) route();
   });
+
+  // --- chat ---------------------------------------------------------------
+  // One thread per store (or one with MidFood), opened from a store's page,
+  // from an order, or from Account. Quick questions are answered on the spot
+  // by the server; anything else is flagged for a person.
+  var chatConvo = null;
+  var chatTimer = null;
+  var chatLastAt = null;
+  var chatSeen = {};
+
+  function chatClock(iso) {
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function openChat(where) {
+    if (!token) { pendingAfterAuth = window.location.hash || ''; go('#signin'); return; }
+    hideSheet();
+    chatConvo = null;
+    chatLastAt = null;
+    chatSeen = {};
+    el('chatLog').innerHTML = '<div class="spin">Opening…</div>';
+    el('chatQuick').innerHTML = '';
+    el('chatWait').className = 'chat-wait';
+    el('chatTitle').textContent = where.title || 'MidFood support';
+    el('chatSub').textContent = where.restaurantId || where.orderId ? 'Quick questions are answered on the spot; the kitchen answers the rest.' : 'Quick questions are answered on the spot; a person picks up the rest.';
+    el('chatAv').textContent = (where.title || 'M').charAt(0);
+    el('chat').className = 'sheet-wrap on';
+    document.body.style.overflow = 'hidden';
+    api('/api/chat/conversations', { method: 'POST', body: { restaurantId: where.restaurantId || undefined, orderId: where.orderId || undefined } })
+      .then(function (d) {
+        chatConvo = d.conversation;
+        el('chatTitle').textContent = chatConvo.title;
+        el('chatAv').textContent = chatConvo.title.charAt(0);
+        if (chatConvo.thumbUrl) el('chatAv').innerHTML = '<img src="' + esc(chatConvo.thumbUrl) + '" alt="" />';
+        el('chatLog').innerHTML = '<div class="chat-intro">' + esc(el('chatSub').textContent) + '</div>';
+        pullChat();
+      })
+      .catch(function (err) { el('chatLog').innerHTML = '<div class="empty">' + esc(err.message || "Couldn't open the chat.") + '</div>'; });
+  }
+
+  function closeChat() {
+    el('chat').className = 'sheet-wrap';
+    document.body.style.overflow = '';
+    if (chatTimer) { clearTimeout(chatTimer); chatTimer = null; }
+    chatConvo = null;
+  }
+
+  function paintMessages(msgs) {
+    var log = el('chatLog');
+    var last = null;
+    msgs.forEach(function (m) {
+      if (chatSeen[m.id]) return;
+      chatSeen[m.id] = true;
+      var b = document.createElement('div');
+      var mine = m.sender === 'customer';
+      b.className = 'bub ' + (mine ? 'me' : m.sender === 'bot' ? 'bot' : 'them');
+      var who = mine ? '' : m.sender === 'bot' ? 'Instant answer' : m.sender === 'admin' ? 'MidFood' : (chatConvo ? chatConvo.title : 'Kitchen');
+      b.innerHTML = (who ? '<span class="who">' + esc(who) + '</span>' : '') + esc(m.body) + '<span class="at">' + chatClock(m.createdAt) + '</span>';
+      log.appendChild(b);
+      if (!chatLastAt || m.createdAt > chatLastAt) chatLastAt = m.createdAt;
+      last = m;
+    });
+    if (last) {
+      var quick = el('chatQuick');
+      quick.innerHTML = '';
+      if (last.sender === 'bot' && last.quickReplies && last.quickReplies.length) {
+        last.quickReplies.forEach(function (q) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = q;
+          btn.addEventListener('click', function () { sendChat(q); });
+          quick.appendChild(btn);
+        });
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  function pullChat() {
+    if (!chatConvo) return;
+    var id = chatConvo.id;
+    api('/api/chat/conversations/' + id + '/messages' + (chatLastAt ? '?after=' + encodeURIComponent(chatLastAt) : ''))
+      .then(function (d) {
+        if (!chatConvo || chatConvo.id !== id) return;
+        paintMessages(d.messages || []);
+        el('chatWait').className = 'chat-wait' + (d.needsHuman ? ' on' : '');
+      })
+      .catch(function () {})
+      .then(function () {
+        if (chatConvo && chatConvo.id === id) chatTimer = setTimeout(pullChat, 5000);
+      });
+  }
+
+  function sendChat(text) {
+    text = String(text || '').trim();
+    if (!text || !chatConvo) return;
+    var id = chatConvo.id;
+    el('chatText').value = '';
+    el('chatSend').disabled = true;
+    el('chatQuick').innerHTML = '';
+    api('/api/chat/conversations/' + id + '/messages', { method: 'POST', body: { body: text } })
+      .then(function (d) {
+        if (!chatConvo || chatConvo.id !== id) return;
+        paintMessages([d.message].concat(d.reply ? [d.reply] : []));
+        el('chatWait').className = 'chat-wait' + (d.needsHuman ? ' on' : '');
+      })
+      .catch(function (err) {
+        var b = document.createElement('div');
+        b.className = 'empty';
+        b.textContent = err.message || "That didn't send. Try again.";
+        el('chatLog').appendChild(b);
+      });
+  }
+
+  el('chatBack').addEventListener('click', closeChat);
+  el('chatClose').addEventListener('click', closeChat);
+  el('chatText').addEventListener('input', function () {
+    el('chatSend').disabled = !this.value.trim();
+    this.style.height = 'auto';
+    this.style.height = Math.min(120, this.scrollHeight) + 'px';
+  });
+  el('chatText').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(this.value); this.style.height = 'auto'; }
+  });
+  el('chatForm').addEventListener('submit', function (e) { e.preventDefault(); sendChat(el('chatText').value); el('chatText').style.height = 'auto'; });
+  el('menuChat').addEventListener('click', function () { if (current) openChat({ restaurantId: current.id, title: current.name }); });
+  el('trChat').addEventListener('click', function () { if (trackingId) openChat({ orderId: trackingId, title: el('trName').textContent }); });
+  el('trChat').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
+  el('trSupport').addEventListener('click', function (e) { e.preventDefault(); openChat({ title: 'MidFood support' }); });
+  el('acChat').addEventListener('click', function () { openChat({ title: 'MidFood support' }); });
+  el('acChat').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
 
   // --- boot ---------------------------------------------------------------
   // A cart badge on the header, for when the bottom bar isn't showing.

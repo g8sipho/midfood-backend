@@ -239,7 +239,7 @@ async function respond(convo, text, options = {}) {
     } else if (order && ['confirmed', 'preparing'].includes(order.status)) {
       text = `The kitchen has already started on your order, so changes aren't guaranteed, but I've flagged your message for ${kitchen} to look at right now.`;
     } else if (order && order.status === 'out_for_delivery') {
-      text = `Your order is already with the driver${order.driverName ? `, ${order.driverName}` : ''}${order.driverPhone ? ` (${order.driverPhone})` : ''}. For a change of address, the quickest way is to call the driver.`;
+      text = `Your order is already with the driver${order.driverName ? `, ${order.driverName}` : ''}${order.driverPhone ? ` (${order.driverPhone})` : ''}, so the kitchen can't change it now. If it's about the address, the quickest way is to call the driver. I've flagged your message for a person anyway.`;
     } else {
       text = `I can't see a live order to change. If this is about a past order, tell me what happened and a person will sort it out.`;
     }

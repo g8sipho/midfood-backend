@@ -162,6 +162,42 @@ would break the Pay Now buttons there.
 Proved on 12 Oct with a real R45 order (PayFast ref 334053679), then
 cancelled, refunded and recorded.
 
+## Paystack (the replacement for PayFast)
+
+PayFast declined MidFood on 15 Oct 2026 (ticket 1868540): a platform that
+collects for many restaurants is an "aggregation model" they won't carry.
+Paystack does carry it, and also offers split payments (subaccounts) for
+paying restaurants later.
+
+**MidFood's Paystack account:** dashboard.paystack.com, login
+**hello@midfood.co.za**, business ID **2058326**, sole proprietor, pays out to
+Capitec Business **G8 MidFood**. Compliance sent 15 Oct; Paystack's review
+takes 1–3 working days.
+
+The backend already speaks Paystack. Which gateway customers get is one
+switch in Render → Environment:
+
+| Value | What it is |
+|---|---|
+| `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys & Webhooks. `sk_test_…` while testing, `sk_live_…` once approved |
+| `PAYMENT_PROVIDER` | `paystack` sends every new payment to Paystack. Unset or `payfast` keeps PayFast |
+
+In Paystack → Settings → API Keys & Webhooks set:
+
+- Webhook URL: `https://midfood.co.za/api/payments/paystack/webhook`
+- Callback URL: `https://midfood.co.za/api/payments/paystack/callback`
+
+Every payment is double-checked: the webhook must carry Paystack's
+signature, and the backend then asks Paystack directly what was charged
+before the order is marked paid. The amount must match the order total, a
+paid order never becomes unpaid, and a second charge is set aside as money
+to refund — the same rules as PayFast. Payments confirmed through PayFast
+still land after the switch, so nothing in flight is lost.
+
+**Going live:** once Paystack approves, paste the live secret key into
+`PAYSTACK_SECRET_KEY`, set `PAYMENT_PROVIDER=paystack`, and place one small
+real order to prove it, as was done with PayFast.
+
 ## Email and phone
 
 Mail to **hello@midfood.co.za** and **privacy@midfood.co.za** is forwarded to

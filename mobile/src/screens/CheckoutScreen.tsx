@@ -190,7 +190,7 @@ export default function CheckoutScreen({ navigation }: Props) {
         <View style={styles.secure}>
           <Icon name="shield-check-outline" size={18} color={colors.mint} />
           <Txt variant="small" style={{ flex: 1 }}>
-            You pay on PayFast's secure page (card, Instant EFT, SnapScan). The kitchen only sees the order once it's paid.
+            You pay on a secure payment page (card or Instant EFT). The kitchen only sees the order once it's paid.
           </Txt>
         </View>
 

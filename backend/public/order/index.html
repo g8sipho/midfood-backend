@@ -564,7 +564,7 @@
       <div class="msg err" id="ckError"></div>
       <button class="primary" id="ckPlace"><svg class="moped" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg><span id="ckPlaceText">Place order</span></button>
       <div class="hint" style="text-align:center;margin-top:12px;">
-        You'll be taken to PayFast to pay securely. The restaurant only sees your order once payment goes through.
+        You'll be taken to a secure payment page (card or Instant EFT). The restaurant only sees your order once payment goes through.
       </div>
     </div>
   </div>
@@ -2011,8 +2011,8 @@
     el('payAgain').addEventListener('click', function () {
       var b = el('payAgain');
       b.disabled = true;
-      b.textContent = 'Opening PayFast…';
-      api('/api/orders/' + id + '/payfast-checkout', { method: 'POST' })
+      b.textContent = 'Opening payment…';
+      api('/api/orders/' + id + '/checkout', { method: 'POST' })
         .then(function (d) { window.location.href = d.paymentUrl; })
         .catch(function (err) { alert(err.message); b.disabled = false; b.textContent = 'Pay now'; });
     });

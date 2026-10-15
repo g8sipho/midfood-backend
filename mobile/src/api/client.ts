@@ -154,7 +154,7 @@ export async function placeOrder(params: {
 // Gets a fresh PayFast payment link for an order that hasn't been paid yet --
 // used to retry payment if the customer backed out or it failed the first time.
 export async function requestPayfastCheckout(orderId: string) {
-  const data = await request<{ paymentUrl: string }>(`/api/orders/${orderId}/payfast-checkout`, {
+  const data = await request<{ paymentUrl: string }>(`/api/orders/${orderId}/checkout`, {
     method: 'POST',
   });
   return data.paymentUrl;

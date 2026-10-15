@@ -239,6 +239,18 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   with Google and Meta: `https://midfood.co.za/api/auth/google/callback` and
   `https://midfood.co.za/api/auth/facebook/callback`. WhatsApp has no public
   sign-in, so it isn't offered.
+- **15 Oct: PayFast said no; Paystack is ready behind a switch.** PayFast
+  declined MidFood as an "aggregation model" (ticket 1868540); a reply asking
+  about closing date, held funds and the two R45 tests went from
+  g8vipexclusive. Paystack account opened (ID 2058326, hello@midfood.co.za),
+  compliance sent, review 1–3 working days. `src/payments/paystack.js` +
+  `src/payments/index.js` (`PAYMENT_PROVIDER`): orders start a Paystack
+  transaction, `/api/payments/paystack/webhook` checks the HMAC-SHA512
+  signature then re-verifies with Paystack, `/callback` confirms and lands on
+  the order. Both gateways share one `applyPayment` in `routes/payments.js`.
+  New `/api/orders/:id/checkout` (old `/payfast-checkout` kept for installed
+  apps). Customer wording no longer names PayFast. If PayFast cuts off before
+  Paystack approves, fall back to pay on delivery. Details in GO-LIVE.md.
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

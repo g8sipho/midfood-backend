@@ -177,7 +177,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <Card style={[styles.notice, { backgroundColor: colors.mangoSoft }]}>
           <Txt variant="subheading">Waiting for your payment</Txt>
           <Txt variant="small">
-            If you finished on PayFast, this updates by itself in a few seconds. If you closed the payment page, pay now to send the order to the kitchen.
+            If you finished paying, this updates by itself in a few seconds. If you closed the payment page, pay now to send the order to the kitchen.
           </Txt>
           <Button title="Pay now" onPress={handleRetryPayment} loading={retrying} trailing={rands(order.total)} />
         </Card>

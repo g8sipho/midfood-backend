@@ -1914,3 +1914,147 @@ describe('the pages themselves', () => {
     assert.equal(r.data.error, 'Not found');
   });
 });
+
+describe('paying with Paystack instead of PayFast', () => {
+  const crypto = require('crypto');
+  const paystack = require('../src/payments/paystack');
+  const realHttp = paystack.http;
+  const SECRET = 'sk_test_midfood';
+  // Paystack's view of each transaction, by reference. Set as a test pays.
+  const transactions = {};
+  let initialized = [];
+  let paystackDown = false;
+  let cust, resto;
+
+  before(async () => {
+    process.env.PAYMENT_PROVIDER = 'paystack';
+    process.env.PAYSTACK_SECRET_KEY = SECRET;
+    paystack.http = async ({ method, path, body }) => {
+      if (paystackDown) throw new Error('connect ECONNREFUSED');
+      if (method === 'POST' && path === '/transaction/initialize') {
+        initialized.push(body);
+        return { status: 200, data: { status: true, data: { authorization_url: `https://checkout.paystack.com/${body.reference}`, reference: body.reference } } };
+      }
+      const m = /^\/transaction\/verify\/(.+)$/.exec(path);
+      if (method === 'GET' && m) {
+        const t = transactions[decodeURIComponent(m[1])];
+        if (!t) return { status: 404, data: { status: false, message: 'Transaction reference not found' } };
+        return { status: 200, data: { status: true, data: t } };
+      }
+      throw new Error(`unexpected Paystack call ${method} ${path}`);
+    };
+    cust = await h.customer();
+    resto = await h.restaurant({ deliveryFee: 30 });
+  });
+  after(() => {
+    paystack.http = realHttp;
+    delete process.env.PAYMENT_PROVIDER;
+    delete process.env.PAYSTACK_SECRET_KEY;
+  });
+
+  // Places an order and returns it with the Paystack reference it was given.
+  async function placed() {
+    const r = await h.placeOrder(cust, resto, [[resto.items[0], 1]]);
+    assert.equal(r.status, 201);
+    const reference = initialized[initialized.length - 1].reference;
+    assert.equal(r.data.paymentUrl, `https://checkout.paystack.com/${reference}`);
+    return { order: r.data.order, reference };
+  }
+  const charged = (order, reference, extra = {}) => {
+    transactions[reference] = {
+      reference, status: 'success', currency: 'ZAR',
+      amount: Math.round(order.total * 100), metadata: { order_id: order.id }, ...extra,
+    };
+  };
+  async function sendWebhook(reference, { sign = true } = {}) {
+    const payload = JSON.stringify({ event: 'charge.success', data: { reference } });
+    const headers = { 'Content-Type': 'application/json' };
+    if (sign) headers['x-paystack-signature'] = crypto.createHmac('sha512', SECRET).update(payload).digest('hex');
+    const res = await fetch(`http://localhost:${process.env.PORT}/api/payments/paystack/webhook`, { method: 'POST', headers, body: payload });
+    return res.status;
+  }
+
+  it('the customer is sent to Paystack for the exact total, in rand cents', async () => {
+    const { order } = await placed();
+    const sent = initialized[initialized.length - 1];
+    assert.equal(sent.amount, Math.round(order.total * 100));
+    assert.equal(sent.currency, 'ZAR');
+    assert.equal(sent.metadata.order_id, order.id);
+    assert.ok(sent.reference.startsWith(order.id));
+    assert.match(sent.callback_url, new RegExp(`/api/payments/paystack/callback\\?order=${order.id}$`));
+  });
+
+  it('a signed webhook that Paystack confirms pays the order', async () => {
+    const { order, reference } = await placed();
+    charged(order, reference);
+    assert.equal(await sendWebhook(reference), 200);
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+  });
+
+  it('an unsigned or forged webhook is refused', async () => {
+    const { order, reference } = await placed();
+    charged(order, reference);
+    assert.equal(await sendWebhook(reference, { sign: false }), 401);
+    const payload = JSON.stringify({ event: 'charge.success', data: { reference } });
+    const res = await fetch(`http://localhost:${process.env.PORT}/api/payments/paystack/webhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-paystack-signature': crypto.createHmac('sha512', 'sk_test_wrong').update(payload).digest('hex') },
+      body: payload,
+    });
+    assert.equal(res.status, 401);
+    assert.equal(await h.paymentStatus(order.id), 'pending');
+  });
+
+  it('a webhook is not believed unless Paystack itself confirms the charge', async () => {
+    const { order, reference } = await placed();
+    // Nothing recorded at Paystack for this reference.
+    assert.equal(await sendWebhook(reference), 503);
+    assert.equal(await h.paymentStatus(order.id), 'pending');
+  });
+
+  it('paying less than the total does not buy the order', async () => {
+    const { order, reference } = await placed();
+    charged(order, reference, { amount: 100 });
+    await sendWebhook(reference);
+    assert.equal(await h.paymentStatus(order.id), 'failed');
+  });
+
+  it('coming back from Paystack confirms the payment and lands on the order', async () => {
+    const { order, reference } = await placed();
+    charged(order, reference);
+    const back = await api('GET', `/api/payments/paystack/callback?order=${order.id}&trxref=${reference}&reference=${reference}`);
+    assert.equal(back.status, 302);
+    assert.equal(back.headers.get('location'), `/order/#order/${order.id}`);
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+    // The webhook arriving afterwards changes nothing.
+    assert.equal(await sendWebhook(reference), 200);
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+    const extra = await h.db().query('SELECT 1 FROM extra_payments WHERE order_id = $1', [order.id]);
+    assert.equal(extra.rowCount, 0);
+  });
+
+  it('a customer who backs out can pay later with a fresh Paystack link', async () => {
+    const { order, reference } = await placed();
+    const again = await api('POST', `/api/orders/${order.id}/checkout`, { token: cust.token });
+    assert.equal(again.status, 200);
+    const second = initialized[initialized.length - 1].reference;
+    assert.notEqual(second, reference);
+    assert.equal(again.data.paymentUrl, `https://checkout.paystack.com/${second}`);
+    charged(order, second);
+    await sendWebhook(second);
+    assert.equal(await h.paymentStatus(order.id), 'paid');
+  });
+
+  it('if Paystack is down the order is still saved and can be paid later', async () => {
+    paystackDown = true;
+    try {
+      const r = await h.placeOrder(cust, resto, [[resto.items[0], 1]]);
+      assert.equal(r.status, 201);
+      assert.equal(r.data.paymentUrl, null);
+      const retry = await api('POST', `/api/orders/${r.data.order.id}/checkout`, { token: cust.token });
+      assert.equal(retry.status, 502);
+    } finally {
+      paystackDown = false;
+    }
+  });
+});

@@ -62,7 +62,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({
+  limit: '100kb',
+  // Paystack signs the exact bytes it sent, so keep them for that one route.
+  verify: (req, res, buf) => {
+    if (req.originalUrl.startsWith('/api/payments/paystack/')) req.rawBody = buf.toString('utf8');
+  },
+}));
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 // Restaurant portal (menu management) and the admin page used to create

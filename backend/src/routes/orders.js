@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool, uuid } = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const payfast = require('../payments/payfast');
+const payments = require('../payments');
 
 const router = express.Router();
 
@@ -28,17 +28,6 @@ async function attachItems(order) {
   );
   order.items = rows;
   return order;
-}
-
-// Builds the three URLs PayFast needs, based on wherever this backend is
-// actually reachable at (works the same on Render as on localhost).
-function paymentUrlsFor(req, orderId) {
-  const base = `${req.protocol}://${req.get('host')}`;
-  return {
-    returnUrl: `${base}/api/payments/payfast/return?order=${orderId}`,
-    cancelUrl: `${base}/api/payments/payfast/cancel?order=${orderId}`,
-    notifyUrl: `${base}/api/payments/payfast/notify`,
-  };
 }
 
 // Middelburg town centre. A delivery pin further than this from it is not a
@@ -175,14 +164,14 @@ router.post('/', async (req, res, next) => {
     const buyerResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [req.userId]);
     const buyer = buyerResult.rows[0];
 
-    const { returnUrl, cancelUrl, notifyUrl } = paymentUrlsFor(req, orderId);
-    const paymentUrl = payfast.buildPaymentUrl({
-      order: { id: orderId, total, restaurantName: restaurant.name },
-      buyer,
-      returnUrl,
-      cancelUrl,
-      notifyUrl,
-    });
+    // The order is saved either way; if the gateway is down the customer
+    // can still pay later from the order page ("Pay now").
+    let paymentUrl = null;
+    try {
+      paymentUrl = await payments.paymentLinkFor(req, { id: orderId, total, restaurantName: restaurant.name }, buyer);
+    } catch (err) {
+      console.error('Could not start payment for order', orderId, '-', err.message);
+    }
 
     res.status(201).json({
       order: {
@@ -245,10 +234,11 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/orders/:id/payfast-checkout - get a fresh payment link for an
+// POST /api/orders/:id/checkout - get a fresh payment link (from whichever
+// gateway is switched on) for an
 // order that hasn't been paid yet (e.g. the customer backed out of payment
 // the first time, or it failed and they want to retry).
-router.post('/:id/payfast-checkout', async (req, res, next) => {
+async function freshPaymentLink(req, res, next) {
   try {
     const { rows } = await pool.query(
       `SELECT id, total::float8 AS total, restaurant_name AS "restaurantName", payment_status AS "paymentStatus"
@@ -266,8 +256,13 @@ router.post('/:id/payfast-checkout', async (req, res, next) => {
     const buyerResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [req.userId]);
     const buyer = buyerResult.rows[0];
 
-    const { returnUrl, cancelUrl, notifyUrl } = paymentUrlsFor(req, order.id);
-    const paymentUrl = payfast.buildPaymentUrl({ order, buyer, returnUrl, cancelUrl, notifyUrl });
+    let paymentUrl;
+    try {
+      paymentUrl = await payments.paymentLinkFor(req, order, buyer);
+    } catch (err) {
+      console.error('Could not start payment for order', order.id, '-', err.message);
+      return res.status(502).json({ error: 'The payment page could not be opened just now. Please try again in a minute.' });
+    }
     if (!paymentUrl) {
       return res.status(500).json({ error: 'Payments are not configured on the server yet' });
     }
@@ -275,7 +270,10 @@ router.post('/:id/payfast-checkout', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+}
+// The old name is kept for app builds already on people's phones.
+router.post('/:id/checkout', freshPaymentLink);
+router.post('/:id/payfast-checkout', freshPaymentLink);
 
 // POST /api/orders/:id/rating { rating: 1..5 } - the customer's stars for a
 // delivered order. One rating per order, by the person who ordered it; it can

@@ -5,6 +5,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const payfast = require('../payments/payfast');
+const paystack = require('../payments/paystack');
 const money = require('../money');
 
 const router = express.Router();
@@ -33,6 +34,73 @@ async function confirmedByPayFast(rawBody) {
     if (attempt < VALIDATE_ATTEMPTS) await new Promise((r) => setTimeout(r, VALIDATE_WAIT_MS * attempt));
   }
   return null;
+}
+
+
+// Records what a gateway has confirmed about an order's payment. Shared by
+// PayFast and Paystack, so both follow exactly the same rules: amounts must
+// match, a paid order is never un-paid, and a second payment is set aside
+// as money to refund rather than touching the order.
+async function applyPayment({ gateway, orderId, reference, complete, amountPaid }) {
+  const { rows } = await pool.query(
+    `SELECT id, total::float8 AS total, payment_status AS "paymentStatus", payment_reference AS "paymentReference"
+     FROM orders WHERE id = $1`,
+    [orderId]
+  );
+  const order = rows[0];
+  if (!order) {
+    console.error(`${gateway}: unknown order`, orderId);
+    return;
+  }
+  
+  // A second, different payment for an order that is already paid: the
+  // customer has been charged twice. The order itself is left exactly as it
+  // is, and the extra payment is recorded as money to send back.
+  if (complete && order.paymentStatus === 'paid' && reference && order.paymentReference
+      && reference !== order.paymentReference) {
+    await pool.query(
+      `INSERT INTO extra_payments (pf_payment_id, order_id, amount) VALUES ($1, $2, $3)
+       ON CONFLICT (pf_payment_id) DO NOTHING`,
+      [reference, orderId, Number.isFinite(amountPaid) ? amountPaid : order.total]
+    );
+    console.error(`${gateway}: order`, orderId, 'was paid a second time - reference', reference);
+    return;
+  }
+
+  // Once an order is paid it stays paid: a late or repeated notification
+  // must never un-pay an order the kitchen may already be cooking. Hence
+  // "AND payment_status <> 'paid'" on both failure paths below.
+  if (!Number.isFinite(amountPaid) || Math.abs(amountPaid - order.total) > 0.05) {
+    console.error(`${gateway}: amount mismatch for order`, orderId, '- got', amountPaid, 'expected', order.total);
+    await pool.query(
+      `UPDATE orders SET payment_status = 'failed', payment_reference = $1
+       WHERE id = $2 AND payment_status <> 'paid'`,
+      [reference, orderId]
+    );
+    return;
+  }
+
+  if (!complete) {
+    await pool.query(
+      `UPDATE orders SET payment_status = 'failed', payment_reference = $1
+       WHERE id = $2 AND payment_status <> 'paid'`,
+      [reference, orderId]
+    );
+    return;
+  }
+
+  // paid_at is written once, the first time, and never moved by a repeat.
+  await pool.query(
+    `UPDATE orders SET payment_status = 'paid', payment_reference = COALESCE($1, payment_reference),
+            paid_at = COALESCE(paid_at, now())
+     WHERE id = $2`,
+    [reference, orderId]
+  );
+
+  // Freeze how this order's money splits, now that it is actually paid for.
+  // Doing it here rather than at payout time means a later rate change never
+  // rewrites an order that has already happened.
+  await money.recordSplit(orderId);
 }
 
 // POST /api/payments/payfast/notify - PayFast's server-to-server payment
@@ -79,69 +147,13 @@ router.post('/payfast/notify', urlencodedCapturingRaw, async (req, res) => {
       console.error('PayFast ITN: not a MidFood order id:', orderId);
       return;
     }
-    const { rows } = await pool.query(
-      `SELECT id, total::float8 AS total, payment_status AS "paymentStatus", payment_reference AS "paymentReference"
-       FROM orders WHERE id = $1`,
-      [orderId]
-    );
-    const order = rows[0];
-    if (!order) {
-      console.error('PayFast ITN: unknown order', orderId);
-      return;
-    }
-
-    const pfPaymentId = body.pf_payment_id ? String(body.pf_payment_id) : null;
-    const complete = body.payment_status === 'COMPLETE';
-    const amountPaid = Number(body.amount_gross);
-
-    // A second, different payment for an order that is already paid: the
-    // customer has been charged twice. The order itself is left exactly as it
-    // is, and the extra payment is recorded as money to send back.
-    if (complete && order.paymentStatus === 'paid' && pfPaymentId && order.paymentReference
-        && pfPaymentId !== order.paymentReference) {
-      await pool.query(
-        `INSERT INTO extra_payments (pf_payment_id, order_id, amount) VALUES ($1, $2, $3)
-         ON CONFLICT (pf_payment_id) DO NOTHING`,
-        [pfPaymentId, orderId, Number.isFinite(amountPaid) ? amountPaid : order.total]
-      );
-      console.error('PayFast ITN: order', orderId, 'was paid a second time - pf_payment_id', pfPaymentId);
-      return;
-    }
-
-    // Once an order is paid it stays paid: a late or repeated notification
-    // must never un-pay an order the kitchen may already be cooking. Hence
-    // "AND payment_status <> 'paid'" on both failure paths below.
-    if (!Number.isFinite(amountPaid) || Math.abs(amountPaid - order.total) > 0.05) {
-      console.error('PayFast ITN: amount mismatch for order', orderId, '- got', amountPaid, 'expected', order.total);
-      await pool.query(
-        `UPDATE orders SET payment_status = 'failed', payment_reference = $1
-         WHERE id = $2 AND payment_status <> 'paid'`,
-        [pfPaymentId, orderId]
-      );
-      return;
-    }
-
-    if (!complete) {
-      await pool.query(
-        `UPDATE orders SET payment_status = 'failed', payment_reference = $1
-         WHERE id = $2 AND payment_status <> 'paid'`,
-        [pfPaymentId, orderId]
-      );
-      return;
-    }
-
-    // paid_at is written once, the first time, and never moved by a repeat.
-    await pool.query(
-      `UPDATE orders SET payment_status = 'paid', payment_reference = COALESCE($1, payment_reference),
-              paid_at = COALESCE(paid_at, now())
-       WHERE id = $2`,
-      [pfPaymentId, orderId]
-    );
-
-    // Freeze how this order's money splits, now that it is actually paid for.
-    // Doing it here rather than at payout time means a later rate change never
-    // rewrites an order that has already happened.
-    await money.recordSplit(orderId);
+    await applyPayment({
+      gateway: 'PayFast ITN',
+      orderId,
+      reference: body.pf_payment_id ? String(body.pf_payment_id) : null,
+      complete: body.payment_status === 'COMPLETE',
+      amountPaid: Number(body.amount_gross),
+    });
   } catch (err) {
     console.error('PayFast ITN handling error:', err);
   }
@@ -162,5 +174,65 @@ function backToOrder(req, res) {
 
 router.get('/payfast/return', backToOrder);
 router.get('/payfast/cancel', backToOrder);
+
+// POST /api/payments/paystack/webhook - Paystack's server-to-server event.
+// The signature is checked against the exact raw body (captured by the JSON
+// parser in server.js), then the transaction is looked up with Paystack
+// itself before anything is recorded.
+router.post('/paystack/webhook', async (req, res) => {
+  if (!paystack.isWebhookSignatureValid(req.rawBody, req.get('x-paystack-signature'))) {
+    console.error('Paystack webhook: bad or missing signature');
+    return res.status(401).end();
+  }
+  try {
+    const event = req.body || {};
+    if (event.event !== 'charge.success' || !event.data || !event.data.reference) return res.status(200).end();
+    // If Paystack can't be reached to confirm, answer 503 so it sends the
+    // event again later rather than the payment being lost.
+    const orderId = await settlePaystack(event.data.reference, 'Paystack webhook');
+    return res.status(orderId ? 200 : 503).end();
+  } catch (err) {
+    console.error('Paystack webhook handling error:', err);
+    return res.status(500).end();
+  }
+});
+
+async function settlePaystack(reference, gateway) {
+  const t = await paystack.verify(reference);
+  if (!t || !t.orderId) {
+    console.error(`${gateway}: could not confirm reference`, reference);
+    return null;
+  }
+  if (t.currency && t.currency !== 'ZAR') {
+    console.error(`${gateway}: unexpected currency`, t.currency, 'for order', t.orderId);
+    return t.orderId;
+  }
+  await applyPayment({
+    gateway,
+    orderId: t.orderId,
+    reference: t.reference,
+    complete: t.success,
+    amountPaid: t.amount,
+  });
+  return t.orderId;
+}
+
+// GET /api/payments/paystack/callback - where Paystack sends the customer's
+// browser afterwards. The payment is confirmed here too, so the order page
+// shows "paid" straight away even if the webhook is a few seconds behind.
+router.get('/paystack/callback', async (req, res) => {
+  const reference = String(req.query.reference || req.query.trxref || '');
+  let orderId = null;
+  if (reference) {
+    try {
+      orderId = await settlePaystack(reference, 'Paystack callback');
+    } catch (err) {
+      console.error('Paystack callback handling error:', err);
+    }
+  }
+  const id = orderId || paystack.orderIdFromReference(reference) || String(req.query.order || '');
+  if (/^[0-9a-f-]{36}$/i.test(id)) return res.redirect(`/order/#order/${id}`);
+  return res.redirect('/order/#orders');
+});
 
 module.exports = router;

@@ -1,0 +1,40 @@
+# Puts a finished Play Store bundle (.aab) where a browser can fetch it, so it
+# can be uploaded to Google Play Console without downloading it to a computer.
+#
+# Run it from GitHub → Actions → "Stage Play bundle" → Run workflow, giving the
+# run number of a "Mobile app build" run made with target "android". It copies
+# that run's MidFood.aab to the branch "play-bundle", served at
+#   https://raw.githubusercontent.com/g8sipho/midfood-backend/play-bundle/MidFood.aab
+# Delete the branch once the bundle is in Play Console. The bundle carries no
+# signing key: Google re-signs it with the app signing key it holds.
+name: Stage Play bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Run ID of the "Mobile app build" (android) run
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy the bundle to the play-bundle branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n midfood-android -D out
+          ls -la out
+          mkdir branch && cp out/MidFood.aab branch/ && cd branch
+          sha256sum MidFood.aab | tee MidFood.aab.sha256
+          git init -q -b play-bundle
+          git add MidFood.aab MidFood.aab.sha256
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Play bundle from build run $RUN_ID"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" play-bundle

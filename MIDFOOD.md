@@ -260,7 +260,11 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   (enrolment ID J9JFCL444Q). Sipho pays himself (card, or Apple Pay through
   the Apple Developer app on his iPhone). Apple says up to 48 hours to process
   after payment; its emails go to the Apple Account address g8sipho@icloud.com,
-  not to Gmail. After approval: link EAS to the Apple team, `ios` build for
+  not to Gmail. **Update 18 Oct:** Sipho had in fact paid on 14 Oct 16:00
+  (R1,699.99, "Apple.com Cork", card ending 4433; Capitec notification in his
+  sent mail, "PaymentNotification"), but Apple never linked it. Support case
+  **103000392908** opened 18 Oct asking Apple to attach the payment to
+  enrolment J9JFCL444Q; do not pay again. After approval: link EAS to the Apple team, `ios` build for
   TestFlight, then the App Store listing (demo login for the reviewer,
   screenshots with Chef Lue, privacy URL https://midfood.co.za/privacy/).
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and

@@ -5,9 +5,11 @@
 **Owner:** Sipho Masombuka · Middelburg, Mpumalanga, South Africa
 **What it is:** A food delivery platform for Middelburg — customers order from
 local restaurants, pay by card, and a MidFood driver delivers.
-**Status (12 Oct 2026):** Live on midfood.co.za and **taking real card
-payments** through MidFood's own PayFast account since 12 Oct (proved with a
-real R45 order, reference 334053679). See *Where things stand*.
+**Status (18 Oct 2026):** Live on midfood.co.za. Card payments ran through
+PayFast from 12 Oct, but PayFast declined MidFood on 15 Oct; Paystack is built
+in behind a switch and waiting for Paystack's approval. The app redesign is
+finished and Sipho is happy with it. **Current step: the iPhone app on the
+Apple App Store** (see *Where things stand*).
 
 `GO-LIVE.md` beside this file is Sipho's day-to-day guide: daily checks,
 refunds, the Tuesday payout run.
@@ -251,6 +253,16 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   New `/api/orders/:id/checkout` (old `/payfast-checkout` kept for installed
   apps). Customer wording no longer names PayFast. If PayFast cuts off before
   Paystack approves, fall back to pay on delivery. Details in GO-LIVE.md.
+- **18 Oct: Apple Developer enrolment is waiting for payment.** The account
+  (Sipho Masombuka, individual) shows "Pending" because the US$99 / 1 year
+  membership was never paid: developer.apple.com → Account → "complete your
+  purchase now" → Continue enrollment on the web → **Continue to payment**
+  (enrolment ID J9JFCL444Q). Sipho pays himself (card, or Apple Pay through
+  the Apple Developer app on his iPhone). Apple says up to 48 hours to process
+  after payment; its emails go to the Apple Account address g8sipho@icloud.com,
+  not to Gmail. After approval: link EAS to the Apple team, `ios` build for
+  TestFlight, then the App Store listing (demo login for the reviewer,
+  screenshots with Chef Lue, privacy URL https://midfood.co.za/privacy/).
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

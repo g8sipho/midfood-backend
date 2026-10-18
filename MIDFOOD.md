@@ -287,6 +287,10 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   18 Oct ~12:00** (14 changes, with Sipho's OK; Google says usually within 7
   days). **Left:** 12+ testers' Gmail addresses on
   the list and opted in for 14 days in a row, then apply for production.
+  Tester list "MidFood testers" so far (18 Oct): g8vipexclusive@gmail.com,
+  aluwer02@gmail.com, japhtalekgotho21@gmail.com, g8mahlangu@gmail.com.
+  Opt-in link (works once the review is approved):
+  https://play.google.com/apps/testing/za.co.midfood.app
   The bundle reaches Play Console through `.github/workflows/stage-play-bundle.yml`
   (copies the build's .aab to a temporary `play-bundle` branch that the
   browser fetches; delete the branch afterwards).

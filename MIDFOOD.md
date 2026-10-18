@@ -8,8 +8,9 @@ local restaurants, pay by card, and a MidFood driver delivers.
 **Status (18 Oct 2026):** Live on midfood.co.za. Card payments ran through
 PayFast from 12 Oct, but PayFast declined MidFood on 15 Oct; Paystack is built
 in behind a switch and waiting for Paystack's approval. The app redesign is
-finished and Sipho is happy with it. **Current step: the iPhone app on the
-Apple App Store** (see *Where things stand*).
+finished and Sipho is happy with it. **Current step: the store apps.**
+Apple is waiting on a support case; Google Play has the app set up with a
+closed test ready to send for review (see *Where things stand*).
 
 `GO-LIVE.md` beside this file is Sipho's day-to-day guide: daily checks,
 refunds, the Tuesday payout run.
@@ -267,6 +268,29 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   enrolment J9JFCL444Q; do not pay again. After approval: link EAS to the Apple team, `ios` build for
   TestFlight, then the App Store listing (demo login for the reviewer,
   screenshots with Chef Lue, privacy URL https://midfood.co.za/privacy/).
+- **18 Oct: Google Play.** Personal developer account 4825754941694651929
+  (g8vipexclusive@gmail.com; identity, Android device and phone verified).
+  App **MidFood**, package `za.co.midfood.app`, app id 4972712786024926179.
+  Done: privacy policy, ads (none), government/financial/health (none),
+  advertising ID (not used), sign-in details (reviewer account
+  **playreview@midfood.co.za**, a normal customer account with phone
+  072 643 7784; Sipho holds the password), target audience 18+, data safety
+  (collected, not shared; deletion link https://midfood.co.za/privacy/#delete-account),
+  category Food & Drink, contact hello@midfood.co.za / +27 72 643 7784,
+  store listing (text from `mobile/store/LISTING.md` with payment wording
+  made gateway-neutral, icon, feature graphic, 6 screenshots of Chef Lue's
+  real dishes), closed track "Closed testing - Alpha" for South Africa with
+  email list **MidFood testers** (feedback to hello@midfood.co.za) and
+  release **2 (1.0.0)** from build run 39109197053. **Left:** the content
+  rating questionnaire (needs Sipho's OK to accept the IARC terms), then
+  "Submit changes for review" (his OK), then 12+ testers' Gmail addresses on
+  the list and opted in for 14 days in a row, then apply for production.
+  The bundle reaches Play Console through `.github/workflows/stage-play-bundle.yml`
+  (copies the build's .aab to a temporary `play-bundle` branch that the
+  browser fetches; delete the branch afterwards).
+  **Gap:** the app has no "delete my account" button; Play and Apple both
+  want account deletion startable from inside the app. Add it (Account
+  screen + backend endpoint) in the next build.
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

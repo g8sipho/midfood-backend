@@ -281,9 +281,10 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   made gateway-neutral, icon, feature graphic, 6 screenshots of Chef Lue's
   real dishes), closed track "Closed testing - Alpha" for South Africa with
   email list **MidFood testers** (feedback to hello@midfood.co.za) and
-  release **2 (1.0.0)** from build run 39109197053. **Left:** the content
-  rating questionnaire (needs Sipho's OK to accept the IARC terms), then
-  "Submit changes for review" (his OK), then 12+ testers' Gmail addresses on
+  release **2 (1.0.0)** from build run 39109197053. Content rating done
+  18 Oct (IARC terms accepted with Sipho's OK): Everyone / PEGI 3, "Users
+  Interact" and "Shares Location". **Left:** "Submit changes for review"
+  in Publishing overview (his OK), then 12+ testers' Gmail addresses on
   the list and opted in for 14 days in a row, then apply for production.
   The bundle reaches Play Console through `.github/workflows/stage-play-bundle.yml`
   (copies the build's .aab to a temporary `play-bundle` branch that the

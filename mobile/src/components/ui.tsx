@@ -61,6 +61,38 @@ export function Chip({
   );
 }
 
+// One of a few options to pick from ("R10", "Tomorrow", "18:30"): outlined,
+// and ember when chosen. Unlike Chip it never goes plum, so a row of them
+// reads as a question with one answer.
+export function Choice({
+  label,
+  active,
+  onPress,
+  disabled,
+  style,
+}: {
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress();
+      }}
+      disabled={disabled}
+      style={({ pressed }) => [styles.choice, active && styles.choiceActive, disabled && styles.choiceOff, pressed && !disabled && { opacity: 0.8 }, style]}
+    >
+      <Txt variant="smallBold" color={active ? colors.emberDeep : colors.ink}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
 // A small coloured tag: "Open", "25 min", "New".
 export function Pill({
   label,
@@ -318,6 +350,23 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: colors.plum,
     borderColor: colors.plum,
+  },
+  choice: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radius.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choiceActive: {
+    backgroundColor: colors.emberSoft,
+    borderColor: colors.ember,
+  },
+  choiceOff: {
+    opacity: 0.4,
   },
   pill: {
     flexDirection: 'row',

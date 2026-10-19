@@ -4,13 +4,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fetchRestaurant, imageSource } from '../api/client';
+import { fetchFavourites, fetchRestaurant, fetchReviews, imageSource, setFavourite } from '../api/client';
 import { useCart } from '../context/CartContext';
 import Txt from '../components/Txt';
 import Button from '../components/Button';
+import ReviewsStrip from '../components/ReviewsStrip';
+import { HeartButton } from '../components/RestaurantCard';
 import { Chip, Icon, IconButton, Pill, Skeleton, Stepper } from '../components/ui';
 import { colors, flame, radius, rands, shadow, spacing, tint } from '../theme';
-import type { MenuItem, Restaurant } from '../types';
+import type { MenuItem, Restaurant, RestaurantReviews } from '../types';
 import type { HomeStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RestaurantDetail'>;
@@ -28,6 +30,8 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [activeSection, setActiveSection] = useState(0);
+  const [reviews, setReviews] = useState<RestaurantReviews | null>(null);
+  const [favourite, setFav] = useState(false);
   const listRef = useRef<SectionList<MenuItem, MenuSection>>(null);
 
   useEffect(() => {
@@ -40,7 +44,21 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
       })
       .catch((err) => setError(err.message || 'Could not load this store.'))
       .finally(() => setLoading(false));
+    // Neither of these is worth an error message if it fails.
+    fetchReviews(restaurantId)
+      .then(setReviews)
+      .catch(() => {});
+    fetchFavourites()
+      .then((ids) => setFav(ids.includes(restaurantId)))
+      .catch(() => {});
   }, [restaurantId, dishId]);
+
+  // The heart flips at once; a failed save flips it back.
+  const toggleFavourite = () => {
+    const on = !favourite;
+    setFav(on);
+    setFavourite(restaurantId, on).catch(() => setFav(!on));
+  };
 
   const sections = useMemo<MenuSection[]>(() => {
     const menu = restaurant?.menu || [];
@@ -111,7 +129,10 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
         <LinearGradient colors={['rgba(23,10,31,0.35)', 'rgba(23,10,31,0)', 'rgba(23,10,31,0.85)']} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} />
         <View style={[styles.coverTop, { top: insets.top + spacing.sm }]}>
           <IconButton name="arrow-left" onPress={() => navigation.goBack()} />
-          <IconButton name="chat-outline" onPress={openChat} />
+          <View style={styles.coverActions}>
+            <HeartButton on={favourite} onPress={toggleFavourite} size={40} />
+            <IconButton name="chat-outline" onPress={openChat} />
+          </View>
         </View>
         <View style={styles.coverText}>
           <Txt variant="hero" color={colors.onDark} style={{ fontSize: 30, lineHeight: 34 }}>
@@ -134,6 +155,8 @@ export default function RestaurantDetailScreen({ route, navigation }: Props) {
       ) : switching ? (
         <Notice icon="cart-arrow-right" text={`Adding something here replaces the order you started at ${cartRestaurant?.name}.`} />
       ) : null}
+
+      <ReviewsStrip data={reviews} />
 
       <Pressable onPress={openChat} style={styles.chatRow}>
         <View style={styles.chatIcon}>
@@ -362,6 +385,10 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  coverActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   coverText: {
     padding: spacing.lg,

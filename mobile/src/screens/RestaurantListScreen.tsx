@@ -14,10 +14,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fetchCategories, fetchFeaturedDishes, fetchOrders, fetchRestaurants, imageSource } from '../api/client';
+import { fetchCategories, fetchFavourites, fetchFeaturedDishes, fetchOrders, fetchRestaurants, imageSource, setFavourite } from '../api/client';
 import RestaurantCard from '../components/RestaurantCard';
+import StoreStrip from '../components/StoreStrip';
 import Txt from '../components/Txt';
-import { Avatar, Chip, EmptyState, Icon, SectionTitle, Skeleton } from '../components/ui';
+import { EmptyState, Icon, SectionTitle, Skeleton } from '../components/ui';
 import Button from '../components/Button';
 import { useAuth } from '../context/AuthContext';
 import { colors, fonts, night, radius, shadow, spacing } from '../theme';
@@ -48,6 +49,7 @@ export default function RestaurantListScreen({ navigation }: Props) {
   const [results, setResults] = useState<Restaurant[] | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dishes, setDishes] = useState<FeaturedDish[]>([]);
+  const [favIds, setFavIds] = useState<string[]>([]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerRef = useRef<ScrollView>(null);
   const [query, setQuery] = useState('');
@@ -78,7 +80,21 @@ export default function RestaurantListScreen({ navigation }: Props) {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
+    // Favourites once; a signed-out or expired session just means none.
+    fetchFavourites()
+      .then(setFavIds)
+      .catch(() => {});
   }, [load]);
+
+  // The heart flips at once; the server is told after, and a failure flips
+  // it back.
+  const toggleFavourite = (r: Restaurant) => {
+    const on = !favIds.includes(r.id);
+    setFavIds((prev) => (on ? [...prev.filter((id) => id !== r.id), r.id] : prev.filter((id) => id !== r.id)));
+    setFavourite(r.id, on).catch(() => {
+      setFavIds((prev) => (on ? prev.filter((id) => id !== r.id) : [...prev.filter((id) => id !== r.id), r.id]));
+    });
+  };
 
   // The big food banners turn over on their own every few seconds.
   const banners = dishes.slice(0, 4);
@@ -140,6 +156,13 @@ export default function RestaurantListScreen({ navigation }: Props) {
     return out;
   }, [orders, restaurants]);
 
+  // The stores they've hearted, in the order they hearted them, still listed.
+  const favourites = useMemo(() => {
+    const byId = new Map(restaurants.map((r) => [r.id, r]));
+    return favIds.map((id) => byId.get(id)).filter((r): r is Restaurant => Boolean(r));
+  }, [favIds, restaurants]);
+
+  // Open first, then favourites, then by rating.
   const feed = useMemo(() => {
     const base = results ?? restaurants;
     const filtered = category && !results ? base.filter((r) => (r.categories || []).includes(category)) : base;
@@ -147,10 +170,13 @@ export default function RestaurantListScreen({ navigation }: Props) {
       const ao = a.open === false ? 1 : 0;
       const bo = b.open === false ? 1 : 0;
       if (ao !== bo) return ao - bo;
+      const af = favIds.includes(a.id) ? 0 : 1;
+      const bf = favIds.includes(b.id) ? 0 : 1;
+      if (af !== bf) return af - bf;
       if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
       return a.name.localeCompare(b.name);
     });
-  }, [results, restaurants, category]);
+  }, [results, restaurants, category, favIds]);
 
   // The order that's cooking or on its way right now, if there is one.
   const liveOrder = useMemo(
@@ -299,6 +325,9 @@ export default function RestaurantListScreen({ navigation }: Props) {
         </View>
       ) : null}
 
+      {/* The stores they've hearted, first */}
+      {!loading && !results && !category && <StoreStrip title="Your favourites" stores={favourites} onPress={goTo} hearts />}
+
       {/* Category tiles */}
       {!loading && !results && categories.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
@@ -351,24 +380,7 @@ export default function RestaurantListScreen({ navigation }: Props) {
       )}
 
       {/* Order again */}
-      {!loading && !results && !category && orderAgain.length > 0 && (
-        <View style={styles.pad}>
-          <SectionTitle title="Order again" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.againRow} style={{ marginHorizontal: -spacing.lg }}>
-            {orderAgain.map((r) => (
-              <Pressable key={r.id} style={styles.againCard} onPress={() => goTo(r)}>
-                <Avatar uri={imageSource(r.thumbUrl || r.imageUrl)?.uri} name={r.name} color={r.heroColor} size={64} square />
-                <Txt variant="smallBold" numberOfLines={1} style={{ marginTop: 6 }}>
-                  {r.name}
-                </Txt>
-                <Txt variant="small" style={{ fontSize: 11.5 }}>
-                  {r.open === false ? 'Closed' : `${r.etaMinutes} min`}
-                </Txt>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+      {!loading && !results && !category && <StoreStrip title="Order again" stores={orderAgain} onPress={goTo} />}
 
       {!loading && (
         <View style={[styles.pad, { paddingBottom: 0 }]}>
@@ -428,7 +440,7 @@ export default function RestaurantListScreen({ navigation }: Props) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ember} />}
           renderItem={({ item }) => (
             <View style={styles.pad}>
-              <RestaurantCard restaurant={item} onPress={() => goTo(item)} />
+              <RestaurantCard restaurant={item} onPress={() => goTo(item)} favourite={favIds.includes(item.id)} onToggleFavourite={() => toggleFavourite(item)} />
             </View>
           )}
         />
@@ -660,13 +672,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: colors.surface,
-  },
-  againRow: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-  },
-  againCard: {
-    width: 76,
   },
   list: {
     paddingBottom: spacing.xxxl * 2,

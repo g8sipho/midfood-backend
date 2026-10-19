@@ -10,6 +10,9 @@ type CartContextValue = {
   removeItem: (menuItemId: string) => void;
   setQuantity: (menuItemId: string, quantity: number) => void;
   clear: () => void;
+  // After the server says prices changed: swap in the store as it is now,
+  // re-pricing every line and dropping dishes that are gone.
+  refreshPrices: (fresh: Restaurant) => void;
 };
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -59,6 +62,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setLines([]);
   }
 
+  function refreshPrices(fresh: Restaurant) {
+    setRestaurant((current) => (current && current.id === fresh.id ? fresh : current));
+    setLines((current) =>
+      current
+        .map((l) => {
+          const item = (fresh.menu || []).find((m) => m.id === l.menuItem.id);
+          return item ? { ...l, menuItem: item } : null;
+        })
+        .filter((l): l is CartLine => l !== null)
+    );
+  }
+
   const subtotal = useMemo(
     () => lines.reduce((sum, l) => sum + l.menuItem.price * l.quantity, 0),
     [lines]
@@ -67,7 +82,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ restaurant, lines, subtotal, itemCount, addItem, removeItem, setQuantity, clear }}
+      value={{ restaurant, lines, subtotal, itemCount, addItem, removeItem, setQuantity, clear, refreshPrices }}
     >
       {children}
     </CartContext.Provider>

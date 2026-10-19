@@ -1,6 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
-import type { Category, FeaturedDish, ChatMessage, Conversation, Order, Restaurant, SocialProvider, Tracking, User } from '../types';
+import type {
+  Category,
+  FeaturedDish,
+  ChatMessage,
+  Conversation,
+  Order,
+  PromoCheck,
+  Restaurant,
+  RestaurantReviews,
+  SavedAddress,
+  SocialProvider,
+  Tracking,
+  User,
+} from '../types';
 
 const TOKEN_KEY = 'midfood.authToken';
 
@@ -23,9 +36,13 @@ export async function setToken(token: string | null): Promise<void> {
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  // The server's JSON body, for answers that carry more than `error`
+  // (a rejected promo code, a changed price).
+  body: Record<string, unknown> | undefined;
+  constructor(message: string, status: number, body?: Record<string, unknown>) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -54,10 +71,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const message = body?.error || `Request failed with status ${response.status}`;
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, body && typeof body === 'object' ? body : undefined);
   }
 
   return body as T;
+}
+
+// True when a thrown error is the server saying no (as opposed to no network).
+export function isApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError;
 }
 
 // --- Auth ---
@@ -102,6 +124,16 @@ export async function changePassword(currentPassword: string | null, newPassword
   });
 }
 
+// Deletes the signed-in customer's account for good. The password is needed
+// when the account has one; a Google/Facebook-only account sends just the
+// confirmation word. Callers clear the token afterwards.
+export async function deleteAccount(params: { password?: string; confirm: string }) {
+  return request<{ ok: true; message: string }>('/api/auth/account', {
+    method: 'DELETE',
+    body: JSON.stringify(params.password ? params : { confirm: params.confirm }),
+  });
+}
+
 // Turns an image path from the API ("/api/images/<id>/thumb") into a URL the
 // phone can load. Null stays null so callers can fall back to a colour block.
 export function imageSource(path?: string | null): { uri: string } | null {
@@ -131,6 +163,44 @@ export async function fetchRestaurant(id: string) {
   return data.restaurant;
 }
 
+// What customers said about a store: words first, newest first.
+export async function fetchReviews(id: string, limit = 20) {
+  return request<RestaurantReviews>(`/api/restaurants/${id}/reviews?limit=${limit}`);
+}
+
+// --- Favourites ---
+
+export async function fetchFavourites() {
+  const data = await request<{ restaurantIds: string[] }>('/api/customer/favourites');
+  return data.restaurantIds;
+}
+
+export async function setFavourite(restaurantId: string, on: boolean) {
+  return request<{ ok: true; favourite: boolean }>(`/api/customer/favourites/${restaurantId}`, {
+    method: on ? 'PUT' : 'DELETE',
+  });
+}
+
+// --- Saved addresses ---
+
+export async function fetchAddresses() {
+  const data = await request<{ addresses: SavedAddress[] }>('/api/customer/addresses');
+  return data.addresses;
+}
+
+// Saves an address under a label ("Home"); a same-named one is replaced.
+export async function saveAddress(params: { label: string; line: string; lat?: number | null; lng?: number | null }) {
+  const data = await request<{ address: SavedAddress }>('/api/customer/addresses', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return data.address;
+}
+
+export async function deleteAddress(id: string) {
+  return request<{ ok: true }>(`/api/customer/addresses/${id}`, { method: 'DELETE' });
+}
+
 // --- Orders ---
 
 export async function placeOrder(params: {
@@ -142,10 +212,30 @@ export async function placeOrder(params: {
   // The customer's GPS pin, if their phone gave a good one.
   deliveryLat?: number;
   deliveryLng?: number;
+  // A saved address they picked (the text above is still sent).
+  addressId?: string;
+  // Upper-case promo code; the server answers 400 { promoRejected } if it
+  // doesn't apply.
+  promoCode?: string;
+  // Rands for the driver, 0..500.
+  tip?: number;
+  // ISO datetime for "order for later", or omitted for as soon as possible.
+  scheduledFor?: string;
+  // The total the screen showed (food - promo + delivery + tip). The server
+  // answers 409 { priceChanged, total } if its own figure differs.
+  expectedTotal?: number;
 }) {
   // paymentUrl is null if PayFast isn't configured on the backend -- callers
   // should handle that by skipping straight to the order screen.
   return request<{ order: Order; paymentUrl: string | null }>('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+// Asks whether a promo code applies to this basket, before paying.
+export async function checkPromo(params: { code: string; restaurantId: string; subtotal: number }) {
+  return request<PromoCheck>('/api/orders/promo-check', {
     method: 'POST',
     body: JSON.stringify(params),
   });
@@ -202,10 +292,12 @@ export async function fetchCategories() {
 
 // --- Ratings ---
 
-export async function rateOrder(orderId: string, rating: number) {
-  return request<{ ok: true }>(`/api/orders/${orderId}/rating`, {
+// Stars, and a few words if they like. Sending stars without the words
+// clears any words saved before, so callers pass the existing review along.
+export async function rateOrder(orderId: string, rating: number, review?: string | null) {
+  return request<{ ok: true; rating: number; review: string | null }>(`/api/orders/${orderId}/rating`, {
     method: 'POST',
-    body: JSON.stringify({ rating }),
+    body: JSON.stringify(review ? { rating, review } : { rating }),
   });
 }
 

@@ -23,8 +23,28 @@ export default function ProfileScreen() {
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwDone, setPwDone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const hasPassword = user?.hasPassword !== false;
+  const canDelete = deleteConfirm.trim() === 'DELETE' && (!hasPassword || deletePassword.length > 0);
+
+  async function deleteAccount() {
+    if (!canDelete) return;
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      await api.deleteAccount({ password: hasPassword ? deletePassword : undefined, confirm: 'DELETE' });
+      // The token is dead on the server now; logout drops it here too.
+      await logout();
+    } catch (err: any) {
+      setDeleteError(err.message || "Couldn't delete the account right now. Try again in a moment.");
+      setDeleting(false);
+    }
+  }
   const signsInWith = user?.linked?.google ? 'Google' : user?.linked?.facebook ? 'Facebook' : null;
 
   async function changePassword() {
@@ -123,6 +143,48 @@ export default function ProfileScreen() {
           </Card>
 
           <Button title="Log out" variant="secondary" icon="logout" onPress={logout} style={{ marginTop: spacing.xl }} />
+
+          <Card style={styles.deleteCard}>
+            <Pressable
+              onPress={() => {
+                setShowDelete((s) => !s);
+                setDeleteError(null);
+              }}
+              style={({ pressed }) => [styles.deleteRow, pressed && { backgroundColor: colors.paper }]}
+            >
+              <View style={{ flex: 1 }}>
+                <Txt variant="bodyMedium" color={colors.inkSoft}>
+                  Delete my account
+                </Txt>
+                <Txt variant="small" color={colors.inkFaint}>
+                  Removes your details for good
+                </Txt>
+              </View>
+              <Icon name={showDelete ? 'chevron-up' : 'chevron-right'} size={20} color={colors.inkFaint} />
+            </Pressable>
+            {showDelete ? (
+              <View style={styles.deleteForm}>
+                <Txt variant="small">
+                  Your name, email, number and saved addresses are wiped. Past orders stay on MidFood's books without your details.
+                </Txt>
+                {hasPassword ? (
+                  <Field label="Your password" secureTextEntry textContentType="password" placeholder="To make sure it's you" value={deletePassword} onChangeText={setDeletePassword} style={{ marginTop: spacing.sm }} />
+                ) : null}
+                <Field
+                  label="Type DELETE to confirm"
+                  placeholder="DELETE"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  value={deleteConfirm}
+                  onChangeText={setDeleteConfirm}
+                  error={deleteError}
+                  style={{ marginTop: spacing.sm }}
+                />
+                <Button title="Delete my account" variant="dark" onPress={deleteAccount} disabled={!canDelete} loading={deleting} style={styles.deleteButton} />
+              </View>
+            ) : null}
+          </Card>
+
           <Txt variant="small" center style={{ marginTop: spacing.lg }}>
             MidFood · Middelburg's food, delivered to your door
           </Txt>
@@ -208,5 +270,29 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: 0,
     gap: spacing.xs,
+  },
+  deleteCard: {
+    padding: 0,
+    overflow: 'hidden',
+    marginTop: spacing.lg,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.line,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  deleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  deleteForm: {
+    padding: spacing.md,
+    paddingTop: 0,
+  },
+  deleteButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.berry,
   },
 });

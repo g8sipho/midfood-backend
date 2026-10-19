@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fetchOrder, fetchTracking, rateOrder, requestPayfastCheckout } from '../api/client';
+import { fetchOrder, fetchTracking, requestPayfastCheckout } from '../api/client';
 import OrderStatusBadge from '../components/OrderStatusBadge';
+import RateOrderCard from '../components/RateOrderCard';
 import Button from '../components/Button';
 import Txt from '../components/Txt';
-import { Card, Divider, Icon, Skeleton } from '../components/ui';
+import { Card, Divider, Icon, Pill, Skeleton } from '../components/ui';
+import { formatSchedule } from '../schedule';
 import { colors, radius, rands, spacing } from '../theme';
 import type { Order, Tracking } from '../types';
 import type { OrdersStackParamList } from '../navigation/types';
@@ -41,18 +42,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stars, setStars] = useState(0);
-  const [rated, setRated] = useState(false);
   const pollCount = useRef(0);
 
   const load = useCallback(async () => {
     try {
       const fresh = await fetchOrder(orderId);
       setOrder(fresh);
-      if (fresh.rating) {
-        setStars(fresh.rating);
-        setRated(true);
-      }
       return fresh;
     } catch (err: any) {
       setError(err.message || "Couldn't load this order.");
@@ -115,17 +110,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   }
 
-  async function rate(n: number) {
-    setStars(n);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    try {
-      await rateOrder(orderId, n);
-      setRated(true);
-    } catch (err: any) {
-      setError(err.message || "Couldn't save your rating.");
-    }
-  }
-
   const openChat = () => {
     if (!order) return;
     navigation.getParent()?.navigate('ChatsTab', {
@@ -160,15 +144,19 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const isPaid = order.paymentStatus === 'paid';
   const driverSeen = minutesAgo(tracking?.driverSeenAt ?? null);
   const finished = status === 'delivered' || status === 'rejected';
+  const scheduledFor = order.scheduledFor ?? tracking?.scheduledFor ?? null;
+  const discount = order.discount ?? tracking?.discount ?? 0;
+  const tip = order.tip ?? tracking?.tip ?? 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Txt variant="title">{order.restaurantName}</Txt>
           <Txt variant="small" numberOfLines={2}>
             To {order.deliveryAddress}
           </Txt>
+          {scheduledFor ? <Pill label={`For later · ${formatSchedule(scheduledFor)}`} icon="clock-outline" tone="ember" style={{ marginTop: 6 }} /> : null}
         </View>
         <OrderStatusBadge status={status} paymentStatus={order.paymentStatus} />
       </View>
@@ -263,21 +251,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       )}
 
       {isPaid && status === 'delivered' && (
-        <Card style={styles.rateCard}>
-          <Txt variant="heading" center>
-            {rated ? 'Thanks for rating!' : 'How was it?'}
-          </Txt>
-          <View style={styles.stars}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Pressable key={n} onPress={() => (rated ? null : rate(n))} hitSlop={6}>
-                <Icon name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? colors.mango : colors.sandDeep} />
-              </Pressable>
-            ))}
-          </View>
-          <Txt variant="small" center>
-            {rated ? 'Your rating helps the next hungry person choose.' : 'Tap a star. Only you and MidFood see who rated.'}
-          </Txt>
-        </Card>
+        <RateOrderCard
+          orderId={order.id}
+          rating={order.rating}
+          review={order.review}
+          onSaved={(rating, review) => setOrder((prev) => (prev ? { ...prev, rating, review } : prev))}
+        />
       )}
 
       <Card onPress={openChat} style={styles.chatRow}>
@@ -301,12 +280,30 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </View>
         ))}
         <Divider />
+        {discount > 0 ? (
+          <View style={styles.line}>
+            <Txt variant="body" color={colors.mint}>
+              Promo{order.promoCode ? ` · ${order.promoCode}` : ''}
+            </Txt>
+            <Txt variant="bodyMedium" color={colors.mint}>
+              −{rands(discount)}
+            </Txt>
+          </View>
+        ) : null}
         <View style={styles.line}>
           <Txt variant="body" color={colors.inkSoft}>
             Delivery
           </Txt>
           <Txt variant="bodyMedium">{order.deliveryFee === 0 ? 'Free' : rands(order.deliveryFee)}</Txt>
         </View>
+        {tip > 0 ? (
+          <View style={styles.line}>
+            <Txt variant="body" color={colors.inkSoft}>
+              Tip for the driver
+            </Txt>
+            <Txt variant="bodyMedium">{rands(tip)}</Txt>
+          </View>
+        ) : null}
         <View style={styles.line}>
           <Txt variant="subheading">Total</Txt>
           <Txt variant="price" color={colors.emberDeep}>
@@ -419,15 +416,6 @@ const styles = StyleSheet.create({
   driverActions: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  rateCard: {
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  stars: {
-    flexDirection: 'row',
-    gap: 6,
-    marginVertical: spacing.xs,
   },
   chatRow: {
     flexDirection: 'row',

@@ -476,6 +476,112 @@
   .view.on { display: block; }
   /* The delivery scooter from the app icon, beside the wordmark. */
   .brand-mark, .logo-mark { color: var(--accent); vertical-align: -6px; margin-right: 6px; }
+
+  /* --- Build 3: favourites, reviews, checkout extras, delete account ----- */
+
+  /* A one-off note on the signed-out home (after an account is deleted). */
+  .notice.good { background: rgba(22,168,107,0.1); border-color: var(--success); margin-top: 14px; }
+
+  /* The heart on a store card and on a store's page. It sits over the
+     photo, outside the card's link, so a tap on it never opens the menu. */
+  .heart {
+    position: absolute; top: 10px; right: 10px; z-index: 3; width: 36px; height: 36px; border-radius: 50%;
+    border: none; padding: 0; background: rgba(255,255,255,0.92); color: var(--ink); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(20,20,19,0.18);
+  }
+  .heart svg { width: 19px; height: 19px; display: block; }
+  .heart svg path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+  .heart.on { color: var(--accent); }
+  .heart.on svg path { fill: currentColor; }
+  .heart:hover { background: #fff; }
+  .resto-cell { position: relative; }
+  .resto-cell .tags { right: 56px; }
+  .menu-hero .heart { top: 12px; right: 12px; width: 40px; height: 40px; }
+  .menu-hero .heart svg { width: 21px; height: 21px; }
+
+  /* "Your favourites": small store cards in a row, like the popular dishes. */
+  .fc { flex: none; width: 156px; background: var(--bg-surface); border-radius: 20px; overflow: hidden; box-shadow: 0 2px 12px var(--shadow); text-decoration: none; color: inherit; }
+  .fc .hero { display: block; height: 96px; position: relative; overflow: hidden; }
+  .fc .hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .fc .hero .ltr { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: var(--display); font-size: 36px; font-weight: 800; opacity: 0.5; }
+  .fc .bd { display: block; padding: 9px 12px 11px; }
+  .fc .nm { display: block; font-weight: 700; font-size: 13.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fc .rs { display: block; font-size: 12px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fc.shut .hero img, .fc.shut .hero .ltr { filter: grayscale(0.85); opacity: 0.6; }
+
+  /* "What people say" on a store's page: the average, then a row of reviews. */
+  .rev-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 0 10px; }
+  .rev-head h2.sec { margin: 0; }
+  .rev-row { display: flex; gap: 12px; overflow-x: auto; margin: 0 -16px 16px; padding: 2px 16px 8px; scrollbar-width: none; }
+  .rev-row::-webkit-scrollbar { display: none; }
+  .rev { flex: none; width: 236px; background: var(--bg-surface); border-radius: 18px; padding: 14px 16px; box-shadow: 0 2px 12px var(--shadow); }
+  .rev .st { color: #E09A1B; font-size: 15px; letter-spacing: 1px; }
+  .rev .st .off { color: rgba(15, 12, 8, 0.18); }
+  .rev .w { font-size: 14px; line-height: 1.4; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .rev .w.dim { color: var(--text-tertiary); font-size: 13px; }
+  .rev .by { font-size: 12px; color: var(--text-tertiary); margin-top: 8px; }
+
+  /* Checkout: promo code */
+  .promo-in { display: flex; gap: 8px; }
+  .promo-in input { flex: 1; min-width: 0; text-transform: uppercase; }
+  .promo-in input::placeholder { text-transform: none; }
+  .promo-apply { flex: none; background: var(--ink); color: #fff; border: none; border-radius: 14px; padding: 0 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .promo-apply:disabled { opacity: 0.5; cursor: default; }
+  .promo-on { display: flex; align-items: center; gap: 8px; background: rgba(22,168,107,0.1); border: 1px solid var(--success); border-radius: 14px; padding: 9px 12px; font-size: 14px; font-weight: 700; }
+  .promo-on .tick { color: var(--success); font-weight: 800; }
+  .promo-on .promo-x { margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--bg-surface); font-size: 18px; line-height: 1; cursor: pointer; color: var(--text-secondary); }
+  #ckPromoMsg { margin-top: 8px; }
+  .line.promo-line .v { color: var(--success); font-weight: 700; }
+
+  /* Checkout: saved addresses */
+  .saved { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+  .saved:empty { display: none; }
+  .addr { flex: 1 1 150px; min-width: 0; max-width: 100%; text-align: left; background: var(--bg-surface); border: 1.5px solid var(--border); border-radius: 14px; padding: 9px 12px; cursor: pointer; color: var(--text-primary); font: inherit; }
+  .addr .lb { display: block; font-weight: 700; font-size: 13px; }
+  .addr .ln { display: block; font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .addr.on { border-color: var(--accent); background: var(--accent-soft); }
+  .addr.on .lb { color: var(--accent-hover); }
+  .save-row { display: none; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--text-secondary); }
+  .save-row input { width: 110px; padding: 8px 11px; font-size: 14px; border-radius: 10px; }
+  .save-row .pin-btn { padding: 8px 13px; }
+  .save-msg { font-size: 12px; color: var(--text-tertiary); flex-basis: 100%; }
+  .save-msg:empty { display: none; }
+  .save-msg.bad { color: var(--error); }
+
+  /* Checkout: when, and the tip */
+  .pick { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pick .chip { font-size: 14px; padding: 9px 16px; }
+  .later-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .later-grid label { margin-top: 0; }
+  select {
+    width: 100%; padding: 13px 40px 13px 14px; border: 1.5px solid var(--border); border-radius: 14px;
+    font-size: 16px; font-family: inherit; color: var(--text-primary); -webkit-appearance: none; appearance: none;
+    background: var(--bg-app) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235E4D66' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;
+  }
+  select:focus { outline: none; border-color: var(--accent); background-color: var(--bg-surface); }
+  .when-note { text-align: center; font-size: 13.5px; font-weight: 700; color: var(--accent-hover); margin-top: 16px; }
+  .when-note.asap { font-weight: 600; color: var(--text-secondary); }
+
+  /* An order for later, on the order page and in the list */
+  p.page-sub.later { color: var(--accent-hover); font-weight: 700; margin: -16px 0 18px; }
+  .order-row .mt.later { color: var(--accent-hover); font-weight: 600; }
+
+  /* A few words with the stars */
+  .review-said { margin-top: 12px; font-size: 14px; color: var(--text-secondary); font-style: italic; }
+  .review-said .edit { background: none; border: none; padding: 0 0 0 8px; font: inherit; font-size: 13px; font-weight: 700; font-style: normal; color: var(--accent); cursor: pointer; }
+  .review-form { margin-top: 12px; text-align: left; }
+  .review-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .review-actions button { margin-top: 0; flex: 1; padding: 12px; }
+
+  /* Delete my account */
+  .del { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .del-open { background: none; border: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-tertiary); cursor: pointer; text-decoration: underline; }
+  .del-why { font-size: 13px; color: var(--text-secondary); margin: 6px 0 2px; }
+  button.danger {
+    width: 100%; background: var(--error); color: #fff; border: none; border-radius: 999px;
+    padding: 15px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 18px;
+  }
+  button.danger:disabled { opacity: 0.45; cursor: default; }
 </style>
 </head>
 <body>
@@ -505,6 +611,7 @@
       <input id="search" type="search" placeholder="Kotas, pizza, medicine, a shop…" aria-label="Search for a dish, a shop or a restaurant" autocomplete="off" enterkeyhint="search" maxlength="60" />
       <button type="button" class="clear" id="searchClear" aria-label="Clear search">×</button>
     </div>
+    <div class="notice good" id="homeNote" role="status"></div>
     <a class="live" id="homeLive" href="#orders">
       <span class="ic" id="homeLiveIcon">🛵</span>
       <span class="tx"><span class="t" id="homeLiveT"></span><span class="s" id="homeLiveS"></span></span>
@@ -517,6 +624,10 @@
       <h2 class="feed"><span>Popular right now</span></h2>
       <div class="dish-row" id="homePopular"></div>
     </div>
+    <div id="favWrap" style="display:none;">
+      <h2 class="feed"><span>Your favourites</span></h2>
+      <div class="dish-row" id="homeFavs" aria-label="Your favourite stores"></div>
+    </div>
     <h2 class="feed" id="feedTitle"><span id="feedTitleText">Open now</span><button type="button" id="feedAll" style="display:none;">Show all</button></h2>
     <div id="restoList"><div class="spin">Loading…</div></div>
   </div>
@@ -528,6 +639,7 @@
     <p class="page-sub" id="menuMeta"></p>
     <p style="margin:-10px 0 16px;"><button type="button" class="chat-open" id="menuChat"><span>💬</span> Ask the kitchen <span class="dot"></span></button></p>
     <div class="menu-closed" id="menuClosed">Closed right now. You can look at the menu, but not order yet.</div>
+    <div id="menuReviews"></div>
     <div class="chips" id="menuChips" role="navigation" aria-label="Menu sections"></div>
     <div id="menuList"></div>
   </div>
@@ -542,12 +654,29 @@
       <h2 class="sec" style="margin-top:0;">Your order</h2>
       <div id="cartLines"></div>
       <div class="divider"></div>
+      <!-- Promo code: checked with the server before paying, and again when the order is placed. -->
+      <div class="promo" id="ckPromoBox">
+        <div class="promo-in" id="ckPromoIn">
+          <input id="ckPromoCode" type="text" placeholder="Promo code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" aria-label="Promo code" />
+          <button type="button" class="promo-apply" id="ckPromoApply">Apply</button>
+        </div>
+        <div class="promo-on" id="ckPromoOn" style="display:none;">
+          <span class="tick" aria-hidden="true">✓</span><span id="ckPromoText"></span>
+          <button type="button" class="promo-x" id="ckPromoRemove" aria-label="Remove promo code">×</button>
+        </div>
+        <div class="msg err" id="ckPromoMsg"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="line"><span class="l">Food</span><span id="ckSub"></span></div>
+      <div class="line promo-line" id="ckPromoLine" style="display:none;"><span class="l" id="ckPromoLineL">Promo</span><span class="v" id="ckDiscount"></span></div>
       <div class="line"><span class="l">Delivery fee</span><span id="ckFee"></span></div>
+      <div class="line" id="ckTipLine" style="display:none;"><span class="l">Tip for the driver</span><span id="ckTipAmt"></span></div>
       <div class="line total"><span>Total</span><span class="v" id="ckTotal"></span></div>
     </div>
 
     <div class="card">
       <label for="ckAddress">Delivery address</label>
+      <div class="saved" id="ckSaved" role="group" aria-label="Your saved addresses"></div>
       <textarea id="ckAddress" placeholder="e.g. 41 Turquoise St, Mineralia, Middelburg"></textarea>
       <div class="pin-row">
         <button type="button" class="pin-btn" id="ckPin">
@@ -556,12 +685,53 @@
         </button>
         <span class="pin-state" id="ckPinState">At the delivery address now? Pin it so your driver comes straight to you.</span>
       </div>
+      <div class="save-row" id="ckSaveRow">
+        <span>Save this address as</span>
+        <input id="ckSaveLabel" type="text" value="Home" maxlength="30" aria-label="A name for this address" />
+        <button type="button" class="pin-btn" id="ckSaveBtn">Save</button>
+        <span class="save-msg" id="ckSaveMsg"></span>
+      </div>
       <label for="ckPhone">Contact number</label>
       <input id="ckPhone" type="tel" placeholder="082 123 4567" autocomplete="tel" />
       <div class="hint">Your driver calls this when they arrive.</div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec" style="margin-top:0;">When?</h2>
+      <div class="pick" role="group" aria-label="When to deliver">
+        <button type="button" class="chip on" id="ckWhenAsap" aria-pressed="true">As soon as possible</button>
+        <button type="button" class="chip" id="ckWhenLater" aria-pressed="false">Later</button>
+      </div>
+      <div id="ckLaterWrap" style="display:none;">
+        <div class="later-grid">
+          <div><label for="ckDay">Day</label><select id="ckDay"></select></div>
+          <div><label for="ckTime">Time</label><select id="ckTime"></select></div>
+        </div>
+        <div class="hint">The kitchen gets your order in good time and cooks it to arrive around then.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec" style="margin-top:0;">Tip the driver</h2>
+      <div class="pick" id="ckTips" role="group" aria-label="Tip for the driver">
+        <button type="button" class="chip on" data-tip="0" aria-pressed="true">R0</button>
+        <button type="button" class="chip" data-tip="5" aria-pressed="false">R5</button>
+        <button type="button" class="chip" data-tip="10" aria-pressed="false">R10</button>
+        <button type="button" class="chip" data-tip="20" aria-pressed="false">R20</button>
+        <button type="button" class="chip" data-tip="other" aria-pressed="false">Other</button>
+      </div>
+      <div id="ckTipOtherWrap" style="display:none;">
+        <label for="ckTipOther">Amount in rands</label>
+        <input id="ckTipOther" type="number" inputmode="decimal" min="0" max="500" step="1" placeholder="e.g. 15" />
+      </div>
+      <div class="hint">100% goes to the driver.</div>
+    </div>
+
+    <div class="card">
       <label for="ckNotes">Note for the restaurant (optional)</label>
       <textarea id="ckNotes" placeholder="e.g. no chilli, gate code 1234"></textarea>
       <div class="msg err" id="ckError"></div>
+      <div class="when-note asap" id="ckWhenNote">As soon as possible</div>
       <button class="primary" id="ckPlace"><svg class="moped" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1zM5 7h5v2H5z"/><path fill="currentColor" d="M19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg><span id="ckPlaceText">Place order</span></button>
       <div class="hint" style="text-align:center;margin-top:12px;">
         You'll be taken to a secure payment page (card or Instant EFT). The restaurant only sees your order once payment goes through.
@@ -641,6 +811,7 @@
   <div class="view" id="v-track">
     <h1 class="page" id="trName"></h1>
     <p class="page-sub" id="trAddr"></p>
+    <p class="page-sub later" id="trWhen" style="display:none;"></p>
     <div id="trBanner"></div>
     <div id="trRate"></div>
     <div class="card" id="trSteps"></div>
@@ -695,9 +866,22 @@
     </div>
     <div class="card">
       <a href="/privacy/" style="color:var(--accent);font-weight:600;text-decoration:none;font-size:14px;">Privacy policy</a>
-      <div style="font-size:13px;color:var(--text-tertiary);margin-top:8px;">
-        To delete your account and personal information, email
-        <a href="mailto:privacy@midfood.co.za" style="color:var(--accent);">privacy@midfood.co.za</a>.
+      <!-- Deleting the account: a quiet link that opens the real thing in the
+           page itself (no pop-up), with a password and the word DELETE. -->
+      <div class="del">
+        <button type="button" class="del-open" id="delOpen">Delete my account</button>
+        <div id="delBlock" style="display:none;">
+          <div class="del-why">Your name, email, number and saved addresses are wiped. Past orders stay on MidFood's books without your details.</div>
+          <div id="delPassWrap">
+            <label for="delPass">Your password</label>
+            <input id="delPass" type="password" autocomplete="current-password" />
+          </div>
+          <label for="delConfirm">Type DELETE to confirm</label>
+          <input id="delConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DELETE" />
+          <div class="msg err" id="delError"></div>
+          <button type="button" class="danger" id="delBtn" disabled>Delete my account</button>
+          <button type="button" class="link" id="delCancel">Keep my account</button>
+        </div>
       </div>
     </div>
   </div>
@@ -769,6 +953,17 @@
   var mapState = null;         // the live map on the tracking page, while one is open
   var leafletLoading = null;
   var carryNote = '';          // something to tell the customer at the top of checkout
+  var homeFlash = '';          // a one-off note on the home screen (after deleting an account)
+  var favSet = {};             // restaurant id -> true: the signed-in customer's favourites
+  var favLoaded = false;       // fetched once per session
+  var allRestaurants = [];     // the full list (no search), for the favourites row
+  // Checkout extras: saved addresses, promo code, tip, and "when".
+  var ckAddresses = [];
+  var ckAddressId = null;      // the saved address that was picked, if any
+  var ckPromo = null;          // { code, discount, description, at } once a code is accepted
+  var ckTip = 0;
+  var ckTipOther = false;      // "Other" chosen: the amount comes from the box
+  var ckWhen = 'asap';         // 'asap' | 'later'
 
   var el = function (id) { return document.getElementById(id); };
   // Safe for text AND for attribute values: quotes are escaped too, so nothing
@@ -853,7 +1048,16 @@
     if (h === 'signup') return openAuth(true);
     if (h === 'forgot') return openForgot();
     show('home');
+    paintHomeNote();
     loadRestaurants();
+  }
+
+  // The note shows once, on the next visit to the home screen, then goes.
+  function paintHomeNote() {
+    var n = el('homeNote');
+    n.textContent = homeFlash || '';
+    n.style.display = homeFlash ? 'block' : 'none';
+    homeFlash = '';
   }
   window.addEventListener('hashchange', route);
 
@@ -900,6 +1104,84 @@
     });
     box.appendChild(img);
     img.src = src;
+  }
+
+  // --- favourites -----------------------------------------------------------
+  // A heart on every store. The ids are fetched once per session when the
+  // customer is signed in; a tap flips the heart at once and tells the server
+  // afterwards (and flips back if that fails). Signed out, a tap goes to
+  // sign-in and comes back here, like the chat does.
+  var HEART_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+
+  function loadFavourites() {
+    if (!token || favLoaded) return Promise.resolve();
+    return api('/api/customer/favourites').then(function (d) {
+      favSet = {};
+      (d.restaurantIds || []).forEach(function (id) { favSet[id] = true; });
+      favLoaded = true;
+      syncHearts();
+      paintFavRow();
+    }).catch(function () {});
+  }
+
+  function heartButton(r) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'heart';
+    b.setAttribute('data-id', r.id);
+    b.setAttribute('data-name', r.name || '');
+    b.innerHTML = HEART_SVG;
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFav(r);
+    });
+    syncHeart(b);
+    return b;
+  }
+
+  function syncHeart(b) {
+    var on = !!favSet[b.getAttribute('data-id')];
+    b.className = 'heart' + (on ? ' on' : '');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.setAttribute('aria-label', (on ? 'Remove ' : 'Save ') + b.getAttribute('data-name') + (on ? ' from your favourites' : ' to your favourites'));
+  }
+  function syncHearts() {
+    Array.prototype.forEach.call(document.querySelectorAll('.heart[data-id]'), syncHeart);
+  }
+
+  function toggleFav(r) {
+    if (!token) { pendingAfterAuth = window.location.hash || ''; go('#signin'); return; }
+    var on = !favSet[r.id];
+    if (on) favSet[r.id] = true; else delete favSet[r.id];
+    syncHearts();
+    paintFavRow();
+    api('/api/customer/favourites/' + r.id, { method: on ? 'PUT' : 'DELETE' }).catch(function () {
+      if (on) delete favSet[r.id]; else favSet[r.id] = true;
+      syncHearts();
+      paintFavRow();
+    });
+  }
+
+  // "Your favourites" at the top of the home list, only while browsing
+  // (not during a search or inside a category), and only when there are some.
+  function paintFavRow() {
+    var wrap = el('favWrap'), row = el('homeFavs');
+    var q = el('search').value.trim();
+    var favs = token && !q && !homeCategory ? allRestaurants.filter(function (r) { return favSet[r.id]; }) : [];
+    row.innerHTML = '';
+    wrap.style.display = favs.length ? 'block' : 'none';
+    favs.forEach(function (r) {
+      var shut = r.open === false;
+      var a = document.createElement('a');
+      a.className = 'fc' + (shut ? ' shut' : '');
+      a.href = '#r/' + r.id;
+      a.innerHTML = '<span class="hero"></span><span class="bd"><span class="nm">' + esc(r.name) + '</span>' +
+        '<span class="rs">' + (shut ? 'Closed now' : esc(r.etaMinutes) + ' min · ' +
+          (r.deliveryFee === 0 ? 'free delivery' : rand(r.deliveryFee) + ' delivery')) + '</span></span>';
+      heroInto(a.querySelector('.hero'), r, null, true);
+      row.appendChild(a);
+    });
   }
 
   var searchSeq = 0;
@@ -1038,6 +1320,7 @@
       // A slower answer to an older search must not replace a newer one.
       if (seq !== searchSeq) return;
       restaurants = data.restaurants;
+      if (!q) allRestaurants = restaurants;
       var list = restaurants;
       var cat = null;
       if (!q && homeCategory) {
@@ -1059,6 +1342,7 @@
 
       var box = el('restoList');
       box.innerHTML = '';
+      paintFavRow();
       if (!list.length) {
         var none = document.createElement('div');
         none.className = 'empty';
@@ -1097,7 +1381,12 @@
         cap.className = 'cap';
         cap.innerHTML = '<div class="nm">' + esc(r.name) + '</div><div class="mt">' + esc(r.cuisine) + '</div>';
         hero.appendChild(cap);
-        grid.appendChild(a);
+        // The heart sits beside the card's link, not inside it.
+        var cell = document.createElement('div');
+        cell.className = 'resto-cell';
+        cell.appendChild(a);
+        cell.appendChild(heartButton(r));
+        grid.appendChild(cell);
       });
       box.appendChild(grid);
     }).catch(function () {
@@ -1136,6 +1425,7 @@
     el('menuName').textContent = '';
     el('menuMeta').textContent = '';
     el('menuClosed').style.display = 'none';
+    el('menuReviews').innerHTML = '';
     el('menuList').innerHTML = '<div class="spin">Loading menu…</div>';
     // The customer may have gone on to another restaurant before this answer
     // arrives. An old answer is never painted over the page they are on now.
@@ -1150,6 +1440,8 @@
       hero.className = 'menu-hero pic';
       heroInto(hero, current, null);
       if (!current.imageUrl) hero.className = 'menu-hero';
+      hero.appendChild(heartButton(current));
+      loadReviews(id);
       el('menuName').textContent = current.name;
       el('menuMeta').innerHTML = ratingHtml(current) + ' · ' + esc(current.cuisine) + ' · ' +
         esc(current.etaMinutes) + ' min · ' + rand(current.deliveryFee) + ' delivery';
@@ -1163,6 +1455,52 @@
       if (!stillHere()) return;
       el('menuList').innerHTML = '<div class="card"><div class="empty">' + esc(err.message) + '</div></div>';
     });
+  }
+
+  // --- what people say --------------------------------------------------------
+  // The average and count, then up to five reviews (words first). A store with
+  // no ratings shows nothing here; one with fewer than three says "New".
+  function loadReviews(id) {
+    api('/api/restaurants/' + id + '/reviews?limit=5').then(function (d) {
+      if (!current || current.id !== id) return;
+      paintReviews(d);
+    }).catch(function () {});
+  }
+
+  function starsHtml(n) {
+    var s = '';
+    for (var i = 1; i <= 5; i += 1) s += '<span' + (i <= n ? '' : ' class="off"') + '>★</span>';
+    return s;
+  }
+
+  function paintReviews(d) {
+    var box = el('menuReviews');
+    box.innerHTML = '';
+    if (!d || !d.count) return;
+    var head = document.createElement('div');
+    head.className = 'rev-head';
+    head.innerHTML = '<h2 class="sec">What people say</h2><span class="rate">' +
+      (d.average == null ? '<span class="new-tag">New</span>' : '<span class="st">★</span> ' + Number(d.average).toFixed(1)) +
+      ' <span class="ct">· ' + esc(d.count) + (d.count === 1 ? ' rating' : ' ratings') + '</span></span>';
+    box.appendChild(head);
+    var row = document.createElement('div');
+    row.className = 'rev-row';
+    var thisYear = new Date().getFullYear();
+    (d.reviews || []).slice(0, 5).forEach(function (r) {
+      var c = document.createElement('div');
+      c.className = 'rev';
+      var at = r.ratedAt ? new Date(r.ratedAt) : null;
+      var when = at && !isNaN(at.getTime())
+        ? at.toLocaleDateString('en-ZA', at.getFullYear() === thisYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' })
+        : '';
+      c.innerHTML = '<div class="st" role="img" aria-label="' + esc(r.rating) + ' out of 5 stars">' + starsHtml(Number(r.rating)) + '</div>' +
+        (r.review
+          ? '<div class="w">' + esc(r.review) + '</div>'
+          : (r.dishes && r.dishes.length ? '<div class="w dim">Ordered ' + esc(r.dishes.join(', ')) + '</div>' : '')) +
+        '<div class="by">' + esc(r.customerName || 'MidFood customer') + (when ? ' · ' + when : '') + '</div>';
+      row.appendChild(c);
+    });
+    box.appendChild(row);
   }
 
   function qtyOf(id) {
@@ -1509,6 +1847,10 @@
     el('ckAddress').value = el('ckAddress').value || localStorage.getItem('midfood_addr') || '';
     el('ckPhone').value = el('ckPhone').value || localStorage.getItem('midfood_phone') || (user && user.phone) || '';
     paintPin();
+    paintWhen();
+    paintTip();
+    paintPromo();
+    loadAddresses();
   }
 
   function notice(text) {
@@ -1536,8 +1878,310 @@
       });
       box.appendChild(d);
     });
-    el('ckFee').textContent = rand(cart.deliveryFee);
-    el('ckTotal').textContent = rand(subtotal() + cart.deliveryFee);
+    // A code that was checked against a different food total (something was
+    // removed, or repriced) is checked again, quietly.
+    if (ckPromo && ckPromo.at !== cents(subtotal())) {
+      ckPromo.at = cents(subtotal());
+      applyPromo(ckPromo.code, true);
+    }
+    var t = ckTotals();
+    el('ckSub').textContent = rand(t.sub);
+    el('ckPromoLine').style.display = ckPromo ? '' : 'none';
+    if (ckPromo) {
+      el('ckPromoLineL').textContent = 'Promo ' + ckPromo.code;
+      el('ckDiscount').textContent = '−' + rand(t.discount);
+    }
+    el('ckFee').textContent = rand(t.fee);
+    el('ckTipLine').style.display = t.tip > 0 ? '' : 'none';
+    el('ckTipAmt').textContent = rand(t.tip);
+    el('ckTotal').textContent = rand(t.total);
+  }
+
+  // What the customer pays: food − promo + delivery + tip. The same sum the
+  // server does, so the total on screen is the total that is charged.
+  function ckTotals() {
+    var sub = cents(subtotal());
+    var fee = cents(cart.deliveryFee);
+    var discount = ckPromo ? cents(ckPromo.discount) : 0;
+    var tip = cents(tipValue());
+    return { sub: sub, fee: fee, discount: discount, tip: tip, total: cents(sub - discount + fee + tip) };
+  }
+
+  // --- checkout: saved addresses ------------------------------------------
+  // Chips above the address box. Picking one fills the box (and the pin, when
+  // the address was saved with one); typing in the box lets go of the chip.
+  function loadAddresses() {
+    paintAddresses();
+    api('/api/customer/addresses').then(function (d) {
+      ckAddresses = d.addresses || [];
+      var typed = el('ckAddress').value.trim();
+      if (!ckAddressId) {
+        var same = ckAddresses.filter(function (a) { return typed && a.line === typed; })[0];
+        if (same) ckAddressId = same.id;
+        else if (!typed && ckAddresses.length) pickAddress(ckAddresses[0]);
+      }
+      // A fresh name for the next address to be saved, unless they typed one.
+      if (!el('ckSaveLabel').getAttribute('data-touched')) {
+        var used = ckAddresses.map(function (a) { return String(a.label).toLowerCase(); });
+        el('ckSaveLabel').value = ['Home', 'Work', 'Other'].filter(function (l) { return used.indexOf(l.toLowerCase()) === -1; })[0] || 'Home';
+      }
+      paintAddresses();
+    }).catch(function () {});
+  }
+
+  function pickAddress(a) {
+    ckAddressId = a.id;
+    el('ckAddress').value = a.line;
+    if (a.lat != null && a.lng != null) {
+      pin = { lat: Number(a.lat), lng: Number(a.lng) };
+      paintPin();
+    }
+    paintAddresses();
+  }
+
+  function paintAddresses() {
+    var box = el('ckSaved');
+    box.innerHTML = '';
+    ckAddresses.forEach(function (a) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'addr' + (a.id === ckAddressId ? ' on' : '');
+      b.setAttribute('aria-pressed', a.id === ckAddressId ? 'true' : 'false');
+      b.innerHTML = '<span class="lb">' + esc(a.label) + '</span><span class="ln">' + esc(a.line) + '</span>';
+      b.addEventListener('click', function () { pickAddress(a); });
+      box.appendChild(b);
+    });
+    // "Save this address" only makes sense for an address that is not saved yet.
+    var typed = el('ckAddress').value.trim();
+    var known = ckAddresses.some(function (a) { return a.line === typed; });
+    el('ckSaveRow').style.display = token && typed && !known && ckAddresses.length < 10 ? 'flex' : 'none';
+  }
+
+  function saveMsg(text, bad) {
+    var n = el('ckSaveMsg');
+    n.textContent = text || '';
+    n.className = 'save-msg' + (bad ? ' bad' : '');
+  }
+
+  el('ckAddress').addEventListener('input', function () {
+    if (ckAddressId) {
+      var a = ckAddresses.filter(function (x) { return x.id === ckAddressId; })[0];
+      if (!a || a.line !== this.value.trim()) ckAddressId = null;
+    }
+    saveMsg('');
+    paintAddresses();
+  });
+  el('ckSaveLabel').addEventListener('input', function () { this.setAttribute('data-touched', '1'); });
+  el('ckSaveBtn').addEventListener('click', function () {
+    var line = el('ckAddress').value.trim();
+    var label = el('ckSaveLabel').value.trim() || 'Home';
+    if (!line) { saveMsg('Type the address first.', true); return; }
+    var btn = el('ckSaveBtn');
+    btn.disabled = true;
+    saveMsg('Saving…');
+    api('/api/customer/addresses', {
+      method: 'POST',
+      body: { label: label, line: line, lat: pin ? pin.lat : undefined, lng: pin ? pin.lng : undefined },
+    })
+      .then(function (d) {
+        ckAddressId = d.address ? d.address.id : null;
+        saveMsg('');
+        loadAddresses();
+      })
+      .catch(function (err) { saveMsg(err.message, true); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  // --- checkout: when ---------------------------------------------------------
+  // "As soon as possible" or a day and a half-hour slot. Today's slots start
+  // 45 minutes from now (the kitchen needs the notice), rounded up to the hour
+  // or half hour, and every day ends at 21:30.
+  var SLOT = 30 * 60000;
+  var NOTICE = 45 * 60000;
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function firstSlotToday(now) {
+    var t = new Date(Math.ceil((now.getTime() + NOTICE) / SLOT) * SLOT);
+    var last = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 21, 30);
+    return t.getTime() <= last.getTime() ? t : null;
+  }
+
+  function paintWhen() {
+    var later = ckWhen === 'later';
+    el('ckWhenAsap').className = 'chip' + (later ? '' : ' on');
+    el('ckWhenAsap').setAttribute('aria-pressed', later ? 'false' : 'true');
+    el('ckWhenLater').className = 'chip' + (later ? ' on' : '');
+    el('ckWhenLater').setAttribute('aria-pressed', later ? 'true' : 'false');
+    el('ckLaterWrap').style.display = later ? 'block' : 'none';
+    if (later) paintDays();
+    paintWhenNote();
+  }
+
+  // Today (while a slot is left), tomorrow, and the five days after.
+  function paintDays() {
+    var sel = el('ckDay');
+    var keep = sel.value;
+    sel.innerHTML = '';
+    var now = new Date();
+    for (var i = 0; i < 7; i += 1) {
+      if (i === 0 && !firstSlotToday(now)) continue;
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      var opt = document.createElement('option');
+      opt.value = dayKey(d);
+      opt.textContent = i === 0 ? 'Today' : i === 1 ? 'Tomorrow'
+        : d.toLocaleDateString('en-ZA', { weekday: 'short' }) + ' ' + d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
+      sel.appendChild(opt);
+    }
+    if (keep && Array.prototype.some.call(sel.options, function (o) { return o.value === keep; })) sel.value = keep;
+    paintTimes();
+  }
+
+  function paintTimes() {
+    var sel = el('ckTime');
+    var keep = sel.selectedIndex >= 0 && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '';
+    sel.innerHTML = '';
+    var key = el('ckDay').value;
+    if (key) {
+      var p = key.split('-');
+      var day = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      var now = new Date();
+      var start = dayKey(now) === key ? firstSlotToday(now) : new Date(day.getFullYear(), day.getMonth(), day.getDate(), 8, 0);
+      var last = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 21, 30);
+      for (var t = start; t && t.getTime() <= last.getTime(); t = new Date(t.getTime() + SLOT)) {
+        var opt = document.createElement('option');
+        opt.value = String(t.getTime());
+        opt.textContent = pad(t.getHours()) + ':' + pad(t.getMinutes());
+        sel.appendChild(opt);
+      }
+      if (keep) {
+        Array.prototype.some.call(sel.options, function (o) { if (o.textContent === keep) { sel.value = o.value; return true; } return false; });
+      }
+    }
+    paintWhenNote();
+  }
+
+  // The chosen time as an ISO string, or '' for as soon as possible.
+  function scheduledISO() {
+    if (ckWhen !== 'later') return '';
+    var v = el('ckTime').value;
+    return v ? new Date(Number(v)).toISOString() : '';
+  }
+
+  // "Tue 21 Oct, 18:30"
+  function formatWhen(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-ZA', { weekday: 'short' }) + ' ' +
+      d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function paintWhenNote() {
+    var iso = scheduledISO();
+    var n = el('ckWhenNote');
+    n.className = 'when-note' + (iso ? '' : ' asap');
+    n.textContent = iso ? 'For later · ' + formatWhen(iso) : 'As soon as possible';
+  }
+
+  el('ckWhenAsap').addEventListener('click', function () { ckWhen = 'asap'; paintWhen(); });
+  el('ckWhenLater').addEventListener('click', function () { ckWhen = 'later'; paintWhen(); });
+  el('ckDay').addEventListener('change', paintTimes);
+  el('ckTime').addEventListener('change', paintWhenNote);
+
+  // --- checkout: tip for the driver -----------------------------------------
+  function tipValue() {
+    if (!ckTipOther) return ckTip;
+    var v = Number(el('ckTipOther').value);
+    if (!isFinite(v) || v < 0) return 0;
+    return Math.min(500, cents(v));
+  }
+
+  function paintTip() {
+    Array.prototype.forEach.call(el('ckTips').querySelectorAll('.chip'), function (b) {
+      var k = b.getAttribute('data-tip');
+      var on = ckTipOther ? k === 'other' : Number(k) === ckTip;
+      b.className = 'chip' + (on ? ' on' : '');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    el('ckTipOtherWrap').style.display = ckTipOther ? 'block' : 'none';
+    paintCheckout();
+  }
+
+  el('ckTips').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.chip') : null;
+    if (!b) return;
+    var k = b.getAttribute('data-tip');
+    if (k === 'other') {
+      ckTipOther = true;
+      paintTip();
+      el('ckTipOther').focus();
+      return;
+    }
+    ckTipOther = false;
+    ckTip = Number(k) || 0;
+    paintTip();
+  });
+  el('ckTipOther').addEventListener('input', function () {
+    if (Number(this.value) > 500) this.value = '500';
+    paintCheckout();
+  });
+
+  // --- checkout: promo code ---------------------------------------------------
+  function paintPromo() {
+    var on = !!ckPromo;
+    el('ckPromoIn').style.display = on ? 'none' : 'flex';
+    el('ckPromoOn').style.display = on ? 'flex' : 'none';
+    if (on) el('ckPromoText').textContent = ckPromo.code + ' — ' + (ckPromo.description || rand(ckPromo.discount) + ' off');
+  }
+
+  // Asks the server whether the code applies to this basket, and for how much.
+  // `quiet` is a re-check after the basket changed: no "type a code" nagging.
+  function applyPromo(code, quiet) {
+    code = String(code || '').trim().toUpperCase();
+    if (!code) { if (!quiet) setMsg('ckPromoMsg', 'Type a promo code first.'); return Promise.resolve(); }
+    var btn = el('ckPromoApply');
+    btn.disabled = true;
+    setMsg('ckPromoMsg', '');
+    var at = cents(subtotal());
+    return api('/api/orders/promo-check', { method: 'POST', body: { code: code, restaurantId: cart.restaurantId, subtotal: at } })
+      .then(function (d) {
+        ckPromo = { code: d.code || code, discount: Number(d.discount) || 0, description: d.description || '', at: at };
+        el('ckPromoCode').value = '';
+        paintPromo();
+        paintCheckout();
+      })
+      .catch(function (err) {
+        ckPromo = null;
+        paintPromo();
+        paintCheckout();
+        el('ckPromoCode').value = code;
+        setMsg('ckPromoMsg', err.message);
+      })
+      .then(function () { btn.disabled = false; });
+  }
+
+  el('ckPromoApply').addEventListener('click', function () { applyPromo(el('ckPromoCode').value); });
+  el('ckPromoCode').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); applyPromo(this.value); }
+  });
+  el('ckPromoCode').addEventListener('input', function () { setMsg('ckPromoMsg', ''); });
+  el('ckPromoRemove').addEventListener('click', function () {
+    ckPromo = null;
+    setMsg('ckPromoMsg', '');
+    paintPromo();
+    paintCheckout();
+    el('ckPromoCode').focus();
+  });
+
+  // Back to the defaults once an order is on its way.
+  function resetCheckoutExtras() {
+    ckPromo = null;
+    ckTip = 0;
+    ckTipOther = false;
+    ckWhen = 'asap';
+    ckAddressId = null;
+    el('ckTipOther').value = '';
+    el('ckPromoCode').value = '';
+    setMsg('ckPromoMsg', '');
   }
 
   // Brings the basket in line with the kitchen's current menu: today's prices
@@ -1636,11 +2280,21 @@
     var phone = el('ckPhone').value.replace(/[\s-]/g, '');
     if (!address) return setMsg('ckError', 'Please enter your delivery address.');
     if (!/^0\d{9}$/.test(phone)) return setMsg('ckError', 'Please enter a valid 10-digit phone number, e.g. 082 123 4567.');
+    var when = scheduledISO();
+    if (ckWhen === 'later') {
+      if (!when) return setMsg('ckError', 'Pick a day and a time, or choose "As soon as possible".');
+      // They may have sat on this page a while: the slot has to still be 45 minutes off.
+      if (new Date(when).getTime() - Date.now() < NOTICE) {
+        paintDays();
+        return setMsg('ckError', 'That time is too soon now. Pick a later time.');
+      }
+    }
 
     setMsg('ckError', '');
     var btn = el('ckPlace');
     btn.disabled = true;
     el('ckPlaceText').textContent = 'Placing your order…';
+    var sums = ckTotals();
 
     api('/api/orders', {
       method: 'POST',
@@ -1652,9 +2306,13 @@
         notes: el('ckNotes').value.trim() || undefined,
         deliveryLat: pin ? pin.lat : undefined,
         deliveryLng: pin ? pin.lng : undefined,
-        // What this page is showing. The server refuses the order if it would
-        // charge anything else.
-        expectedTotal: cents(subtotal() + cart.deliveryFee),
+        addressId: ckAddressId || undefined,
+        promoCode: ckPromo ? ckPromo.code : undefined,
+        tip: sums.tip || undefined,
+        scheduledFor: when || undefined,
+        // What this page is showing, promo and tip included. The server
+        // refuses the order if it would charge anything else.
+        expectedTotal: sums.total,
       },
     }).then(function (data) {
       pin = null;
@@ -1664,6 +2322,7 @@
       } catch (e) {}
       cart = { restaurantId: null, restaurantName: '', deliveryFee: 0, lines: {} };
       saveCart();
+      resetCheckoutExtras();
       // PayFast sends the browser back to /order/#order/<id>, which lands on
       // this order's tracking page.
       if (data.paymentUrl) window.location.href = data.paymentUrl;
@@ -1671,6 +2330,18 @@
     }).catch(function (err) {
       btn.disabled = false;
       el('ckPlaceText').textContent = 'Place order';
+      // The code no longer applies (used up, expired, first order only...):
+      // say so at the code, drop it, and let them carry on without it.
+      if (err.data && err.data.promoRejected) {
+        var code = ckPromo ? ckPromo.code : '';
+        ckPromo = null;
+        paintPromo();
+        paintCheckout();
+        el('ckPromoCode').value = code;
+        setMsg('ckPromoMsg', err.message);
+        el('ckPromoBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       // Sold out or repriced while they were typing: fix the basket, show the
       // new total, and let them decide.
       if (err.data && (err.data.soldOutItemId || err.data.priceChanged)) {
@@ -1744,7 +2415,7 @@
         token = data.token;
         user = data.user;
         try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
-        paintAccount();
+        onSignedIn();
         var next = pendingAfterAuth;
         pendingAfterAuth = null;
         go(next || '');
@@ -1812,7 +2483,7 @@
         token = data.token;
         user = data.user;
         try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
-        paintAccount();
+        onSignedIn();
         var next = pendingAfterAuth;
         pendingAfterAuth = null;
         go(next || '');
@@ -1849,8 +2520,21 @@
     token = null;
     user = null;
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    // Nothing of the signed-in customer stays on screen for the next one.
+    favSet = {};
+    favLoaded = false;
+    ckAddresses = [];
+    ckAddressId = null;
+    syncHearts();
+    paintFavRow();
     paintAccount();
     if (!silent) go('');
+  }
+
+  // Just signed in (password, reset, Google/Facebook, or a remembered token).
+  function onSignedIn() {
+    paintAccount();
+    loadFavourites();
   }
 
   function paintAccount() {
@@ -1880,10 +2564,75 @@
     if (!token) { go('#signin'); return; }
     show('account');
     paintPasswordForm();
+    paintDeleteForm();
     el('acName').textContent = user ? user.name : '';
     el('acEmail').textContent = user ? user.email : '';
   }
   el('acLogout').addEventListener('click', function () { signOut(); });
+
+  // --- delete my account ------------------------------------------------------
+  // Folded away behind a quiet link. The red button only wakes up once the
+  // word DELETE is typed (and the password, for an account that has one).
+  function hasPassword() { return !user || user.hasPassword !== false; }
+
+  function paintDeleteForm() {
+    el('delPassWrap').style.display = hasPassword() ? 'block' : 'none';
+    el('delBlock').style.display = 'none';
+    el('delOpen').style.display = '';
+    el('delPass').value = '';
+    el('delConfirm').value = '';
+    el('delBtn').textContent = 'Delete my account';
+    setMsg('delError', '');
+    paintDeleteButton();
+  }
+
+  function deleteValid() {
+    return el('delConfirm').value.trim() === 'DELETE' && (!hasPassword() || el('delPass').value.length > 0);
+  }
+  function paintDeleteButton() { el('delBtn').disabled = !deleteValid(); }
+
+  el('delOpen').addEventListener('click', function () {
+    el('delBlock').style.display = 'block';
+    el('delOpen').style.display = 'none';
+    el(hasPassword() ? 'delPass' : 'delConfirm').focus();
+  });
+  el('delCancel').addEventListener('click', paintDeleteForm);
+  el('delPass').addEventListener('input', paintDeleteButton);
+  el('delConfirm').addEventListener('input', paintDeleteButton);
+  el('delConfirm').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); if (deleteValid()) el('delBtn').click(); }
+  });
+  el('delBtn').addEventListener('click', function () {
+    if (!deleteValid()) return;
+    var btn = el('delBtn');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    setMsg('delError', '');
+    api('/api/auth/account', {
+      method: 'DELETE',
+      body: hasPassword() ? { password: el('delPass').value, confirm: 'DELETE' } : { confirm: 'DELETE' },
+    })
+      .then(function () {
+        // Their details are gone from the server; nothing of them stays on this phone either.
+        try {
+          localStorage.removeItem('midfood_addr');
+          localStorage.removeItem('midfood_phone');
+        } catch (e) {}
+        cart = { restaurantId: null, restaurantName: '', deliveryFee: 0, lines: {} };
+        saveCart();
+        el('ckAddress').value = '';
+        el('ckPhone').value = '';
+        signOut(true);
+        paintDeleteForm();
+        homeFlash = 'Your account has been deleted.';
+        go('');
+      })
+      .catch(function (err) {
+        btn.textContent = 'Delete my account';
+        setMsg('delError', err.message);
+        paintDeleteButton();
+      });
+  });
 
   // --- my orders ----------------------------------------------------------
   var STATUS = {
@@ -1917,7 +2666,9 @@
             day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
           }) + (o.status === 'delivered' && !unpaid
             ? (o.rating ? ' · You gave it ' + esc(o.rating) + ' ★' : ' · Tap to rate')
-            : '') + '</div></div>' +
+            : '') + '</div>' +
+          (o.scheduledFor ? '<div class="mt later">For later · ' + esc(formatWhen(o.scheduledFor)) + '</div>' : '') +
+          '</div>' +
           '<span class="pill" style="color:' + (unpaid ? 'var(--error)' : st[1]) +
           ';border-color:' + (unpaid ? 'var(--error)' : st[1]) + '">' +
           (unpaid ? 'Not paid' : st[0]) + '</span>';
@@ -1964,6 +2715,8 @@
       var o = data.order;
       el('trName').textContent = o.restaurantName;
       el('trAddr').textContent = 'Delivering to ' + o.deliveryAddress;
+      el('trWhen').textContent = o.scheduledFor ? 'For later · ' + formatWhen(o.scheduledFor) : '';
+      el('trWhen').style.display = o.scheduledFor ? 'block' : 'none';
 
       if (withOrder) {
         var items = el('trItems');
@@ -1978,10 +2731,15 @@
         var div = document.createElement('div');
         div.className = 'divider';
         items.appendChild(div);
-        var fee = document.createElement('div');
-        fee.className = 'line';
-        fee.innerHTML = '<span class="l">Delivery fee</span><span>' + rand(o.deliveryFee) + '</span>';
-        items.appendChild(fee);
+        var line = function (label, value, cls) {
+          var d = document.createElement('div');
+          d.className = 'line' + (cls ? ' ' + cls : '');
+          d.innerHTML = '<span class="l">' + esc(label) + '</span><span' + (cls ? ' class="v"' : '') + '>' + value + '</span>';
+          items.appendChild(d);
+        };
+        if (Number(o.discount) > 0) line('Promo' + (o.promoCode ? ' ' + o.promoCode : ''), '−' + rand(o.discount), 'promo-line');
+        line('Delivery fee', rand(o.deliveryFee));
+        if (Number(o.tip) > 0) line('Tip for the driver', rand(o.tip));
         var tot = document.createElement('div');
         tot.className = 'line total';
         tot.innerHTML = '<span>Total</span><span class="v">' + rand(o.total) + '</span>';
@@ -2087,9 +2845,18 @@
     if (box.getAttribute('data-for') === id && box.innerHTML) return;   // already on screen
     box.setAttribute('data-for', id);
     var given = t.rating || 0;
+    var review = t.review || '';      // the words on record
+    var editing = false;              // the saved words are open for changes
+    var saving = false;
     box.innerHTML = '<div class="card rate-card"><div class="t"></div>' +
       '<div class="stars" role="group" aria-label="Rate this order out of 5"></div>' +
-      '<div class="hint" id="trRateMsg"></div></div>';
+      '<div class="hint" id="trRateMsg"></div>' +
+      '<div class="review-said" id="trReviewSaid" style="display:none;"><span id="trReviewText"></span>' +
+      '<button type="button" class="edit" id="trReviewEdit">Edit</button></div>' +
+      '<div class="review-form" id="trReviewForm" style="display:none;">' +
+      '<textarea id="trReview" maxlength="500" placeholder="Say a few words (optional)" aria-label="Say a few words about your order"></textarea>' +
+      '<div class="review-actions"><button type="button" class="ghost" id="trReviewCancel">Cancel</button>' +
+      '<button type="button" class="primary" id="trReviewSend">Send</button></div></div></div>';
     box.querySelector('.t').textContent = 'How was your order from ' + o.restaurantName + '?';
     var row = box.querySelector('.stars');
     var buttons = [];
@@ -2101,6 +2868,35 @@
       el('trRateMsg').textContent = msg || (given
         ? 'Thanks. You gave this ' + given + (given === 1 ? ' star.' : ' stars.') + ' Tap a star to change it.'
         : 'Tap a star. Your rating helps other customers choose.');
+      var said = !!review && !editing;
+      el('trReviewSaid').style.display = said ? '' : 'none';
+      el('trReviewText').textContent = said ? '“' + review + '”' : '';
+      el('trReviewForm').style.display = said ? 'none' : '';
+      el('trReviewCancel').style.display = editing ? '' : 'none';
+      el('trReviewSend').disabled = !given || saving;
+    };
+    // One call for stars and words together: a star tap keeps the words that
+    // are on record (or the ones being typed), and Send keeps the stars.
+    var save = function (stars, words, thanks) {
+      var beforeStars = given, beforeWords = review;
+      given = stars;
+      saving = true;
+      paint('Saving…');
+      buttons.forEach(function (x) { x.disabled = true; });
+      api('/api/orders/' + id + '/rating', { method: 'POST', body: { rating: stars, review: words || undefined } })
+        .then(function (d) {
+          review = (d && d.review) || '';
+          editing = false;
+          saving = false;
+          paint(thanks && review ? 'Thanks for the words. They help other customers choose.' : '');
+        })
+        .catch(function (err) {
+          given = beforeStars;
+          review = beforeWords;
+          saving = false;
+          paint(err.message);
+        })
+        .then(function () { buttons.forEach(function (x) { x.disabled = false; }); });
     };
     for (var i = 1; i <= 5; i += 1) {
       (function (stars) {
@@ -2109,19 +2905,27 @@
         b.textContent = '★';
         b.setAttribute('aria-label', stars + (stars === 1 ? ' star' : ' stars'));
         b.addEventListener('click', function () {
-          var before = given;
-          given = stars;
-          paint('Saving…');
-          buttons.forEach(function (x) { x.disabled = true; });
-          api('/api/orders/' + id + '/rating', { method: 'POST', body: { rating: stars } })
-            .then(function () { paint(); })
-            .catch(function (err) { given = before; paint(err.message); })
-            .then(function () { buttons.forEach(function (x) { x.disabled = false; }); });
+          var formOpen = el('trReviewForm').style.display !== 'none';
+          save(stars, formOpen ? el('trReview').value.trim() : review, false);
         });
         buttons.push(b);
         row.appendChild(b);
       })(i);
     }
+    el('trReviewSend').addEventListener('click', function () {
+      if (!given) { paint('Tap a star first.'); return; }
+      save(given, el('trReview').value.trim(), true);
+    });
+    el('trReviewEdit').addEventListener('click', function () {
+      editing = true;
+      el('trReview').value = review;
+      paint();
+      el('trReview').focus();
+    });
+    el('trReviewCancel').addEventListener('click', function () {
+      editing = false;
+      paint();
+    });
     paint();
   }
 
@@ -2453,7 +3257,7 @@
       try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
       window.history.replaceState(null, '', window.location.pathname + (after || '#'));
       api('/api/auth/me')
-        .then(function (d) { user = d.user; paintAccount(); })
+        .then(function (d) { user = d.user; onSignedIn(); })
         .catch(function () { token = null; try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} })
         .then(route);
     } else {
@@ -2475,7 +3279,7 @@
     // signed in (or shown why not) above
   } else if (token) {
     api('/api/auth/me')
-      .then(function (d) { user = d.user; paintAccount(); })
+      .then(function (d) { user = d.user; onSignedIn(); })
       .catch(function () { token = null; try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} })
       .then(route);
   } else {

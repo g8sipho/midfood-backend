@@ -65,9 +65,18 @@ export type Order = {
   restaurantId: string;
   restaurantName: string;
   items: OrderItem[];
+  // Money: total = subtotal - discount + deliveryFee + tip.
   subtotal: number;
+  // What a promo code took off, 0 when none was used.
+  discount?: number;
   deliveryFee: number;
+  // The driver's tip, 0 when none. All of it goes to the driver.
+  tip?: number;
   total: number;
+  // The promo code used, upper-case, or null.
+  promoCode?: string | null;
+  // When the customer asked for it, as ISO, or null for "as soon as possible".
+  scheduledFor?: string | null;
   deliveryAddress: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
@@ -76,8 +85,9 @@ export type Order = {
   driverId: string | null;
   notes: string | null;
   rejectedReason: string | null;
-  // The customer's own 1-5 stars, once given.
+  // The customer's own 1-5 stars, once given, and the few words they wrote.
   rating?: number | null;
+  review?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -98,6 +108,48 @@ export type Tracking = {
   driverLat: number | null;
   driverLng: number | null;
   driverSeenAt: string | null;
+  tip?: number;
+  discount?: number;
+  scheduledFor?: string | null;
+  review?: string | null;
+};
+
+// An address the customer keeps for repeat orders ("Home", "Work").
+export type SavedAddress = {
+  id: string;
+  label: string;
+  line: string;
+  lat: number | null;
+  lng: number | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
+
+// What the server says a promo code is worth on this order.
+export type PromoCheck = {
+  ok: true;
+  code: string;
+  discount: number;
+  description: string;
+  kind: 'fixed' | 'percent' | 'free_delivery';
+};
+
+// One customer's stars and words on a delivered order, as shown on the
+// store's page. `customerName` is a first name, or "MidFood customer".
+export type RestaurantReview = {
+  rating: number;
+  review: string | null;
+  ratedAt: string;
+  customerName: string;
+  dishes: string[];
+};
+
+export type RestaurantReviews = {
+  reviews: RestaurantReview[];
+  count: number;
+  withWords: number;
+  // Null while fewer than three people have rated: say "New".
+  average: number | null;
 };
 
 export type User = {

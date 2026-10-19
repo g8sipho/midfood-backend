@@ -119,12 +119,62 @@ menu as they scroll.
   their sections and changes nothing else.
 - Sections appear in alphabetical order.
 
-## Star ratings
+## Star ratings and reviews
 
 The stars next to a restaurant are real. After a delivery, the customer's
-order page asks "How was your order?" and they tap one to five stars. A
-restaurant shows its average once **three** customers have rated it. Until
-then it says **New**. Nobody, including you, can set or edit a rating.
+order page asks "How was your order?" and they tap one to five stars and can
+add a few words. A restaurant shows its average once **three** customers
+have rated it. Until then it says **New**. The words show on the restaurant's
+page with the customer's first name ("Thandi · 12 Oct"). Nobody, including
+you, can set, edit or remove a rating or a review. If one is abusive, phone
+MidFood's developer; there is no button for it yet.
+
+## Promo codes
+
+Under **Operations → Promo codes** on the admin page. A code is a word or
+number customers type at checkout, like `WELCOME50`. Three kinds:
+
+- **Rands off** the food total (R50 off).
+- **Percent off** the food total, with an optional cap ("10% off, up to R30").
+- **Free delivery**.
+
+Rules you can set on each code: a minimum food total, how many times it can
+be used in all, once per customer (on by default), first order only, one
+kitchen only, start and end dates. **Switch off** stops it at once; a code
+that has been used is kept (switched off) so the orders that used it still
+say which code it was.
+
+**Who pays for it: you.** The discount comes off MidFood's side. The kitchen
+is still paid on the full food total and the driver on the full delivery fee.
+The list shows what each code has cost so far ("given away"). An abandoned,
+unpaid checkout does not use up a code.
+
+## Tips for drivers
+
+At checkout a customer can add R5, R10, R20 or an amount of their own for
+the driver. **100% goes to the driver**: it is added to their pay for that
+delivery, shows in their statement as a separate line, and is included in
+the Tuesday payout. MidFood's 20% is only ever on the delivery fee.
+
+## Orders for later
+
+A customer can choose a time instead of "as soon as possible": at least 45
+minutes ahead, up to 7 days. The kitchen's board shows **FOR LATER · Tue
+18:30** on the order in orange and sorts it by that time, so it is not cooked
+now. The restaurant must be open when the order is placed (there are no
+opening hours on MidFood yet). The admin page does not flag such an order as
+"not accepted" until an hour before its time.
+
+## A customer deleting their account
+
+Google and Apple require it, and it is in the app (**Account → Delete my
+account**) and on the website. The customer types their password and the
+word DELETE. Their name, email, number, password, Google/Facebook link,
+saved addresses, favourites and chats are wiped at once, and the phone
+number, address and pin come off their past orders. **The orders themselves
+stay**, with their amounts, so your statements and payouts still add up;
+they show the customer as "Deleted account". It is refused while they have an
+order on its way. The same email can sign up again afresh.
 
 ## Adding restaurants and drivers
 
@@ -269,6 +319,6 @@ notification when one does.
 - **The phone app** in the app stores. See `mobile/README-BUILD.md`. The
   website at midfood.co.za/order does the same job today and installs to a
   home screen.
-- **Scheduled orders** and **promo codes**.
+- **Dish options and extras** ("large", "add cheese") and opening hours.
 - **Choosing the order of menu sections** (today they are alphabetical), and
   letting restaurants upload their own photos for you to approve.

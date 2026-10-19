@@ -15,6 +15,7 @@ const chat = require('./chat');
 const money = require('../money');
 const images = require('./images');
 const categoryKeys = require('../categories');
+const promos = require('../promos');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -617,7 +618,9 @@ router.post('/drivers/:id/suspend', async (req, res, next) => {
 // GET /api/admin/orders - everything happening right now, across the platform
 const ADMIN_ORDER_COLS = `o.id, o.restaurant_name AS "restaurantName", u.name AS "customerName",
   u.email AS "customerEmail", o.customer_phone AS "customerPhone",
-  o.total::float8 AS total, o.status, o.payment_status AS "paymentStatus",
+  o.total::float8 AS total, o.discount::float8 AS discount, o.tip::float8 AS tip,
+  o.promo_code AS "promoCode", o.scheduled_for AS "scheduledFor",
+  o.status, o.payment_status AS "paymentStatus",
   o.payment_reference AS "paymentReference", o.rejected_reason AS "rejectedReason",
   o.cancelled_by AS "cancelledBy", o.refunded_at AS "refundedAt",
   o.refund_reference AS "refundReference",
@@ -664,7 +667,8 @@ router.get('/orders', async (req, res, next) => {
        ORDER BY o.created_at`
     );
     for (const o of live.rows) {
-      o.stuck = o.status === 'placed' && o.waitingMinutes >= STUCK_AFTER_MINUTES;
+      const dueSoon = !o.scheduledFor || new Date(o.scheduledFor).getTime() - Date.now() < 60 * 60 * 1000;
+      o.stuck = o.status === 'placed' && dueSoon && o.waitingMinutes >= STUCK_AFTER_MINUTES;
     }
 
     // Computed in SQL over ALL orders (not just the 100 listed above) and
@@ -816,6 +820,166 @@ router.post('/chats/:id/messages', async (req, res, next) => {
     next(err);
   } finally {
     client.release();
+  }
+});
+
+// --- Promo codes -------------------------------------------------------------
+//
+// Made and switched off here; checked at checkout in src/promos.js. A code's
+// cost is MidFood's: the kitchen and driver are paid as if there were no code.
+
+const PROMO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Turns the admin page's form into a row, or returns { error }.
+function cleanPromo(body, { partial = false } = {}) {
+  const out = {};
+  const b = body || {};
+  if (!partial || b.code !== undefined) {
+    const code = promos.normalizeCode(b.code);
+    if (!code) return { error: 'A code is 3 to 20 letters and numbers, like WELCOME50' };
+    out.code = code;
+  }
+  if (!partial || b.kind !== undefined) {
+    if (!['percent', 'fixed', 'free_delivery'].includes(b.kind)) {
+      return { error: 'kind must be percent, fixed or free_delivery' };
+    }
+    out.kind = b.kind;
+  }
+  if (!partial || b.value !== undefined) {
+    const kind = out.kind || b.kind;
+    const v = Number(b.value);
+    if (kind === 'free_delivery') out.value = 0;
+    else if (!Number.isFinite(v) || v <= 0) return { error: 'value must be more than 0' };
+    else if (kind === 'percent' && v > 100) return { error: 'A percentage cannot be more than 100' };
+    else out.value = money.money(v);
+  }
+  const nonNeg = (field, label) => {
+    if (b[field] === undefined) return null;
+    if (b[field] === null || b[field] === '') return { value: null };
+    const v = Number(b[field]);
+    if (!Number.isFinite(v) || v < 0) return { error: `${label} must be 0 or more` };
+    return { value: money.money(v) };
+  };
+  for (const [field, label] of [['minSubtotal', 'minSubtotal'], ['maxDiscount', 'maxDiscount']]) {
+    const r = nonNeg(field, label);
+    if (r && r.error) return r;
+    if (r) out[field] = r.value;
+  }
+  if (out.minSubtotal === null) out.minSubtotal = 0;
+  if (b.maxUses !== undefined) {
+    if (b.maxUses === null || b.maxUses === '') out.maxUses = null;
+    else {
+      const n = Number(b.maxUses);
+      if (!Number.isInteger(n) || n < 1) return { error: 'maxUses must be a whole number of 1 or more, or empty' };
+      out.maxUses = n;
+    }
+  }
+  if (b.oncePerCustomer !== undefined) out.oncePerCustomer = !!b.oncePerCustomer;
+  if (b.firstOrderOnly !== undefined) out.firstOrderOnly = !!b.firstOrderOnly;
+  if (b.active !== undefined) out.active = !!b.active;
+  if (b.note !== undefined) out.note = b.note ? String(b.note).trim().slice(0, 200) : null;
+  if (b.restaurantId !== undefined) {
+    if (!b.restaurantId) out.restaurantId = null;
+    else if (!PROMO_UUID.test(String(b.restaurantId))) return { error: 'restaurantId is not valid' };
+    else out.restaurantId = b.restaurantId;
+  }
+  for (const field of ['startsAt', 'expiresAt']) {
+    if (b[field] === undefined) continue;
+    if (!b[field]) { out[field] = null; continue; }
+    const d = new Date(b[field]);
+    if (Number.isNaN(d.getTime())) return { error: `${field} is not a valid date` };
+    out[field] = d.toISOString();
+  }
+  return out;
+}
+
+const PROMO_LIST = `${promos.PROMO_COLUMNS},
+  (SELECT COUNT(*)::int FROM orders o WHERE o.promo_code = promo_codes.code AND o.payment_status = 'paid') AS uses,
+  (SELECT COALESCE(SUM(o.discount), 0)::float8 FROM orders o WHERE o.promo_code = promo_codes.code AND o.payment_status = 'paid') AS "givenAway",
+  (SELECT r.name FROM restaurants r WHERE r.id = promo_codes.restaurant_id) AS "restaurantName"`;
+
+// GET /api/admin/promos - every code, with how often it has been used.
+router.get('/promos', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${PROMO_LIST} FROM promo_codes ORDER BY active DESC, created_at DESC`);
+    res.json({ promos: rows.map((p) => ({ ...p, description: promos.describe(p) })) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/promos { code, kind, value, minSubtotal?, maxDiscount?, maxUses?,
+//   oncePerCustomer?, firstOrderOnly?, restaurantId?, startsAt?, expiresAt?, note? }
+router.post('/promos', async (req, res, next) => {
+  try {
+    const p = cleanPromo(req.body);
+    if (p.error) return res.status(400).json({ error: p.error });
+    const taken = await pool.query('SELECT 1 FROM promo_codes WHERE code = $1', [p.code]);
+    if (taken.rows[0]) return res.status(409).json({ error: `The code ${p.code} already exists` });
+    const id = uuid();
+    await pool.query(
+      `INSERT INTO promo_codes (id, code, kind, value, min_subtotal, max_discount, max_uses, once_per_customer,
+                                first_order_only, restaurant_id, starts_at, expires_at, active, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [id, p.code, p.kind, p.value, p.minSubtotal ?? 0, p.maxDiscount ?? null, p.maxUses ?? null,
+       p.oncePerCustomer ?? true, p.firstOrderOnly ?? false, p.restaurantId ?? null,
+       p.startsAt ?? null, p.expiresAt ?? null, p.active ?? true, p.note ?? null]
+    );
+    const { rows } = await pool.query(`SELECT ${PROMO_LIST} FROM promo_codes WHERE id = $1`, [id]);
+    res.status(201).json({ promo: { ...rows[0], description: promos.describe(rows[0]) } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/admin/promos/:id - change anything about a code (most often
+// active: false to switch it off).
+router.patch('/promos/:id', async (req, res, next) => {
+  try {
+    if (!PROMO_UUID.test(req.params.id)) return res.status(404).json({ error: 'Promo code not found' });
+    const current = await pool.query(`SELECT ${promos.PROMO_COLUMNS} FROM promo_codes WHERE id = $1`, [req.params.id]);
+    if (!current.rows[0]) return res.status(404).json({ error: 'Promo code not found' });
+    const p = cleanPromo({ kind: current.rows[0].kind, ...req.body }, { partial: true });
+    if (p.error) return res.status(400).json({ error: p.error });
+    const columns = {
+      code: 'code', kind: 'kind', value: 'value', minSubtotal: 'min_subtotal', maxDiscount: 'max_discount',
+      maxUses: 'max_uses', oncePerCustomer: 'once_per_customer', firstOrderOnly: 'first_order_only',
+      restaurantId: 'restaurant_id', startsAt: 'starts_at', expiresAt: 'expires_at', active: 'active', note: 'note',
+    };
+    const sets = [];
+    const values = [];
+    for (const [key, column] of Object.entries(columns)) {
+      if (p[key] === undefined) continue;
+      values.push(p[key]);
+      sets.push(`${column} = $${values.length}`);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to change' });
+    values.push(req.params.id);
+    await pool.query(`UPDATE promo_codes SET ${sets.join(', ')} WHERE id = $${values.length}`, values);
+    const { rows } = await pool.query(`SELECT ${PROMO_LIST} FROM promo_codes WHERE id = $1`, [req.params.id]);
+    res.json({ promo: { ...rows[0], description: promos.describe(rows[0]) } });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That code already exists' });
+    next(err);
+  }
+});
+
+// DELETE /api/admin/promos/:id - a code that has been used is switched off
+// rather than removed, so the orders that used it still say which code it was.
+router.delete('/promos/:id', async (req, res, next) => {
+  try {
+    if (!PROMO_UUID.test(req.params.id)) return res.status(404).json({ error: 'Promo code not found' });
+    const { rows } = await pool.query('SELECT code FROM promo_codes WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Promo code not found' });
+    const used = await pool.query('SELECT 1 FROM orders WHERE promo_code = $1 LIMIT 1', [rows[0].code]);
+    if (used.rows[0]) {
+      await pool.query('UPDATE promo_codes SET active = false WHERE id = $1', [req.params.id]);
+      return res.json({ ok: true, deactivated: true });
+    }
+    await pool.query('DELETE FROM promo_codes WHERE id = $1', [req.params.id]);
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    next(err);
   }
 });
 

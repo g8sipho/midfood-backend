@@ -138,7 +138,7 @@ router.delete('/menu/:id', async (req, res, next) => {
 const ORDER_COLS = `o.id, u.name AS "customerName", o.customer_phone AS "customerPhone",
   o.delivery_address AS "deliveryAddress", o.subtotal::float8 AS subtotal,
   o.delivery_fee::float8 AS "deliveryFee", o.total::float8 AS total, o.status, o.notes,
-  o.payment_status AS "paymentStatus", o.ready_at AS "readyAt",
+  o.payment_status AS "paymentStatus", o.ready_at AS "readyAt", o.scheduled_for AS "scheduledFor",
   o.created_at AS "createdAt", o.updated_at AS "updatedAt",
   d.name AS "driverName", d.phone AS "driverPhone"`;
 const ORDER_FROM = `FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN drivers d ON d.id = o.driver_id`;
@@ -162,7 +162,7 @@ router.get('/orders', async (req, res, next) => {
       `SELECT ${ORDER_COLS} ${ORDER_FROM}
        WHERE o.restaurant_id = $1 AND o.payment_status = 'paid'
          AND o.status NOT IN ('delivered', 'rejected')
-       ORDER BY o.created_at`,
+       ORDER BY COALESCE(o.scheduled_for, o.created_at)`,
       [req.restaurantId]
     );
     res.json({ orders: await attachOrderItems(rows) });

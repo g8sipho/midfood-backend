@@ -34,7 +34,7 @@ router.get('/owing', async (req, res, next) => {
       `SELECT d.id, d.name, d.phone, d.bank_name AS "bankName",
               d.bank_account_name AS "bankAccountName", d.bank_account_number AS "bankAccountNumber",
               COUNT(o.id)::int AS "orderCount",
-              COALESCE(SUM(o.delivery_fee), 0)::float8 AS gross,
+              COALESCE(SUM(o.delivery_fee + o.tip), 0)::float8 AS gross,
               COALESCE(SUM(o.delivery_cut), 0)::float8 AS deductions,
               COALESCE(SUM(o.driver_payout), 0)::float8 AS amount,
               MIN(o.updated_at) AS oldest
@@ -82,6 +82,7 @@ router.get('/statement/:type/:id', async (req, res, next) => {
       `SELECT o.id, o.created_at AS "createdAt", o.updated_at AS "deliveredAt",
               o.restaurant_name AS "restaurantName", u.name AS "customerName",
               o.subtotal::float8 AS subtotal, o.delivery_fee::float8 AS "deliveryFee",
+              o.tip::float8 AS tip, o.discount::float8 AS discount, o.promo_code AS "promoCode",
               o.total::float8 AS total, o.commission::float8 AS commission,
               o.commission_rate::float8 AS "commissionRate",
               o.restaurant_payout::float8 AS "restaurantPayout",
@@ -109,7 +110,7 @@ router.get('/statement/:type/:id', async (req, res, next) => {
     if (!payee.rows[0]) return res.status(404).json({ error: 'Not found' });
 
     const amountOf = (o) => (isRestaurant ? o.restaurantPayout : o.driverPayout);
-    const grossOf = (o) => (isRestaurant ? o.subtotal : o.deliveryFee);
+    const grossOf = (o) => (isRestaurant ? o.subtotal : o.deliveryFee + o.tip);
     const dedOf = (o) => (isRestaurant ? o.commission : o.deliveryCut);
 
     res.json({
@@ -142,7 +143,7 @@ router.post('/:type/:id', async (req, res, next) => {
   const isRestaurant = type === 'restaurant';
   const payoutCol = isRestaurant ? 'restaurant_payout_id' : 'driver_payout_id';
   const amountCol = isRestaurant ? 'restaurant_payout' : 'driver_payout';
-  const grossCol = isRestaurant ? 'subtotal' : 'delivery_fee';
+  const grossCol = isRestaurant ? 'subtotal' : '(delivery_fee + tip)';
   const dedCol = isRestaurant ? 'commission' : 'delivery_cut';
 
   const client = await pool.connect();

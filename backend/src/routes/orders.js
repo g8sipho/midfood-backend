@@ -2,6 +2,8 @@ const express = require('express');
 const { pool, uuid } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const payments = require('../payments');
+const promos = require('../promos');
+const { money } = require('../money');
 
 const router = express.Router();
 
@@ -11,12 +13,47 @@ const STATUS_FLOW = ['placed', 'confirmed', 'preparing', 'out_for_delivery', 'de
 
 const ORDER_COLUMNS = `id, user_id AS "userId", restaurant_id AS "restaurantId", restaurant_name AS "restaurantName",
                        subtotal::float8 AS subtotal, delivery_fee::float8 AS "deliveryFee", total::float8 AS total,
+                       discount::float8 AS discount, tip::float8 AS tip, promo_code AS "promoCode",
+                       scheduled_for AS "scheduledFor", review,
                        delivery_address AS "deliveryAddress",
                        delivery_lat AS "deliveryLat", delivery_lng AS "deliveryLng", status,
                        payment_status AS "paymentStatus", payment_reference AS "paymentReference",
                        ready_at AS "readyAt", driver_id AS "driverId", notes,
                        rejected_reason AS "rejectedReason", refunded_at AS "refundedAt", rating,
                        created_at AS "createdAt", updated_at AS "updatedAt"`;
+
+// A tip is the customer's thank-you to the driver and goes to the driver in
+// full. Capped so a slipped finger can't tip R5,000.
+const MAX_TIP = 500;
+
+// "Order for later": at least this far ahead (the kitchen needs time), and
+// no further than a week (menus and prices change).
+const SCHEDULE_MIN_MINUTES = 45;
+const SCHEDULE_MAX_DAYS = 7;
+const MAX_REVIEW_CHARS = 500;
+
+function cleanTip(raw) {
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const tip = Number(raw);
+  if (!Number.isFinite(tip) || tip < 0) return null;
+  if (tip > MAX_TIP) return null;
+  return money(tip);
+}
+
+// Returns a Date, null for "as soon as possible", or an error string.
+function cleanSchedule(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const when = new Date(raw);
+  if (Number.isNaN(when.getTime())) return 'The time for the order is not valid.';
+  const minutesAhead = (when.getTime() - Date.now()) / 60000;
+  if (minutesAhead < SCHEDULE_MIN_MINUTES) {
+    return `An order for later needs at least ${SCHEDULE_MIN_MINUTES} minutes' notice. For food now, leave the time out.`;
+  }
+  if (minutesAhead > SCHEDULE_MAX_DAYS * 24 * 60) {
+    return `Orders can be placed up to ${SCHEDULE_MAX_DAYS} days ahead.`;
+  }
+  return when;
+}
 
 // All order routes require a logged-in user.
 router.use(requireAuth);
@@ -57,7 +94,8 @@ function cleanPin(lat, lng) {
 
 // POST /api/orders - place a new order.
 // Body: { restaurantId, items: [{ menuItemId, quantity }], deliveryAddress,
-//         customerPhone?, notes?, deliveryLat?, deliveryLng? }
+//         customerPhone?, notes?, deliveryLat?, deliveryLng?,
+//         promoCode?, tip?, scheduledFor?, addressId? }
 // Prices are always looked up server-side from the restaurant's menu, never
 // trusted from the client, so a tampered request can't change what's charged.
 // The insert runs inside a transaction so an order is never left half-written
@@ -67,9 +105,13 @@ function cleanPin(lat, lng) {
 // nothing is lost if the customer abandons payment -- and the response
 // includes a `paymentUrl` to redirect them to next. See src/payments/payfast.js
 // and src/routes/payments.js for how payment is actually confirmed.
+//
+// What the customer pays: food - promo discount + delivery fee + driver tip.
+// The discount is MidFood's cost and the tip is the driver's, so neither
+// changes what the kitchen is paid (src/money.js).
 router.post('/', async (req, res, next) => {
-  const { restaurantId, items, deliveryAddress, customerPhone, notes, deliveryLat, deliveryLng, expectedTotal } =
-    req.body || {};
+  const { restaurantId, items, deliveryAddress, customerPhone, notes, deliveryLat, deliveryLng, expectedTotal,
+          promoCode, tip: rawTip, scheduledFor, addressId } = req.body || {};
   const pin = cleanPin(deliveryLat, deliveryLng);
 
   if (!restaurantId || !Array.isArray(items) || items.length === 0) {
@@ -77,6 +119,14 @@ router.post('/', async (req, res, next) => {
   }
   if (!deliveryAddress || !String(deliveryAddress).trim()) {
     return res.status(400).json({ error: 'deliveryAddress is required' });
+  }
+  const tip = cleanTip(rawTip);
+  if (tip === null) {
+    return res.status(400).json({ error: `The tip must be between R0 and R${MAX_TIP}` });
+  }
+  const scheduled = cleanSchedule(scheduledFor);
+  if (typeof scheduled === 'string') {
+    return res.status(400).json({ error: scheduled });
   }
 
   const client = await pool.connect();
@@ -125,7 +175,30 @@ router.post('/', async (req, res, next) => {
     }
 
     const deliveryFee = restaurant.deliveryFee;
-    const total = subtotal + deliveryFee;
+    subtotal = money(subtotal);
+
+    // The promo code is checked here, against this order, with the same rules
+    // the checkout page used a moment ago (src/promos.js).
+    let discount = 0;
+    let appliedCode = null;
+    if (promoCode !== undefined && promoCode !== null && String(promoCode).trim() !== '') {
+      const promo = await promos.evaluate(
+        { code: promoCode, userId: req.userId, restaurantId: restaurant.id, subtotal, deliveryFee },
+        client
+      );
+      if (!promo.ok) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: promo.reason, promoRejected: true });
+      }
+      discount = promo.discount;
+      appliedCode = promo.code;
+    }
+
+    const total = money(subtotal - discount + deliveryFee + tip);
+    if (total < 1) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "That promo code can't be used on an order this small." });
+    }
 
     // The ordering page sends the total it showed the customer. If a price or
     // the delivery fee has changed since they opened the menu, they are asked
@@ -144,11 +217,14 @@ router.post('/', async (req, res, next) => {
     const trimmedAddress = String(deliveryAddress).trim();
 
     await client.query(
-      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address, status, payment_status, customer_phone, notes, created_at, updated_at, delivery_lat, delivery_lng)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $10, $11, $11, $12, $13)`,
+      `INSERT INTO orders (id, user_id, restaurant_id, restaurant_name, subtotal, delivery_fee, total, delivery_address,
+                           status, payment_status, customer_phone, notes, created_at, updated_at, delivery_lat, delivery_lng,
+                           promo_code, discount, tip, scheduled_for)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'placed', 'pending', $9, $10, $11, $11, $12, $13, $14, $15, $16, $17)`,
       [orderId, req.userId, restaurant.id, restaurant.name, subtotal, deliveryFee, total, trimmedAddress,
        customerPhone ? String(customerPhone).trim() : null, notes ? String(notes).trim() : null, now,
-       pin ? pin.lat : null, pin ? pin.lng : null]
+       pin ? pin.lat : null, pin ? pin.lng : null,
+       appliedCode, discount, tip, scheduled ? scheduled.toISOString() : null]
     );
 
     for (const item of orderItems) {
@@ -157,6 +233,11 @@ router.post('/', async (req, res, next) => {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [uuid(), orderId, item.menuItemId, item.name, item.price, item.quantity]
       );
+    }
+
+    // A saved address that was picked moves to the top of the customer's list.
+    if (addressId && /^[0-9a-f-]{36}$/i.test(String(addressId))) {
+      await client.query('UPDATE addresses SET last_used_at = now() WHERE id = $1 AND user_id = $2', [addressId, req.userId]);
     }
 
     await client.query('COMMIT');
@@ -182,6 +263,10 @@ router.post('/', async (req, res, next) => {
         items: orderItems,
         subtotal,
         deliveryFee,
+        discount,
+        tip,
+        promoCode: appliedCode,
+        scheduledFor: scheduled ? scheduled.toISOString() : null,
         total,
         deliveryAddress: trimmedAddress,
         deliveryLat: pin ? pin.lat : null,
@@ -275,25 +360,60 @@ async function freshPaymentLink(req, res, next) {
 router.post('/:id/checkout', freshPaymentLink);
 router.post('/:id/payfast-checkout', freshPaymentLink);
 
-// POST /api/orders/:id/rating { rating: 1..5 } - the customer's stars for a
-// delivered order. One rating per order, by the person who ordered it; it can
-// be changed, and the restaurant's rating is the average of all of them.
+// POST /api/orders/:id/rating { rating: 1..5, review? } - the customer's
+// stars, and a few words if they like, for a delivered order. One rating per
+// order, by the person who ordered it; it can be changed, and the
+// restaurant's rating is the average of all of them. The words show on the
+// restaurant's page with the customer's first name.
 router.post('/:id/rating', async (req, res, next) => {
   try {
     const stars = req.body && req.body.rating;
     if (typeof stars !== 'number' || !Number.isInteger(stars) || stars < 1 || stars > 5) {
       return res.status(400).json({ error: 'rating must be a whole number from 1 to 5' });
     }
+    const rawReview = req.body && req.body.review;
+    let review = null;
+    if (rawReview !== undefined && rawReview !== null) {
+      if (typeof rawReview !== 'string') return res.status(400).json({ error: 'review must be text' });
+      review = rawReview.replace(/\s+/g, ' ').trim().slice(0, MAX_REVIEW_CHARS) || null;
+    }
     const { rows } = await pool.query(
-      `UPDATE orders SET rating = $1, rated_at = now()
+      `UPDATE orders SET rating = $1, review = $4, rated_at = now()
        WHERE id = $2 AND user_id = $3 AND status = 'delivered' AND payment_status = 'paid'
-       RETURNING id, rating`,
-      [stars, req.params.id, req.userId]
+       RETURNING id, rating, review`,
+      [stars, req.params.id, req.userId, review]
     );
     if (!rows[0]) return res.status(400).json({ error: 'Only an order that has been delivered to you can be rated' });
-    res.json({ ok: true, rating: rows[0].rating });
+    res.json({ ok: true, rating: rows[0].rating, review: rows[0].review });
   } catch (err) {
     if (err.code === '22P02') return res.status(404).json({ error: 'Order not found' });
+    next(err);
+  }
+});
+
+// POST /api/orders/promo-check { code, restaurantId, subtotal } - tells the
+// checkout page whether a code applies before the customer pays, and for how
+// much. The same check runs again when the order is placed. `subtotal` is
+// only what the page thinks the food costs right now; the server works the
+// real discount out at order time.
+router.post('/promo-check', async (req, res, next) => {
+  try {
+    const { code, restaurantId, subtotal } = req.body || {};
+    if (!restaurantId || !/^[0-9a-f-]{36}$/i.test(String(restaurantId))) {
+      return res.status(400).json({ error: 'restaurantId is required' });
+    }
+    const { rows } = await pool.query(
+      'SELECT id, delivery_fee::float8 AS "deliveryFee" FROM restaurants WHERE id = $1 AND approved = true',
+      [restaurantId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Restaurant not found' });
+    const food = Number(subtotal);
+    const result = await promos.evaluate({
+      code, userId: req.userId, restaurantId, subtotal: Number.isFinite(food) ? food : 0, deliveryFee: rows[0].deliveryFee,
+    });
+    if (!result.ok) return res.status(400).json({ error: result.reason, promoRejected: true });
+    res.json({ ok: true, code: result.code, discount: result.discount, description: result.description, kind: result.promo.kind });
+  } catch (err) {
     next(err);
   }
 });
@@ -306,7 +426,8 @@ router.get('/:id/tracking', async (req, res, next) => {
       `SELECT o.id, o.status, o.payment_status AS "paymentStatus", o.ready_at AS "readyAt",
               o.restaurant_name AS "restaurantName", o.delivery_address AS "deliveryAddress",
               o.delivery_lat AS "deliveryLat", o.delivery_lng AS "deliveryLng",
-              o.rejected_reason AS "rejectedReason", o.refunded_at AS "refundedAt", o.rating,
+              o.rejected_reason AS "rejectedReason", o.refunded_at AS "refundedAt", o.rating, o.review,
+              o.scheduled_for AS "scheduledFor", o.tip::float8 AS tip, o.discount::float8 AS discount,
               o.updated_at AS "updatedAt",
               d.name AS "driverName", d.phone AS "driverPhone",
               d.lat AS "driverLat", d.lng AS "driverLng", d.location_updated_at AS "driverSeenAt"

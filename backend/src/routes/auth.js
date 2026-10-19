@@ -291,6 +291,80 @@ router.put('/password', requireAuth, async (req, res, next) => {
   }
 });
 
+// DELETE /api/auth/account { password?, confirm: 'DELETE' } - the customer
+// closes their own account, from the app or the website, as Google Play and
+// the App Store require.
+//
+// The row stays, because orders, payouts and statements point at it and the
+// books must still add up, but everything personal on it is wiped: name,
+// email, phone, password, Google/Facebook links, photo, push token. Their
+// orders lose the phone number, address, pin and notes; the ratings they gave
+// are kept (they are the kitchen's) but shown without a name. Chats, saved
+// addresses and favourites go entirely. The email is replaced with a unique
+// placeholder so the real address can sign up again fresh.
+//
+// Refused while an order of theirs is still on its way: the driver needs the
+// phone number and address until the food is at the door.
+router.delete('/account', requireAuth, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { password, confirm } = req.body || {};
+    if (String(confirm || '').trim().toUpperCase() !== 'DELETE') {
+      return res.status(400).json({ error: 'Type DELETE to confirm' });
+    }
+    const { rows } = await pool.query(
+      'SELECT id, password_hash AS "passwordHash", deleted_at AS "deletedAt" FROM users WHERE id = $1',
+      [req.userId]
+    );
+    const user = rows[0];
+    if (!user || user.deletedAt) return res.status(404).json({ error: 'User not found' });
+    if (user.passwordHash) {
+      if (!password) return res.status(400).json({ error: 'Your password is required to delete the account' });
+      if (!(await bcrypt.compare(String(password), user.passwordHash))) {
+        return res.status(400).json({ error: 'Your password is not right' });
+      }
+    }
+
+    const live = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM orders
+       WHERE user_id = $1 AND payment_status = 'paid' AND status NOT IN ('delivered', 'rejected')`,
+      [req.userId]
+    );
+    if (live.rows[0].n > 0) {
+      return res.status(409).json({
+        error: 'You have an order on its way. Once it has been delivered you can delete the account.',
+      });
+    }
+
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE users
+       SET name = 'Deleted account', email = 'deleted-' || id::text || '@deleted.midfood.co.za',
+           phone = NULL, password_hash = NULL, google_id = NULL, facebook_id = NULL, avatar_url = NULL,
+           push_token = NULL, reset_code_hash = NULL, reset_expires_at = NULL, reset_attempts = 0,
+           reset_sent_at = NULL, deleted_at = now()
+       WHERE id = $1`,
+      [req.userId]
+    );
+    await client.query(
+      `UPDATE orders SET customer_phone = NULL, delivery_address = 'Deleted account', delivery_lat = NULL,
+              delivery_lng = NULL, notes = NULL
+       WHERE user_id = $1`,
+      [req.userId]
+    );
+    await client.query('DELETE FROM conversations WHERE user_id = $1', [req.userId]);
+    await client.query('DELETE FROM addresses WHERE user_id = $1', [req.userId]);
+    await client.query('DELETE FROM favourites WHERE user_id = $1', [req.userId]);
+    await client.query('COMMIT');
+    res.json({ ok: true, message: 'Your account has been deleted.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 // PUT /api/auth/push-token - the app registers its Expo push token so the
 // customer gets notified as their order moves along.
 router.put('/push-token', requireAuth, async (req, res, next) => {

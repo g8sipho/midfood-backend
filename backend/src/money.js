@@ -86,9 +86,14 @@ function rateFor(restaurant, settings, when = new Date()) {
 // Writes the split onto an order. Called once, when payment is confirmed.
 // Safe to call again: it only fills in an order whose split is still null, so
 // a repeated PayFast notification can't change the numbers.
+//
+// A promo discount never touches these figures: it is MidFood's cost, so the
+// kitchen is paid on the full food total. A tip goes to the driver in full,
+// on top of their share of the delivery fee.
 async function recordSplit(orderId, client = pool) {
   const { rows } = await client.query(
     `SELECT o.id, o.subtotal::float8 AS subtotal, o.delivery_fee::float8 AS "deliveryFee",
+            o.tip::float8 AS tip,
             o.commission, r.commission_rate AS "commissionRate", r.free_until AS "freeUntil"
      FROM orders o JOIN restaurants r ON r.id = o.restaurant_id
      WHERE o.id = $1`,
@@ -104,7 +109,7 @@ async function recordSplit(orderId, client = pool) {
   const commission = share(o.subtotal, rate);
   const restaurantPayout = money(o.subtotal - commission);
   const deliveryCut = share(o.deliveryFee, settings.deliveryCutRate);
-  const driverPayout = money(o.deliveryFee - deliveryCut);
+  const driverPayout = money(o.deliveryFee - deliveryCut + (o.tip || 0));
 
   await client.query(
     `UPDATE orders
@@ -141,10 +146,12 @@ async function restaurantOwing(restaurantId) {
   return rows[0];
 }
 
+// A driver's gross is the delivery fee plus any tip; the cut only ever comes
+// off the fee.
 async function driverOwing(driverId) {
   const { rows } = await pool.query(
     `SELECT COUNT(*)::int AS "orderCount",
-            COALESCE(SUM(o.delivery_fee), 0)::float8 AS gross,
+            COALESCE(SUM(o.delivery_fee + o.tip), 0)::float8 AS gross,
             COALESCE(SUM(o.delivery_cut), 0)::float8 AS deductions,
             COALESCE(SUM(o.driver_payout), 0)::float8 AS amount,
             MIN(o.updated_at) AS "oldest"

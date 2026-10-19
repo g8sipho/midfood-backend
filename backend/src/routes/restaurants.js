@@ -128,6 +128,42 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// GET /api/restaurants/:id/reviews - what customers said, newest first, with
+// a first name and the date. Only orders that were really delivered can be
+// rated (routes/orders.js), so every review here is from a real order. A
+// deleted account's reviews are kept but shown as "MidFood customer".
+router.get('/:id/reviews', async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+    const { rows } = await pool.query(
+      `SELECT o.rating, o.review, o.rated_at AS "ratedAt",
+              CASE WHEN u.deleted_at IS NULL THEN split_part(u.name, ' ', 1) ELSE 'MidFood customer' END AS "customerName",
+              ARRAY(SELECT i.name FROM order_items i WHERE i.order_id = o.id ORDER BY i.quantity DESC, i.name LIMIT 3) AS dishes
+       FROM orders o JOIN users u ON u.id = o.user_id JOIN restaurants r ON r.id = o.restaurant_id
+       WHERE o.restaurant_id = $1 AND r.approved = true AND o.rating IS NOT NULL
+       ORDER BY (o.review IS NULL), o.rated_at DESC
+       LIMIT $2`,
+      [req.params.id, limit]
+    );
+    const stats = await pool.query(
+      `SELECT COUNT(*)::int AS count, ROUND(AVG(rating)::numeric, 1)::float8 AS average,
+              COUNT(*) FILTER (WHERE review IS NOT NULL)::int AS "withWords"
+       FROM orders WHERE restaurant_id = $1 AND rating IS NOT NULL`,
+      [req.params.id]
+    );
+    const s = stats.rows[0];
+    res.json({
+      reviews: rows,
+      count: s.count,
+      withWords: s.withWords,
+      average: s.count >= MIN_RATINGS ? s.average : null,
+    });
+  } catch (err) {
+    if (err.code === '22P02') return res.status(404).json({ error: 'Restaurant not found' });
+    next(err);
+  }
+});
+
 // GET /api/restaurants/:id - full detail including menu
 router.get('/:id', async (req, res, next) => {
   try {

@@ -21,6 +21,9 @@ async function stillApproved(table, id, res, next) {
   }
 }
 
+// Customer logins. A token outlives the account it was made for by days, so
+// one that belongs to an account the customer has since deleted (or that no
+// longer exists) is turned away here, on every request.
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -35,10 +38,21 @@ function requireAuth(req, res, next) {
       return res.status(403).json({ error: 'This login is not a customer account' });
     }
     req.userId = payload.sub;
-    next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
+
+  pool.query('SELECT deleted_at AS "deletedAt" FROM users WHERE id = $1', [req.userId])
+    .then(({ rows }) => {
+      if (!rows[0] || rows[0].deletedAt) {
+        return res.status(401).json({ error: 'This account no longer exists' });
+      }
+      return next();
+    })
+    .catch((err) => {
+      if (err.code === '22P02') return res.status(401).json({ error: 'Invalid or expired token' });
+      return next(err);
+    });
 }
 
 // Same JWT mechanism as requireAuth, but for restaurant-portal logins

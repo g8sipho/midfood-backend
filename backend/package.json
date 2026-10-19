@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test test/money.test.js test/api.test.js"
+    "test": "node --test --test-concurrency=1 test/money.test.js test/api.test.js test/build3.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

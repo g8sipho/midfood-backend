@@ -16,8 +16,9 @@ router.use(requireDriverAuth);
 const COLS = `o.id, o.restaurant_name AS "restaurantName", r.address AS "restaurantAddress", r.phone AS "restaurantPhone",
   o.delivery_address AS "deliveryAddress", o.customer_phone AS "customerPhone", u.name AS "customerName",
   o.delivery_lat AS "deliveryLat", o.delivery_lng AS "deliveryLng",
-  o.total::float8 AS total, o.delivery_fee::float8 AS "deliveryFee",
-  COALESCE(o.driver_payout, o.delivery_fee)::float8 AS "driverPayout", o.status, o.notes,
+  o.total::float8 AS total, o.delivery_fee::float8 AS "deliveryFee", o.tip::float8 AS tip,
+  COALESCE(o.driver_payout, o.delivery_fee + o.tip)::float8 AS "driverPayout", o.status, o.notes,
+  o.scheduled_for AS "scheduledFor",
   o.ready_at AS "readyAt", o.created_at AS "createdAt"`;
 const FROM = `FROM orders o JOIN restaurants r ON r.id = o.restaurant_id JOIN users u ON u.id = o.user_id`;
 
@@ -84,8 +85,8 @@ router.get('/orders/history', async (req, res, next) => {
       [req.driverId]
     );
     const totals = await pool.query(
-      `SELECT COALESCE(SUM(COALESCE(driver_payout, delivery_fee)), 0)::float8 AS earnings,
-              COALESCE(SUM(COALESCE(driver_payout, delivery_fee)) FILTER (WHERE
+      `SELECT COALESCE(SUM(COALESCE(driver_payout, delivery_fee + tip)), 0)::float8 AS earnings,
+              COALESCE(SUM(COALESCE(driver_payout, delivery_fee + tip)) FILTER (WHERE
                 (updated_at AT TIME ZONE 'Africa/Johannesburg')::date
                 = (now() AT TIME ZONE 'Africa/Johannesburg')::date), 0)::float8 AS "earningsToday"
        FROM orders WHERE driver_id = $1 AND status = 'delivered'`,
@@ -146,7 +147,8 @@ router.get('/earnings', async (req, res, next) => {
   try {
     const pending = await pool.query(
       `SELECT COUNT(*)::int AS "orderCount",
-              COALESCE(SUM(delivery_fee), 0)::float8 AS gross,
+              COALESCE(SUM(delivery_fee + tip), 0)::float8 AS gross,
+              COALESCE(SUM(tip), 0)::float8 AS tips,
               COALESCE(SUM(delivery_cut), 0)::float8 AS deductions,
               COALESCE(SUM(driver_payout), 0)::float8 AS amount
        FROM orders
@@ -179,7 +181,7 @@ router.get('/statement', async (req, res, next) => {
     if (payoutId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payoutId)) return res.status(400).json({ error: 'Unknown payment' });
     const { rows } = await pool.query(
       `SELECT o.id, o.updated_at AS "deliveredAt", o.restaurant_name AS "restaurantName",
-              o.delivery_fee::float8 AS gross, o.delivery_cut::float8 AS deduction,
+              (o.delivery_fee + o.tip)::float8 AS gross, o.tip::float8 AS tip, o.delivery_cut::float8 AS deduction,
               o.driver_payout::float8 AS amount
        FROM orders o
        WHERE o.driver_id = $1 AND o.payment_status = 'paid' AND o.status = 'delivered'

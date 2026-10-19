@@ -249,6 +249,19 @@
     border-radius: 10px; font-size: 14px; font-family: inherit; background: var(--bg-surface); color: var(--text-primary);
   }
   @media (max-width: 640px) { .menu-add, .dish .grid { grid-template-columns: 1fr; } .cover-ph { width: 110px; height: 62px; } }
+
+  /* Promo codes */
+  .promo-form h3 { font-size: 15px; margin: 22px 0 12px; }
+  .promo-form .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .promo-form .grid label { margin-top: 0; }
+  .promo-form .tip { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-top: 12px; cursor: pointer; }
+  .check input { width: auto; margin: 0; }
+  .promo-code { font-weight: 800; letter-spacing: 0.5px; }
+  .promo-acts .inline-err { display: block; margin-top: 4px; }
+  /* An order placed for a later time: the kitchen must not start it now. */
+  .later { display: inline-block; background: #fff3e0; color: #9a4b00; border: 1px solid #e3a560; border-radius: 999px;
+    padding: 2px 10px; font-size: 11px; font-weight: 800; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -476,6 +489,49 @@
         <tbody id="restaurantTableBody"></tbody>
       </table>
       </div>
+    </div>
+
+    <div class="card" id="promoCard">
+      <h2>Promo codes</h2>
+      <p class="hint">Customers type a code at checkout. The discount comes out of MidFood's side: the kitchen and the driver are paid as if there were no code.</p>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Code</th><th>Rules</th><th>Used</th><th>Status</th><th></th></tr></thead>
+        <tbody id="promoTableBody"><tr><td colspan="5" class="empty">No promo codes yet.</td></tr></tbody>
+      </table>
+      </div>
+      <div class="success-msg" id="promoMsg"></div>
+      <form id="addPromoForm" class="promo-form">
+        <h3>New promo code</h3>
+        <div class="grid">
+          <div><label for="pCode">Code</label><input id="pCode" maxlength="20" placeholder="e.g. WELCOME50" required />
+            <div class="tip">3 to 20 letters and numbers. Customers can type it in any case.</div></div>
+          <div><label for="pKind">What it gives</label>
+            <select id="pKind">
+              <option value="fixed">Rands off</option>
+              <option value="percent">Percent off</option>
+              <option value="free_delivery">Free delivery</option>
+            </select></div>
+          <div id="pValueBox"><label for="pValue" id="pValueLabel">Rands off</label><input id="pValue" type="number" min="0" step="1" /></div>
+          <div><label for="pMin">Minimum food total (R)</label><input id="pMin" type="number" min="0" step="1" placeholder="none" />
+            <div class="tip">The code only works on orders with at least this much food.</div></div>
+          <div id="pMaxDiscountBox" style="display:none;"><label for="pMaxDiscount">Biggest discount (R)</label><input id="pMaxDiscount" type="number" min="0" step="1" placeholder="no cap" />
+            <div class="tip">Caps a percent code, e.g. 10% off up to R50.</div></div>
+          <div><label for="pMaxUses">Total uses allowed</label><input id="pMaxUses" type="number" min="1" step="1" placeholder="unlimited" />
+            <div class="tip">Across all customers. Only paid orders count.</div></div>
+          <div><label for="pRestaurant">Kitchen</label><select id="pRestaurant"><option value="">Any kitchen</option></select></div>
+          <div><label for="pStarts">Starts</label><input id="pStarts" type="datetime-local" />
+            <div class="tip">Empty: works right away.</div></div>
+          <div><label for="pExpires">Expires</label><input id="pExpires" type="datetime-local" />
+            <div class="tip">Empty: never expires.</div></div>
+          <div><label for="pNote">Note (only you see it)</label><input id="pNote" maxlength="200" placeholder="e.g. October flyer" /></div>
+        </div>
+        <label class="check"><input type="checkbox" id="pOnce" checked /> Once per customer</label>
+        <label class="check"><input type="checkbox" id="pFirst" /> First order only (customers who have never paid for an order)</label>
+        <div class="error-msg" id="addPromoError"></div>
+        <div class="success-msg" id="addPromoSuccess"></div>
+        <button class="primary" type="submit">Create promo code</button>
+      </form>
     </div>
     </div>
   </div>
@@ -1050,6 +1106,18 @@
   // --- Refunds and orders in progress ----------------------------------------
 
   const when = (iso) => new Date(iso).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  // "Tue 21 Oct 18:30", for an order the customer placed for a later time.
+  const laterWhen = (iso) => new Date(iso).toLocaleString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/,/g, '');
+  const laterBadge = (o) => (o.scheduledFor ? '<span class="later">For later · ' + laterWhen(o.scheduledFor) + '</span> ' : '');
+
+  // " · code WELCOME50 (−R50) · tip R10", or nothing when the order has neither.
+  function moneyNotes(o) {
+    const bits = [];
+    if (o.promoCode) bits.push('code ' + escapeHtml(o.promoCode) + (o.discount > 0 ? ' (−' + rand(o.discount) + ')' : ''));
+    else if (o.discount > 0) bits.push('discount −' + rand(o.discount));
+    if (o.tip > 0) bits.push('tip ' + rand(o.tip));
+    return bits.length ? ' · ' + bits.join(' · ') : '';
+  }
 
   // Redraws a list from fresh data without disturbing a row someone is using.
   // Rows are matched by id: a row that is `inUse` (half-typed reference, open
@@ -1085,11 +1153,11 @@
     div.innerHTML =
       '<div class="top"><div class="nm">' + escapeHtml(o.customerName) + ' · ' + escapeHtml(o.restaurantName) + '</div>' +
       '<div class="amt" style="color:var(--error)">' + rand(o.total) + '</div></div>' +
-      '<div class="dt">' +
+      '<div class="dt">' + (duplicate ? '' : laterBadge(o)) +
       (duplicate
         ? 'Paid twice for the same order — this second payment arrived ' + when(o.updatedAt) + '. The order itself is fine; only this payment goes back.'
         : (o.cancelledBy === 'admin' ? 'Cancelled by you' : 'Declined by the restaurant') + ' on ' + when(o.updatedAt) +
-          (o.rejectedReason ? ' — “' + escapeHtml(o.rejectedReason) + '”' : '')) + '<br>' +
+          (o.rejectedReason ? ' — “' + escapeHtml(o.rejectedReason) + '”' : '') + moneyNotes(o)) + '<br>' +
       'PayFast payment ID: <strong>' + escapeHtml(o.paymentReference || 'not recorded') + '</strong>' +
       ' · ' + escapeHtml(o.customerEmail || '') + (o.customerPhone ? ' · ' + escapeHtml(o.customerPhone) : '') + '</div>' +
       '<div class="acts"></div>';
@@ -1146,10 +1214,11 @@
     div.innerHTML =
       '<div class="top"><div class="nm">' + escapeHtml(o.restaurantName) + ' → ' + escapeHtml(o.customerName) + '</div>' +
       '<div class="amt">' + rand(o.total) + '</div></div>' +
-      '<div class="dt">' + (o.stuck ? '<span class="late">Not accepted ' + o.waitingMinutes + ' minutes after payment — phone the restaurant. </span>' : '') +
+      '<div class="dt">' + laterBadge(o) +
+      (o.stuck ? '<span class="late">Not accepted ' + o.waitingMinutes + ' minutes after payment — phone the restaurant. </span>' : '') +
       escapeHtml(state) + ' · paid ' + when(o.paidAt || o.createdAt) +
       (o.driverName ? ' · driver ' + escapeHtml(o.driverName) : '') +
-      (o.customerPhone ? ' · customer ' + escapeHtml(o.customerPhone) : '') + '</div>' +
+      (o.customerPhone ? ' · customer ' + escapeHtml(o.customerPhone) : '') + moneyNotes(o) + '</div>' +
       '<div class="acts"></div>';
     const acts = div.querySelector('.acts');
     if (o.status === 'out_for_delivery') return div;
@@ -1187,6 +1256,150 @@
     el('liveCard').style.display = list.length ? 'block' : 'none';
     syncList(el('liveList'), list, (o) => o.id, liveRow, (row) => !!row.dataset.open);
   }
+
+  // --- Promo codes ------------------------------------------------------------
+  // Made and switched off here; the server checks them at checkout.
+
+  // A code's conditions, a few words each: "min R100 of food · once per customer · Kota King only · until 31 Oct 23:59".
+  function promoRules(p) {
+    const now = Date.now();
+    const bits = [];
+    if (p.minSubtotal > 0) bits.push('min ' + rand(p.minSubtotal) + ' of food');
+    if (p.kind === 'percent' && p.maxDiscount > 0) bits.push('max ' + rand(p.maxDiscount));
+    if (p.firstOrderOnly) bits.push('first order only');
+    if (p.oncePerCustomer) bits.push('once per customer');
+    if (p.maxUses) bits.push('up to ' + p.maxUses + (p.maxUses === 1 ? ' use' : ' uses'));
+    if (p.restaurantId) bits.push(escapeHtml(p.restaurantName || 'one kitchen') + ' only');
+    if (p.startsAt) bits.push((new Date(p.startsAt).getTime() > now ? 'starts ' : 'from ') + when(p.startsAt));
+    if (p.expiresAt) bits.push((new Date(p.expiresAt).getTime() < now ? 'expired ' : 'until ') + when(p.expiresAt));
+    return bits.length ? bits.join(' · ') : 'no conditions';
+  }
+
+  function promoState(p) {
+    const now = Date.now();
+    if (!p.active) return '<span class="pill no">Off</span>';
+    if (p.expiresAt && new Date(p.expiresAt).getTime() < now) return '<span class="pill no">Expired</span>';
+    if (p.maxUses && p.uses >= p.maxUses) return '<span class="pill no">Used up</span>';
+    if (p.startsAt && new Date(p.startsAt).getTime() > now) return '<span class="pill yes">Not yet</span>';
+    return '<span class="pill yes">Active</span>';
+  }
+
+  function promoRow(p) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><span class="promo-code">' + escapeHtml(p.code) + '</span><div class="terms">' + escapeHtml(p.description) +
+      (p.note ? ' · ' + escapeHtml(p.note) : '') + '</div></td>' +
+      '<td class="terms">' + promoRules(p) + '</td>' +
+      '<td>' + p.uses + (p.uses === 1 ? ' use' : ' uses') + '<div class="terms">' + rand(p.givenAway) + ' given away</div></td>' +
+      '<td>' + promoState(p) + '</td>' +
+      '<td class="promo-acts"></td>';
+    const acts = tr.querySelector('.promo-acts');
+
+    const idle = () => {
+      delete tr.dataset.open;
+      acts.innerHTML = '<button class="link-btn" data-a="toggle">' + (p.active ? 'Switch off' : 'Switch on') + '</button>' +
+        '&nbsp;·&nbsp;<button class="link-btn" data-a="del" style="color:var(--error);">Delete</button>' +
+        '<span class="inline-err"></span>';
+      acts.querySelector('[data-a="toggle"]').addEventListener('click', async () => {
+        try {
+          await adminFetch('/api/admin/promos/' + p.id, { method: 'PATCH', body: JSON.stringify({ active: !p.active }) });
+          showMsg('promoMsg', p.code + (p.active ? ' is switched off.' : ' is switched on.'));
+          await loadPromos();
+        } catch (e) { acts.querySelector('.inline-err').textContent = e.message; }
+      });
+      acts.querySelector('[data-a="del"]').addEventListener('click', ask);
+    };
+    // Two presses to delete, in the page rather than a pop-up.
+    const ask = () => {
+      tr.dataset.open = '1';
+      acts.innerHTML = '<button class="link-btn" data-a="yes" style="color:var(--error);">Yes, delete ' + escapeHtml(p.code) + '</button>' +
+        '&nbsp;·&nbsp;<button class="link-btn" data-a="no">Keep</button><span class="inline-err"></span>';
+      acts.querySelector('[data-a="no"]').addEventListener('click', idle);
+      acts.querySelector('[data-a="yes"]').addEventListener('click', async () => {
+        try {
+          const res = await adminFetch('/api/admin/promos/' + p.id, { method: 'DELETE' });
+          delete tr.dataset.open;
+          showMsg('promoMsg', res.deactivated
+            ? p.code + ': switched off (it was used on orders, so it stays on record).'
+            : 'Deleted ' + p.code + '.');
+          await loadPromos();
+        } catch (e) { acts.querySelector('.inline-err').textContent = e.message; }
+      });
+    };
+    idle();
+    return tr;
+  }
+
+  function renderPromos(promos) {
+    const body = el('promoTableBody');
+    syncList(body, promos, (p) => p.id, promoRow, (row) => !!row.dataset.open);
+    if (!promos.length) body.innerHTML = '<tr><td colspan="5" class="empty">No promo codes yet.</td></tr>';
+  }
+
+  async function loadPromos() {
+    const data = await adminFetch('/api/admin/promos');
+    renderPromos(data.promos || []);
+  }
+
+  // The kitchen picker on the new-code form. Rebuilt only when the list of
+  // restaurants changes, so a choice half-made is not lost on a refresh.
+  function fillPromoRestaurants(restaurants) {
+    const sel = el('pRestaurant');
+    const key = restaurants.map((r) => r.id + ':' + r.name).join('|');
+    if (sel.dataset.key === key) return;
+    sel.dataset.key = key;
+    const chosen = sel.value;
+    sel.innerHTML = '<option value="">Any kitchen</option>' +
+      restaurants.map((r) => '<option value="' + escapeHtml(r.id) + '">' + escapeHtml(r.name) + '</option>').join('');
+    sel.value = chosen;
+    if (sel.value !== chosen) sel.value = '';
+  }
+
+  // Rands off and percent off need a figure; free delivery does not. Only a
+  // percent code can be capped.
+  function promoKindChanged() {
+    const kind = el('pKind').value;
+    el('pValueBox').style.display = kind === 'free_delivery' ? 'none' : '';
+    el('pValueLabel').textContent = kind === 'percent' ? 'Percent off' : 'Rands off';
+    el('pValue').required = kind !== 'free_delivery';
+    el('pValue').max = kind === 'percent' ? '100' : '';
+    el('pMaxDiscountBox').style.display = kind === 'percent' ? '' : 'none';
+  }
+  el('pKind').addEventListener('change', promoKindChanged);
+  promoKindChanged();
+
+  // A datetime-local box gives "2026-10-21T18:30" in the browser's own time.
+  const localToISO = (v) => (v ? new Date(v).toISOString() : null);
+
+  el('addPromoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showMsg('addPromoError', '');
+    showMsg('addPromoSuccess', '');
+    const kind = el('pKind').value;
+    const payload = {
+      code: el('pCode').value.trim(),
+      kind,
+      value: kind === 'free_delivery' ? 0 : Number(el('pValue').value),
+      minSubtotal: el('pMin').value === '' ? null : Number(el('pMin').value),
+      maxDiscount: kind === 'percent' && el('pMaxDiscount').value !== '' ? Number(el('pMaxDiscount').value) : null,
+      maxUses: el('pMaxUses').value === '' ? null : Number(el('pMaxUses').value),
+      oncePerCustomer: el('pOnce').checked,
+      firstOrderOnly: el('pFirst').checked,
+      restaurantId: el('pRestaurant').value || null,
+      startsAt: localToISO(el('pStarts').value),
+      expiresAt: localToISO(el('pExpires').value),
+      note: el('pNote').value.trim() || null,
+    };
+    try {
+      const res = await adminFetch('/api/admin/promos', { method: 'POST', body: JSON.stringify(payload) });
+      el('addPromoForm').reset();
+      promoKindChanged();
+      showMsg('addPromoSuccess', res.promo.code + ' is ready (' + res.promo.description + '). Customers type it at checkout.');
+      await loadPromos();
+    } catch (err) {
+      showMsg('addPromoError', err.message);
+    }
+  });
 
   async function setAccount(restaurant) {
     const username = prompt(`Portal username for "${restaurant.name}"`, restaurant.username || '');
@@ -1351,6 +1564,9 @@
     renderRestaurants(rest.restaurants);
     renderDrivers(drv.drivers);
     renderPending(rest.restaurants, drv.drivers);
+    fillPromoRestaurants(rest.restaurants);
+    // Promo codes ride along with each refresh; a hiccup here must not lock the page.
+    loadPromos().catch(() => {});
     el('sLive').textContent = ord.stats.live;
     el('sToday').textContent = ord.stats.deliveredToday;
     el('sGmv').textContent = rand(ord.stats.gmv);
@@ -1434,13 +1650,16 @@
         const tb = stmt.querySelector('tbody');
         tb.innerHTML = '';
         d.orders.forEach((o) => {
-          const gross = type === 'restaurant' ? o.subtotal : o.deliveryFee;
+          // A driver's gross is the delivery fee plus any tip; the kitchen's is the food.
+          const gross = type === 'restaurant' ? o.subtotal : o.deliveryFee + (o.tip || 0);
           const less = type === 'restaurant' ? o.commission : o.deliveryCut;
           const net = type === 'restaurant' ? o.restaurantPayout : o.driverPayout;
+          const note = type === 'driver' && o.tip > 0 ? 'incl. ' + rand(o.tip) + ' tip'
+            : type === 'restaurant' && o.promoCode ? 'code ' + escapeHtml(o.promoCode) : '';
           const tr = document.createElement('tr');
           tr.innerHTML =
             '<td>' + new Date(o.deliveredAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + '</td>' +
-            '<td>' + escapeHtml(o.customerName) + '</td>' +
+            '<td>' + escapeHtml(o.customerName) + (note ? '<div class="terms">' + note + '</div>' : '') + '</td>' +
             '<td class="num">' + rand(gross) + '</td>' +
             '<td class="num">' + rand(less) + '</td>' +
             '<td class="num">' + rand(net) + '</td>';

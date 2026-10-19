@@ -159,6 +159,10 @@
   .leg .txt strong { color: var(--text-primary); font-weight: 600; display: block; }
   .items { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; }
   .order .fee small { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-tertiary); text-align: right; }
+  .order .fee small.tipnote { text-transform: none; letter-spacing: 0; font-size: 11px; color: var(--success); }
+  /* An order placed for a later time: the kitchen cooks it then, not now. */
+  .later { display: inline-block; background: #fff3e0; color: #9a4b00; border: 1px solid #e3a560; border-radius: 8px;
+    padding: 3px 9px; font-size: 12px; font-weight: 800; margin-top: 8px; }
   .pinned { display: inline-block; font-size: 11px; font-weight: 800; color: var(--success); border: 1px solid var(--success); border-radius: 999px; padding: 1px 8px; margin-top: 5px; }
   .paynote { font-size: 13px; color: var(--text-secondary); margin: 0 0 4px; line-height: 1.5; }
   .stmt-btn { display: block; background: none; border: none; padding: 0; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; }
@@ -447,8 +451,15 @@
     return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(lat + ',' + lng);
   }
 
-  // What this driver is paid for the delivery, after MidFood's slice.
-  const earns = (o) => (o.driverPayout != null ? o.driverPayout : o.deliveryFee);
+  // What this driver is paid for the delivery, after MidFood's slice. A tip
+  // from the customer is already inside it.
+  const earns = (o) => (o.driverPayout != null ? o.driverPayout : o.deliveryFee + (o.tip || 0));
+  const tipNote = (o) => (o.tip > 0 ? '<small class="tipnote">incl. ' + rand(o.tip) + ' tip</small>' : '');
+
+  // "Tue 21 Oct 18:30" in this phone's own time, for an order placed for later.
+  const laterWhen = (iso) =>
+    new Date(iso).toLocaleString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/,/g, '');
+  const laterNote = (o) => (o.scheduledFor ? '<div class="later">For later · ' + laterWhen(o.scheduledFor) + '</div>' : '');
 
   function orderCard(o, mine) {
     const div = document.createElement('div');
@@ -461,7 +472,8 @@
     const hasPin = gotPin || !!o.hasPin;
     div.innerHTML =
       '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
-      '<div class="fee">' + rand(earns(o)) + '<small>you earn</small></div></div>' +
+      '<div class="fee">' + rand(earns(o)) + '<small>you earn</small>' + tipNote(o) + '</div></div>' +
+      laterNote(o) +
       '<div class="leg"><div class="pin">▲</div><div class="txt"><strong>Collect</strong>' +
       esc(o.restaurantAddress || o.restaurantName) + '</div></div>' +
       '<div class="leg"><div class="pin">▼</div><div class="txt"><strong>Deliver to ' +
@@ -565,7 +577,8 @@
           const row = document.createElement('div');
           row.innerHTML = '<span>' +
             new Date(o.deliveredAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' }) + ' · ' +
-            esc(o.restaurantName) + (o.deduction ? ' · ' + rand(o.gross) + ' less ' + rand(o.deduction) : '') +
+            esc(o.restaurantName) + (o.tip > 0 ? ' · incl. ' + rand(o.tip) + ' tip' : '') +
+            (o.deduction ? ' · ' + rand(o.gross) + ' less ' + rand(o.deduction) : '') +
             '</span><span>' + rand(o.amount) + '</span>';
           list.appendChild(row);
         });
@@ -597,7 +610,8 @@
         '<div class="fee">' + rand(money.pending.amount) + '</div></div>' +
         '<div class="items">' + money.pending.orderCount +
         (money.pending.orderCount === 1 ? ' delivery' : ' deliveries') +
-        ' since your last payment</div>';
+        ' since your last payment' +
+        (money.pending.tips > 0 ? ' · incl. ' + rand(money.pending.tips) + ' in tips' : '') + '</div>';
       if (money.pending.orderCount) statement(owedBox, '/api/driver/statement');
 
       const payBox = el('payList');
@@ -631,8 +645,9 @@
         d.className = 'order';
         d.innerHTML =
           '<div class="top"><div class="resto">' + esc(o.restaurantName) + '</div>' +
-          '<div class="fee">' + rand(earns(o)) + '</div></div>' +
-          '<div class="items">' + esc(o.deliveryAddress) + '</div>';
+          '<div class="fee">' + rand(earns(o)) + tipNote(o) + '</div></div>' +
+          '<div class="items">' + esc(o.deliveryAddress) +
+          (o.scheduledFor ? ' · was for ' + laterWhen(o.scheduledFor) : '') + '</div>';
         box.appendChild(d);
       });
     } catch (err) {

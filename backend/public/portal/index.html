@@ -210,6 +210,10 @@
   .order .driver { font-size: 13px; color: var(--success); font-weight: 600; margin-top: 8px; }
   .order .stage { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--text-tertiary); margin-top: 10px; }
+  /* An order placed for a later time: do not start cooking it now. */
+  .order.for-later { background: #fffaf3; }
+  .order .later { display: inline-block; background: #fff3e0; color: #9a4b00; border: 1px solid #e3a560;
+    border-radius: 8px; padding: 5px 11px; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 10px; }
   .order-actions { display: flex; gap: 8px; margin-top: 14px; }
   .order-actions button { flex: 1; border: none; border-radius: 10px; padding: 12px;
     font-size: 14px; font-weight: 700; cursor: pointer; }
@@ -638,9 +642,14 @@
     return m === 0 ? 'just now' : m + ' min ago';
   }
 
+  // "Tue 21 Oct 18:30" in this screen's own time, for an order placed for later.
+  function laterWhen(iso) {
+    return new Date(iso).toLocaleString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/,/g, '');
+  }
+
   function orderCard(o, kind) {
     const div = document.createElement('div');
-    div.className = 'order' + (kind === 'new' ? ' new' : '');
+    div.className = 'order' + (kind === 'new' ? ' new' : '') + (o.scheduledFor ? ' for-later' : '');
     const lines = (o.items || [])
       .map(
         (i) =>
@@ -649,6 +658,7 @@
       )
       .join('');
     div.innerHTML =
+      (o.scheduledFor ? '<div class="later">FOR LATER · ' + laterWhen(o.scheduledFor) + '</div>' : '') +
       '<div class="top"><div class="cust">' + escapeHtml(o.customerName) + '</div>' +
       '<div class="amt">' + rand(o.total) + '</div></div>' +
       '<div class="meta">' + escapeHtml(o.deliveryAddress) + ' · placed ' + minsAgo(o.createdAt) + '</div>' +

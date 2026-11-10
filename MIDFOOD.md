@@ -307,6 +307,10 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   Also fixed: the site's security header was blocking the Google Fonts
   (Fraunces + Poppins) on `/order/`. Next: Sipho approves, merge to `main`
   (Render deploys), new Android build → Play closed test.
+  **Approved by Sipho 10 Nov; merged to `main` the same day** (Render deploys
+  from it). Play bundle built: Actions run 42789869099 (artifact
+  `midfood-android`). Still to do: upload it to the closed test in Play
+  Console (stage-play-bundle workflow + browser on the PC).
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

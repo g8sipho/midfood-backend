@@ -51,13 +51,16 @@ app.use(
 // map on the order-tracking page: its code is served from here
 // (public/vendor/leaflet), but the map pictures themselves come from
 // OpenStreetMap's tile server, so that host is allowed for images only.
+// The /order/ page's Fraunces + Poppins fonts come from Google Fonts, so its
+// stylesheet and font hosts are allowed too (they were being blocked).
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; style-src 'self' 'unsafe-inline'; " +
+    "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com; " +
       "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'"
   );
   next();

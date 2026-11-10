@@ -297,6 +297,16 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   **Gap:** the app has no "delete my account" button; Play and Apple both
   want account deletion startable from inside the app. Add it (Account
   screen + backend endpoint) in the next build.
+- **10 Nov: Build 3 checked on branch `build3` (not merged, not deployed).**
+  Backend: 147 tests pass. The `/order/` page was driven end to end in a
+  browser on a local copy: favourites, promo code (WELCOME20 test: R220 food
+  - R44 + R22 delivery + R10 tip = R208), saved address, driver tip, order
+  for later, PayFast hand-off, 4-star rating + written review, and **Delete
+  my account** (anonymises the user, removes addresses and chats). The phone
+  app type-checks and bundles for Android but has not been run on a phone.
+  Also fixed: the site's security header was blocking the Google Fonts
+  (Fraunces + Poppins) on `/order/`. Next: Sipho approves, merge to `main`
+  (Render deploys), new Android build → Play closed test.
 - **Email:** midfood.co.za had no mailboxes. `hello@midfood.co.za` and
   `privacy@midfood.co.za` now **forward to g8vipexclusive@gmail.com** (cPanel
   → Forwarders; routing is Local, MX is Axxess's mx1.tld-mx.com). Not yet

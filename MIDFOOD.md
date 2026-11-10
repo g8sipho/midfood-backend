@@ -289,6 +289,12 @@ name contains "test" (see `backend/test/helpers.js`); it is wiped on each run.
   the list and opted in for 14 days in a row, then apply for production.
   Tester list "MidFood testers" so far (18 Oct): g8vipexclusive@gmail.com,
   aluwer02@gmail.com, japhtalekgotho21@gmail.com, g8mahlangu@gmail.com.
+  **25 Oct:** invite email (opt-in + Play links) sent from g8vipexclusive to
+  10 testers by BCC: aluwer02, endyceo, g8mahlangu, jahmielyusufu8,
+  japhtalekgotho21, kagisomethula7, mahlanguthembi135, petra19am,
+  summeryphashah, tumelophasha90 (all @gmail.com). With g8vipexclusive that
+  is 11 — one short of 12. No replies by 10 Nov. Check in Play Console that
+  the 6 new ones are on the "MidFood testers" list.
   Opt-in link (works once the review is approved):
   https://play.google.com/apps/testing/za.co.midfood.app
   The bundle reaches Play Console through `.github/workflows/stage-play-bundle.yml`
